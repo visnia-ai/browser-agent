@@ -1,7 +1,7 @@
 import yaml from "js-yaml";
 import { logActionBoundary } from "../agents/executor-utils/action-boundary-logging.js";
 import { normalizeActionListWithDiagnostics } from "../agents/executor-utils/action-normalization.js";
-import { formatStepForPrompt } from "../agents/executor-utils/step-execution.js";
+import { serializeModelOutputForHistory } from "../agents/executor-utils/step-execution.js";
 import type { PreviousStepStatus, StepResult } from "../agents/types.js";
 import { featureFlags } from "../featureFlags.js";
 
@@ -102,15 +102,11 @@ function normalizeModelStep(raw: unknown): NormalizedModelStep {
 	};
 }
 
-function toAssistantStep(step: StepResult): Record<string, unknown> {
-	return formatStepForPrompt(step);
-}
-
 export type ProcessedModelStepOutput =
 	| {
 			actionContractStatus: "accepted";
 			step: StepResult;
-			assistant: Record<string, unknown>;
+			assistant: string;
 			normalizationDiagnostics: [];
 	  }
 	| {
@@ -153,6 +149,6 @@ export function processModelStepOutput(
 	}
 	return {
 		...normalized,
-		assistant: toAssistantStep(normalized.step),
+		assistant: serializeModelOutputForHistory(rawStepOutput),
 	};
 }

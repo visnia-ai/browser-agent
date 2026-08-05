@@ -13,6 +13,7 @@ import {
 	switchTab,
 	waitForAllOpenTabsToSettle,
 	dispatchRemoteInput,
+	downloadFileFromUrl,
 } from "../browser/browser.js";
 import { getSemanticProjection } from "../browser/semantic-projection.js";
 import { extractDataResultsFromSnapshot } from "../agents/data-extraction.js";
@@ -112,6 +113,7 @@ export function createDefaultCoreDeps(
 			),
 		closeBrowser: close,
 		navigateBrowser: navigate,
+		downloadFileFromUrl,
 		getCurrentURL: getURL,
 		getPageProjection: (browser, projectionOptions) =>
 			getSemanticProjection(browser, {

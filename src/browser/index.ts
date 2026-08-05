@@ -11,6 +11,7 @@ export {
 	navigate,
 	isSupportedInBrowserNavigateUrl,
 	downloadCurrentFile,
+	downloadFileFromUrl,
 	consumePrintRequestsAndSavePdfs,
 	installPrintInterception,
 	getHTML,

@@ -67,6 +67,7 @@ export function createMockCoreDeps(
 		navigateBrowser: async (_browser, url) => {
 			currentURL = url;
 		},
+		downloadFileFromUrl: async () => "/tmp/download.pdf",
 		getCurrentURL: async () => currentURL,
 		getPageProjection: async () =>
 			'projection semantic-v1 refs=2\ndocument ref="r1" name="Example"\n  button ref="r2" name="Continue"',

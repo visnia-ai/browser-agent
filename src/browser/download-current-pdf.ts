@@ -590,20 +590,42 @@ export async function downloadCurrentFile(browser: Browser): Promise<string> {
 		);
 	}
 
+	return await downloadFileFromUrl(browser, fileView.fileUrl, {
+		title: fileView.title,
+		contentType: fileView.contentType,
+	});
+}
+
+export async function downloadFileFromUrl(
+	browser: Browser,
+	fileUrl: string,
+	options: {
+		title?: string;
+		contentType?: string;
+	} = {},
+): Promise<string> {
+	if (!browser.downloadDir) {
+		throw new Error("Browser session has no download directory configured");
+	}
+	if (!isSupportedDownloadUrl(fileUrl)) {
+		throw new Error(`Unsupported file URL: ${fileUrl}`);
+	}
+
+	const title = options.title?.trim() || "download";
+	const contentType = options.contentType?.trim() || "application/pdf";
 	const downloaded =
-		fileView.fileUrl.startsWith("blob:") ||
-		fileView.fileUrl.startsWith("data:")
+		fileUrl.startsWith("blob:") || fileUrl.startsWith("data:")
 			? await downloadFileViaPageFetch({
 					browser,
-					fileUrl: fileView.fileUrl,
-					title: fileView.title,
-					contentType: fileView.contentType,
+					fileUrl,
+					title,
+					contentType,
 				})
 			: await downloadFileViaFetch({
 					browser,
-					fileUrl: fileView.fileUrl,
-					title: fileView.title,
-					contentType: fileView.contentType,
+					fileUrl,
+					title,
+					contentType,
 				});
 
 	fs.mkdirSync(browser.downloadDir, { recursive: true });
@@ -611,9 +633,9 @@ export async function downloadCurrentFile(browser: Browser): Promise<string> {
 		browser.downloadDir,
 		downloaded.fileName ||
 			deriveFileName({
-				fileUrl: downloaded.sourceUrl || fileView.fileUrl,
-				contentType: downloaded.contentType || fileView.contentType,
-				title: fileView.title,
+				fileUrl: downloaded.sourceUrl || fileUrl,
+				contentType: downloaded.contentType || contentType,
+				title,
 			}),
 	);
 	fs.writeFileSync(destinationPath, downloaded.buffer);

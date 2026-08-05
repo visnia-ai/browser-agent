@@ -21,10 +21,10 @@ import type {
 import { getDefaultBrowserAgentArtifactDirectories } from "../browser/constants.js";
 import { createSessionAuthTakeoverState } from "../auth/crypto.js";
 import {
-	formatStepForPrompt,
 	logStepActionContext,
 	logStepModelResponse,
 	saveStepContextIfNeeded,
+	serializeModelOutputForHistory,
 	serializeMessagesForDisk,
 } from "../agents/executor-utils/step-execution.js";
 import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
@@ -1014,6 +1014,7 @@ export async function runAgent(
 						data: rawStep,
 						usage,
 						reasoning_tokens,
+						raw_response,
 						providerContinuation: candidateProviderContinuation,
 					} = generatedStep;
 					usages.push(usage);
@@ -1039,7 +1040,12 @@ export async function runAgent(
 					}
 					modelOutputErrors = undefined;
 					const parsedRawStep = processedRawStep.step;
-					const accountedStepUsage = combineStepAttemptUsage(stepAttemptUsages);
+					const rawAssistantContent =
+						typeof raw_response === "string" && raw_response.length > 0
+							? raw_response
+							: serializeModelOutputForHistory(rawStep);
+					const accountedStepUsage =
+						combineStepAttemptUsage(stepAttemptUsages);
 					logStepActionContext(parsedRawStep);
 					const maxStepHasOnlyReturnResults =
 						parsedRawStep.actions.length === 1 &&
@@ -1053,7 +1059,7 @@ export async function runAgent(
 								...(promptResult.prompt.messages as Message[]),
 								{
 									role: "assistant",
-									content: yaml.dump(formatStepForPrompt(parsedRawStep)),
+									content: rawAssistantContent,
 									reasoning_tokens,
 								},
 							]),
@@ -1125,6 +1131,7 @@ export async function runAgent(
 									await processModelOutputAndBrowse(deps, input.session.port, {
 										mode: "process_model_step_output",
 										rawStepOutput: rawStep,
+										rawAssistantOutputText: rawAssistantContent,
 										executorProvider: input.stageLLMs.runAgent.provider,
 										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
 										reasoningTokens: reasoning_tokens,
@@ -1155,7 +1162,7 @@ export async function runAgent(
 							...(promptResult.prompt.messages as Message[]),
 							{
 								role: "assistant",
-								content: yaml.dump(formatStepForPrompt(processResult.step)),
+								content: rawAssistantContent,
 								reasoning_tokens,
 							},
 						]),

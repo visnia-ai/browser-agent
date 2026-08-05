@@ -54,6 +54,16 @@ export interface StepPartTimingEntry {
 	durationMs: number;
 }
 
+const MAX_EVALUATE_OBSERVATION_CHARACTERS = 4_000;
+
+function formatEvaluateObservation(result: string): string {
+	const truncated = result.length > MAX_EVALUATE_OBSERVATION_CHARACTERS;
+	const visibleResult = truncated
+		? result.slice(0, MAX_EVALUATE_OBSERVATION_CHARACTERS)
+		: result;
+	return `evaluate result (${result.length} chars${truncated ? ", truncated" : ""}): ${JSON.stringify(visibleResult)}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -513,6 +523,9 @@ export async function executeActions(params: {
 					}
 					console.log(
 						`       [evaluate] result="${evaluateResult.slice(0, 150)}${evaluateResult.length > 150 ? "..." : ""}"`,
+					);
+					toolObservations.push(
+						formatEvaluateObservation(evaluateResult),
 					);
 					break;
 				case "dropdown_select":

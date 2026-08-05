@@ -691,6 +691,13 @@ describe("runTrainingRollout", () => {
 		let generationCalls = 0;
 		const modelOutputErrorsByAttempt: unknown[] = [];
 		const replayedReasoningByAttempt: string[][] = [];
+		const assistantMessagesByAttempt: string[][] = [];
+		const acceptedRawAssistant = [
+			"thinking: Keep this exact accepted response.",
+			"tools:",
+			"  - read_file: ./notes.txt",
+			"done: false",
+		].join("\n");
 		const dispositions: Array<{
 			attempt: number;
 			disposition: "accepted" | "rejected";
@@ -718,8 +725,17 @@ describe("runTrainingRollout", () => {
 			onStepGenerated: ({ attempt, disposition }) => {
 				dispositions.push({ attempt, disposition });
 			},
-			generateStep: async ({ promptPayload, providerContinuation }) => {
+			generateStep: async ({
+				messages,
+				promptPayload,
+				providerContinuation,
+			}) => {
 				generationCalls += 1;
+				assistantMessagesByAttempt.push(
+					messages
+						.filter((message) => message.role === "assistant")
+						.map((message) => String(message.content)),
+				);
 				modelOutputErrorsByAttempt.push(promptPayload.modelOutputErrors);
 				const replayState =
 					providerContinuation?.strategy === "current"
@@ -774,7 +790,11 @@ describe("runTrainingRollout", () => {
 				if (generationCalls === 2) {
 					return {
 						...common,
-						data: { tools: [{ click: "r1" }] } as any,
+						data: {
+							thinking: "Keep this exact accepted response.",
+							tools: [{ read_file: "./notes.txt" }],
+							done: false,
+						} as any,
 						providerContinuation: {
 							provider: "openai" as const,
 							strategy: "current" as const,
@@ -790,7 +810,7 @@ describe("runTrainingRollout", () => {
 								},
 							],
 						},
-						rawModelOutputText: "accepted repair",
+						rawModelOutputText: acceptedRawAssistant,
 					};
 				}
 				return {
@@ -818,12 +838,36 @@ describe("runTrainingRollout", () => {
 			[],
 			["accepted-reasoning"],
 		]);
-		assert.deepEqual(executedActionTypes, [["click"], ["return_results"]]);
+		assert.deepEqual(executedActionTypes, [
+			["read_file"],
+			["return_results"],
+		]);
+		assert.deepEqual(assistantMessagesByAttempt.slice(0, 2), [[], []]);
+		assert.lengthOf(assistantMessagesByAttempt[2], 1);
+		assert.include(
+			assistantMessagesByAttempt[2][0],
+			"thinking: Keep this exact accepted response.",
+		);
+		assert.include(
+			assistantMessagesByAttempt[2][0],
+			"read_file: ./notes.txt",
+		);
+		assert.include(assistantMessagesByAttempt[2][0], "done: false");
+		assert.notInclude(assistantMessagesByAttempt[2][0], "missing ref");
 		assert.deepEqual(
 			result.steps.map((entry) => entry.rawModelOutputText),
-			["accepted repair", "final"],
+			[acceptedRawAssistant, "final"],
 		);
 		assert.lengthOf(result.run.mainLoopEntries, 2);
+		const persistedAcceptedAssistant = String(
+			result.run.mainLoopEntries[0]?.messages.at(-1)?.content,
+		);
+		assert.include(
+			persistedAcceptedAssistant,
+			"thinking: Keep this exact accepted response.",
+		);
+		assert.include(persistedAcceptedAssistant, "read_file: ./notes.txt");
+		assert.notInclude(persistedAcceptedAssistant, "type: read_file");
 		assert.deepInclude(result.run.stepTokenUsage[0], {
 			input_tokens: 20,
 			output_tokens: 2,

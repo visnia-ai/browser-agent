@@ -3,6 +3,7 @@ import { describe, it } from "mocha";
 import type { Browser } from "../src/browser/types.js";
 import {
 	navigate,
+	NAVIGATE_LOAD_EVENT_TIMEOUT_MS,
 	isSupportedInBrowserNavigateUrl,
 	shouldAwaitPageLoadAfterNavigate,
 } from "../src/browser/browser.js";
@@ -42,6 +43,10 @@ describe("shouldAwaitPageLoadAfterNavigate", () => {
 });
 
 describe("navigate", () => {
+	it("allows up to 30 seconds for a normal page load event", () => {
+		assert.equal(NAVIGATE_LOAD_EVENT_TIMEOUT_MS, 30_000);
+	});
+
 	it("does not wait for a page load event on mailto urls", async () => {
 		let loadEventWaited = false;
 		const browser = {
