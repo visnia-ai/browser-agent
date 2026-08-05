@@ -3,8 +3,6 @@
 import "dotenv/config";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { main } from "./index.js";
-import { runRpcStdio } from "./rpc.js";
 import { resolveConfigFromEnv } from "./runtime/llm-env.js";
 import { loadConfig, parseArgs } from "./utils.js";
 import { BROWSER_AGENT_VERSION, RPC_PROTOCOL_VERSION } from "./version.js";
@@ -70,10 +68,12 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
 		resolveConfigFromEnv(loadConfig(configPath));
 
 	if (!args.rpc) {
+		const { main } = await import("./index.js");
 		await main(argv, loadResolvedConfig);
 		return;
 	}
 
+	const { runRpcStdio } = await import("./rpc.js");
 	const succeeded = await runRpcStdio({
 		argv,
 		configPath: args.config,
