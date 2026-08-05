@@ -1,6 +1,6 @@
 {
-	"name": "browser-agent-sdk",
-	"version": "1.0.10",
+	"name": "@visnia/browser-agent-sdk",
+	"version": "1.0.11",
 	"description": "TypeScript SDK for Browser Agent",
 	"keywords": [
 		"ai",
@@ -10,7 +10,7 @@
 		"llm"
 	],
 	"license": "MIT",
-	"repository": "https://github.com/browser-agent/browser-agent",
+	"repository": "https://github.com/visnia-ai/browser-agent",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",

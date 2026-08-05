@@ -44,7 +44,7 @@ try {
 	]);
 	const require = createRequire(path.join(directory, "package.json"));
 	const packageManifestPath =
-		require.resolve("browser-agent-sdk/package.json");
+		require.resolve("@visnia/browser-agent-sdk/package.json");
 	const packageRoot = path.dirname(packageManifestPath);
 	const packageManifest = JSON.parse(
 		fs.readFileSync(packageManifestPath, "utf8"),

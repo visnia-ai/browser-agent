@@ -31,7 +31,7 @@ A powerful & efficient browser agent that automates any task on the web.
 Install the CLI globally with npm. This does not require cloning the repository; the installer downloads and verifies the matching binary for your platform.
 
 ```sh
-npm install -g browser-agent-sdk
+npm install -g @visnia/browser-agent-sdk
 ```
 
 
@@ -101,11 +101,11 @@ Set the selected provider's API-key environment variable, such as `OPENAI_API_KE
 Requires Node.js 20 or newer.
 
 ```sh
-npm install browser-agent-sdk
+npm install @visnia/browser-agent-sdk
 ```
 
 ```ts
-import { BrowserAgent } from "browser-agent-sdk";
+import { BrowserAgent } from "@visnia/browser-agent-sdk";
 
 const agent = new BrowserAgent({
 	provider: "openai",

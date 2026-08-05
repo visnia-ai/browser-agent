@@ -565,11 +565,11 @@ jobs:
                   import path from "node:path";
                   import { createRequire } from "node:module";
 
-                  const sdk = await import("browser-agent-sdk");
+                  const sdk = await import("@visnia/browser-agent-sdk");
                   assert.equal(typeof sdk.BrowserAgent, "function");
                   const require = createRequire(import.meta.url);
                   const packageRoot = path.dirname(
-                    require.resolve("browser-agent-sdk/package.json"),
+                    require.resolve("@visnia/browser-agent-sdk/package.json"),
                   );
                   const executable = path.join(
                     packageRoot,
@@ -624,7 +624,7 @@ jobs:
                   PY
 
     publish-npm:
-        name: Publish browser-agent-sdk
+        name: Publish @visnia/browser-agent-sdk
         if: github.ref == 'refs/heads/main'
         needs:
             - release-ready
@@ -659,12 +659,12 @@ jobs:
               run: |
                   set -euo pipefail
                   set +e
-                  output="$(npm view "browser-agent-sdk@$VERSION" version 2>&1)"
+                  output="$(npm view "@visnia/browser-agent-sdk@$VERSION" version 2>&1)"
                   status="$?"
                   set -e
                   if [[ "$status" == "0" ]]; then
                     echo "publish=false" >> "$GITHUB_OUTPUT"
-                    echo "browser-agent-sdk@$VERSION already exists; skipping."
+                    echo "@visnia/browser-agent-sdk@$VERSION already exists; skipping."
                   elif grep -q "E404" <<<"$output"; then
                     echo "publish=true" >> "$GITHUB_OUTPUT"
                   else

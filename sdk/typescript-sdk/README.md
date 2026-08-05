@@ -8,11 +8,11 @@ Requires Node.js 20 or newer, Chrome or a compatible Chromium installation,
 and a provider API key unless using `vllm`.
 
 ```sh
-npm install browser-agent-sdk
+npm install @visnia/browser-agent-sdk
 ```
 
 ```ts
-import { BrowserAgent, type BrowserAgentTask } from "browser-agent-sdk";
+import { BrowserAgent, type BrowserAgentTask } from "@visnia/browser-agent-sdk";
 
 const agent = new BrowserAgent({
 	provider: "openai",

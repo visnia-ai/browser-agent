@@ -244,7 +244,7 @@ class ExecutableTests(unittest.IsolatedAsyncioTestCase):
                         "version": "1.2.3",
                         "platforms": {
                             "linux-x64": {
-                                "url": "https://github.com/browser-agent/browser-agent/releases/download/test/browser-agent-linux-x64",
+                                "url": "https://github.com/visnia-ai/browser-agent/releases/download/test/browser-agent-linux-x64",
                                 "sha256": checksum,
                             }
                         },
@@ -279,7 +279,7 @@ class ExecutableTests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
             manifest = root / "cli-manifest.json"
             target = {
-                "url": "https://github.com/browser-agent/browser-agent/releases/download/test/browser-agent-linux-x64",
+                "url": "https://github.com/visnia-ai/browser-agent/releases/download/test/browser-agent-linux-x64",
                 "sha256": "0" * 64,
             }
             manifest.write_text(

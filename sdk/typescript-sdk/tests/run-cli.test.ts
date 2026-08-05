@@ -49,6 +49,6 @@ test("reports how to recover when the executable is missing", async () => {
 		stderr: { write: (value: string) => (message += value) },
 	});
 	assert.deepEqual(result, { code: 1, signal: null });
-	assert.match(message, /npm install -g browser-agent-sdk/);
+	assert.match(message, /npm install -g @visnia\/browser-agent-sdk/);
 	assert.match(message, /lifecycle scripts/);
 });

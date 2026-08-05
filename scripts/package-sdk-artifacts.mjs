@@ -49,7 +49,7 @@ const pythonProject = fs.readFileSync(
 	"utf8",
 );
 const pythonVersion = pythonProject.match(/^version = "([^"]+)"$/m)?.[1];
-assert.equal(typescriptPackage.name, "browser-agent-sdk");
+assert.equal(typescriptPackage.name, "@visnia/browser-agent-sdk");
 assert.equal(typescriptPackage.version, rootPackage.version);
 assert.equal(pythonVersion, rootPackage.version);
 
@@ -63,7 +63,7 @@ for (const target of SDK_PLATFORMS) {
 	fs.chmodSync(executable, 0o755);
 	platforms[target.key] = {
 		asset: target.asset,
-		url: `https://github.com/browser-agent/browser-agent/releases/download/browser-agent-cli-v${rootPackage.version}/${target.asset}`,
+		url: `https://github.com/visnia-ai/browser-agent/releases/download/browser-agent-cli-v${rootPackage.version}/${target.asset}`,
 		sha256: createHash("sha256")
 			.update(fs.readFileSync(executable))
 			.digest("hex"),
@@ -71,7 +71,7 @@ for (const target of SDK_PLATFORMS) {
 }
 const cliManifest = {
 	version: rootPackage.version,
-	repository: "browser-agent/browser-agent",
+	repository: "visnia-ai/browser-agent",
 	platforms,
 };
 const manifestPath = path.join(

@@ -44,7 +44,7 @@ export async function main({
 		return await run(executable, args);
 	} catch (error) {
 		stderr.write(
-			`Unable to launch the Browser Agent CLI. Reinstall it with "npm install -g browser-agent-sdk" and ensure npm lifecycle scripts are enabled. ${
+			`Unable to launch the Browser Agent CLI. Reinstall it with "npm install -g @visnia/browser-agent-sdk" and ensure npm lifecycle scripts are enabled. ${
 				error instanceof Error ? error.message : String(error)
 			}\n`,
 		);

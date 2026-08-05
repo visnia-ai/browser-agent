@@ -48,7 +48,7 @@ export async function resolveExecutable(
 			throw new BrowserAgentError(
 				"CLI_NOT_FOUND",
 				SUPPORTED_PLATFORMS.has(key)
-					? "The Browser Agent CLI was not installed. Reinstall 'browser-agent-sdk' with npm lifecycle scripts enabled."
+					? "The Browser Agent CLI was not installed. Reinstall '@visnia/browser-agent-sdk' with npm lifecycle scripts enabled."
 					: `Browser Agent does not provide an executable for ${key}.`,
 			);
 		}

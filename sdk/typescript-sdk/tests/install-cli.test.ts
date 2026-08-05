@@ -10,17 +10,17 @@ import { installCli, platformKey } from "../scripts/install-cli.mjs";
 function fixture(root: string, sha256: string) {
 	fs.writeFileSync(
 		path.join(root, "package.json"),
-		JSON.stringify({ name: "browser-agent-sdk", version: "1.2.3" }),
+		JSON.stringify({ name: "@visnia/browser-agent-sdk", version: "1.2.3" }),
 	);
 	fs.writeFileSync(
 		path.join(root, "cli-manifest.json"),
 		JSON.stringify({
 			version: "1.2.3",
-			repository: "browser-agent/browser-agent",
+			repository: "visnia-ai/browser-agent",
 			platforms: {
 				"linux-x64": {
 					asset: "browser-agent-linux-x64",
-					url: "https://github.com/browser-agent/browser-agent/releases/download/browser-agent-cli-v1.2.3/browser-agent-linux-x64",
+					url: "https://github.com/visnia-ai/browser-agent/releases/download/browser-agent-cli-v1.2.3/browser-agent-linux-x64",
 					sha256,
 				},
 			},
@@ -138,7 +138,7 @@ test("rejects a CLI manifest for another npm package version", async () => {
 	fixture(root, "0".repeat(64));
 	fs.writeFileSync(
 		path.join(root, "package.json"),
-		JSON.stringify({ name: "browser-agent-sdk", version: "9.9.9" }),
+		JSON.stringify({ name: "@visnia/browser-agent-sdk", version: "9.9.9" }),
 	);
 	try {
 		await assert.rejects(
