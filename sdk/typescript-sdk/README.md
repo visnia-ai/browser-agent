@@ -1,6 +1,6 @@
 # Browser Agent TypeScript SDK
 
-TypeScript SDK for the Browser Agent CLI.
+A powerful & efficient browser agent that automates any task on the web.
 
 ## Getting started
 

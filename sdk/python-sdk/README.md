@@ -1,6 +1,6 @@
 # Browser Agent Python SDK
 
-Python SDK for the Browser Agent CLI.
+A powerful & efficient browser agent that automates any task on the web.
 
 ## Getting started
 
