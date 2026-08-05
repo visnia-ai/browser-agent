@@ -137,6 +137,12 @@ class OptionTests(unittest.TestCase):
             for effort in ("xhigh", "max"):
                 self.assertEqual(reasoning("openai", model, effort), effort)
         self.assertEqual(reasoning("together", "zai-org/GLM-5.2", None), "high")
+        self.assertEqual(
+            reasoning(
+                "together", "deepseek-ai/DeepSeek-V4-Flash-0731", "low"
+            ),
+            "low",
+        )
         self.assertEqual(reasoning("vllm", "my-QWEN", None), "enabled")
         self.assertEqual(
             reasoning("vllm", "nvidia/GLM-5.2-NVFP4", None), "high"
@@ -149,9 +155,9 @@ class OptionTests(unittest.TestCase):
         )
         self.assertEqual(
             reasoning(
-                "vllm", "deepseek-ai/DeepSeek-V4-Flash-0731", "max"
+                "vllm", "deepseek-ai/DeepSeek-V4-Flash-0731", "low"
             ),
-            "max",
+            "low",
         )
         self.assertEqual(reasoning("anthropic", "custom", "none"), "none")
         self.assertEqual(reasoning("openrouter", "vendor/model", "xhigh"), "xhigh")

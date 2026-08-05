@@ -451,6 +451,47 @@ tasks:
 		});
 	});
 
+	it("accepts low reasoning for DeepSeek V4 Flash on vLLM", () => {
+		const configPath = writeTempConfig(
+			`
+provider: vllm
+model: deepseek-ai/DeepSeek-V4-Flash-0731
+reasoning_effort: low
+endpoint_url: http://38.147.81.21:8000/v1
+concurrency: 1
+tasks:
+  - "test task"
+`,
+			false,
+		);
+
+		const config = loadConfig(configPath);
+
+		assert.equal(config.stageLLMs.runAgent.reasoningEffort, "low");
+	});
+
+	it("accepts DeepSeek V4 Flash on Together", () => {
+		const configPath = writeTempConfig(
+			`
+provider: together
+model: deepseek-ai/DeepSeek-V4-Flash-0731
+reasoning_effort: low
+concurrency: 1
+tasks:
+  - "test task"
+`,
+			false,
+		);
+
+		const config = loadConfig(configPath);
+
+		assert.deepInclude(config.stageLLMs.runAgent, {
+			provider: "together",
+			model: "deepseek-ai/DeepSeek-V4-Flash-0731",
+			reasoningEffort: "low",
+		});
+	});
+
 	it("accepts arbitrary OpenRouter models with explicit reasoning", () => {
 		const configPath = writeTempConfig(
 			`

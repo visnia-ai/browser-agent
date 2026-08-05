@@ -89,30 +89,37 @@ describe("reasoning model capabilities", () => {
 		}
 	});
 
-	it("supports DeepSeek V4 Flash high and max reasoning", () => {
+	it("supports DeepSeek V4 Flash reasoning on Together and vLLM", () => {
 		const model = "deepseek-ai/DeepSeek-V4-Flash-0731";
-		const capability = getReasoningModelCapability("vllm", model);
+		for (const provider of ["together", "vllm"] as const) {
+			const capability = getReasoningModelCapability(provider, model);
 
-		assert.equal(capability?.defaultReasoningEffort, "high");
-		assert.deepEqual(capability?.reasoningEfforts, ["none", "high", "max"]);
-		for (const reasoningEffort of ["high", "max"] as const) {
-			assert.doesNotThrow(() =>
-				validateReasoningConfiguration({
-					provider: "vllm",
-					model,
-					reasoningEffort,
-				}),
+			assert.equal(capability?.defaultReasoningEffort, "high");
+			assert.deepEqual(capability?.reasoningEfforts, [
+				"none",
+				"low",
+				"high",
+				"max",
+			]);
+			for (const reasoningEffort of ["low", "high", "max"] as const) {
+				assert.doesNotThrow(() =>
+					validateReasoningConfiguration({
+						provider,
+						model,
+						reasoningEffort,
+					}),
+				);
+			}
+			assert.throws(
+				() =>
+					validateReasoningConfiguration({
+						provider,
+						model,
+						reasoningEffort: "enabled",
+					}),
+				"Allowed values: none, low, high, max",
 			);
 		}
-		assert.throws(
-			() =>
-				validateReasoningConfiguration({
-					provider: "vllm",
-					model,
-					reasoningEffort: "enabled",
-				}),
-			"Allowed values: none, high, max",
-		);
 	});
 
 	it("rejects unknown models for validated providers", () => {

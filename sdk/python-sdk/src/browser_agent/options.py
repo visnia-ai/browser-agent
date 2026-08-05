@@ -37,11 +37,15 @@ CAPABILITIES = [
         ("none", "minimal", "low", "medium", "high", "xhigh", "max"), "low",
     ) for model in GPT_5_6),
     ("together", "zai-org/GLM-5.2", False, ("none", "high", "max"), "high"),
+    (
+        "together", "deepseek-ai/DeepSeek-V4-Flash-0731", False,
+        ("none", "low", "high", "max"), "high",
+    ),
     ("vllm", "qwen", True, ("none", "enabled"), "enabled"),
     ("vllm", "glm", True, ("none", "high", "max"), "high"),
     (
         "vllm", "deepseek-ai/DeepSeek-V4-Flash-0731", False,
-        ("none", "high", "max"), "high",
+        ("none", "low", "high", "max"), "high",
     ),
 ]
 @dataclass(frozen=True, slots=True)

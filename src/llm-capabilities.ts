@@ -29,6 +29,12 @@ const GPT_5_6_REASONING_EFFORTS = [
 	"max",
 ] as const;
 const TOGETHER_GLM_REASONING_EFFORTS = ["none", "high", "max"] as const;
+const DEEPSEEK_REASONING_EFFORTS = [
+	"none",
+	"low",
+	"high",
+	"max",
+] as const;
 const TOGGLE_REASONING_EFFORTS = ["none", "enabled"] as const;
 const DISABLED_REASONING_EFFORTS = ["none"] as const;
 export const OPENROUTER_REASONING_EFFORTS = [
@@ -71,6 +77,13 @@ export const REASONING_MODEL_CAPABILITIES = [
 		defaultReasoningEffort: "high",
 	},
 	{
+		provider: "together",
+		model: "deepseek-ai/DeepSeek-V4-Flash-0731",
+		match: "exact",
+		reasoningEfforts: DEEPSEEK_REASONING_EFFORTS,
+		defaultReasoningEffort: "high",
+	},
+	{
 		provider: "vllm",
 		model: "qwen",
 		match: "contains",
@@ -88,7 +101,7 @@ export const REASONING_MODEL_CAPABILITIES = [
 		provider: "vllm",
 		model: "deepseek-ai/DeepSeek-V4-Flash-0731",
 		match: "exact",
-		reasoningEfforts: TOGETHER_GLM_REASONING_EFFORTS,
+		reasoningEfforts: DEEPSEEK_REASONING_EFFORTS,
 		defaultReasoningEffort: "high",
 	},
 ] as const satisfies readonly ReasoningModelCapabilityDefinition[];

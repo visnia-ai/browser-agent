@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import { describe, it } from "mocha";
+import { featureFlags } from "../src/featureFlags.js";
 import {
 	__buildOpenRouterModelSettingsForTests,
 	__buildOpenAIContinuationOutputForTests,
@@ -305,6 +306,19 @@ describe("provider options", () => {
 		});
 	});
 
+	it("sets Together DeepSeek V4 low reasoning effort exactly", () => {
+		const enabled = __buildProviderOptionsForTests({
+			model: "deepseek-ai/DeepSeek-V4-Flash-0731",
+			provider: "together",
+			reasoningEffort: "low",
+		});
+
+		assert.deepEqual(enabled.together, {
+			include_usage: true,
+			reasoningEffort: "low",
+		});
+	});
+
 	it("passes OpenRouter reasoning effort exactly", () => {
 		const options = __buildProviderOptionsForTests({
 			model: "anthropic/claude-sonnet-4",
@@ -351,6 +365,8 @@ describe("provider options", () => {
 
 		assert.equal(disabled.vllm?.chat_template_kwargs.enable_thinking, false);
 		assert.equal(enabled.vllm?.chat_template_kwargs.enable_thinking, true);
+		assert.notProperty(disabled.vllm, "thinking_token_budget");
+		assert.equal(enabled.vllm?.thinking_token_budget, 8192);
 	});
 
 	it("disables reasoning for vLLM GLM", () => {
@@ -376,6 +392,7 @@ describe("provider options", () => {
 				reasoningEffort,
 			});
 			assert.deepEqual(options.vllm, {
+				thinking_token_budget: 8192,
 				chat_template_kwargs: {
 					enable_thinking: true,
 					reasoning_effort: reasoningEffort,
@@ -385,13 +402,14 @@ describe("provider options", () => {
 	});
 
 	it("sets vLLM DeepSeek V4 reasoning effort in chat template arguments", () => {
-		for (const reasoningEffort of ["high", "max"] as const) {
+		for (const reasoningEffort of ["low", "high", "max"] as const) {
 			const options = __buildProviderOptionsForTests({
 				model: "deepseek-ai/DeepSeek-V4-Flash-0731",
 				provider: "vllm",
 				reasoningEffort,
 			});
 			assert.deepEqual(options.vllm, {
+				thinking_token_budget: 8192,
 				chat_template_kwargs: {
 					thinking: true,
 					reasoning_effort: reasoningEffort,
@@ -411,6 +429,22 @@ describe("provider options", () => {
 				thinking: false,
 			},
 		});
+	});
+
+	it("uses the configured vLLM thinking token budget", () => {
+		const originalBudget = featureFlags.maxThinkingTokenBudget;
+		try {
+			featureFlags.maxThinkingTokenBudget = 4096;
+			const options = __buildProviderOptionsForTests({
+				model: "deepseek-ai/DeepSeek-V4-Flash-0731",
+				provider: "vllm",
+				reasoningEffort: "high",
+			});
+
+			assert.equal(options.vllm?.thinking_token_budget, 4096);
+		} finally {
+			featureFlags.maxThinkingTokenBudget = originalBudget;
+		}
 	});
 });
 

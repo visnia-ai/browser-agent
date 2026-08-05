@@ -23,6 +23,7 @@ import {
 import { estimateTokenCount } from "../prompt-token-estimator.js";
 import { assertPromptFits } from "../../core/prompt-budget.js";
 import { logActionBoundary } from "../executor-utils/action-boundary-logging.js";
+import { featureFlags } from "../../featureFlags.js";
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 500;
@@ -801,6 +802,7 @@ export async function chatYAML<T>(
 									openAIInputMessages,
 									abortSignal: abortController.signal,
 									onOutputChunk,
+									outputStopSequences: featureFlags.yamlOutputStopSequences,
 									onLifecycleEvent: (event) => {
 										const elapsedMs = Date.now() - attemptStartedAt;
 										if (event.type === "first_delta") {
@@ -829,6 +831,17 @@ export async function chatYAML<T>(
 												model,
 												attempt,
 												elapsed_ms: elapsedMs,
+											});
+											return;
+										}
+										if (event.type === "output_stop_sequence") {
+											logChatYAMLEvent("output_stop_sequence", {
+												caller: resolvedCaller,
+												provider,
+												model,
+												attempt,
+												elapsed_ms: elapsedMs,
+												sequence: event.sequence,
 											});
 											return;
 										}

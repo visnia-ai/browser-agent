@@ -2,8 +2,12 @@ import {
 	generateText,
 	LanguageModelUsage,
 	type ModelMessage,
+	type ProviderMetadata,
 	ReasoningOutput,
 	streamText,
+	type StreamTextTransform,
+	type TextStreamPart,
+	type ToolSet,
 } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -23,6 +27,7 @@ import {
 	validateReasoningConfiguration,
 } from "../reasoning-capabilities.js";
 import { logActionBoundary } from "../executor-utils/action-boundary-logging.js";
+import { featureFlags } from "../../featureFlags.js";
 
 const TOGETHER_DEFAULT_BASE_URL = "https://api.together.xyz/v1";
 const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
@@ -84,6 +89,8 @@ export interface ProviderChatArgs {
 	openAIInputMessages?: ModelMessage[];
 	abortSignal?: AbortSignal;
 	onOutputChunk?: (chunk: string) => void;
+	/** Final-text-only stop sequences. Reasoning deltas are never searched. */
+	outputStopSequences?: readonly string[];
 	onLifecycleEvent?: (event: ProviderChatLifecycleEvent) => void;
 }
 
@@ -100,6 +107,7 @@ export type ProviderChatLifecycleEvent =
 			deltaType: "text" | "reasoning";
 	  }
 	| { type: "first_text_delta" }
+	| { type: "output_stop_sequence"; sequence: string }
 	| {
 			type: "text_stream_complete";
 			chunkCount: number;
@@ -321,6 +329,158 @@ function normalizeReasoningToString(reasoning: ReasoningOutput[]): string {
 		.trim();
 }
 
+async function collectStreamedText(
+	textStream: AsyncIterable<string>,
+	onOutputChunk?: (chunk: string) => void,
+): Promise<string[]> {
+	const chunks: string[] = [];
+	for await (const chunk of textStream) {
+		chunks.push(chunk);
+		onOutputChunk?.(chunk);
+	}
+	return chunks;
+}
+
+const ZERO_LANGUAGE_MODEL_USAGE: LanguageModelUsage = {
+	inputTokens: 0,
+	inputTokenDetails: {
+		noCacheTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+	},
+	outputTokens: 0,
+	outputTokenDetails: {
+		textTokens: 0,
+		reasoningTokens: 0,
+	},
+	totalTokens: 0,
+};
+
+function createFinalOutputStopTransform<TOOLS extends ToolSet>(params: {
+	stopSequences: readonly string[];
+	onStop?: (sequence: string) => void;
+}): StreamTextTransform<TOOLS> {
+	const stopSequences = params.stopSequences.filter(
+		(sequence) => sequence.length > 0,
+	);
+	const maxStopSequenceLength = Math.max(
+		0,
+		...stopSequences.map((sequence) => sequence.length),
+	);
+
+	return ({ stopStream }) => {
+		let pendingText = "";
+		let pendingTextId: string | undefined;
+		let pendingProviderMetadata: ProviderMetadata | undefined;
+		let stopped = false;
+
+		const enqueuePending = (
+			controller: TransformStreamDefaultController<TextStreamPart<TOOLS>>,
+			text: string,
+		) => {
+			if (!text || pendingTextId === undefined) {
+				return;
+			}
+			controller.enqueue({
+				type: "text-delta",
+				id: pendingTextId,
+				text,
+				...(pendingProviderMetadata
+					? { providerMetadata: pendingProviderMetadata }
+					: {}),
+			} as TextStreamPart<TOOLS>);
+		};
+
+		return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
+			transform(chunk, controller) {
+				if (stopped) {
+					return;
+				}
+				if (chunk.type !== "text-delta" || stopSequences.length === 0) {
+					if (
+						pendingText &&
+						(chunk.type === "text-end" ||
+							chunk.type === "finish-step" ||
+							chunk.type === "finish" ||
+							chunk.type === "abort" ||
+							chunk.type === "error")
+					) {
+						enqueuePending(controller, pendingText);
+						pendingText = "";
+					}
+					controller.enqueue(chunk);
+					return;
+				}
+
+				pendingTextId = chunk.id;
+				pendingProviderMetadata = chunk.providerMetadata;
+				pendingText += chunk.text;
+
+				let firstMatch: { index: number; sequence: string } | undefined;
+				for (const sequence of stopSequences) {
+					const index = pendingText.indexOf(sequence);
+					if (
+						index >= 0 &&
+						(firstMatch === undefined || index < firstMatch.index)
+					) {
+						firstMatch = { index, sequence };
+					}
+				}
+
+				if (firstMatch) {
+					const retainedText = pendingText.slice(
+						0,
+						firstMatch.index + firstMatch.sequence.length,
+					);
+					enqueuePending(controller, retainedText);
+					pendingText = "";
+					stopped = true;
+					stopStream();
+					params.onStop?.(firstMatch.sequence);
+					controller.enqueue({
+						type: "text-end",
+						id: chunk.id,
+					} as TextStreamPart<TOOLS>);
+					controller.enqueue({
+						type: "finish-step",
+						finishReason: "stop",
+						rawFinishReason: "yaml-output-stop-sequence",
+						usage: ZERO_LANGUAGE_MODEL_USAGE,
+						response: {
+							id: "yaml-output-stop-sequence",
+							modelId: "unknown",
+							timestamp: new Date(),
+						},
+						providerMetadata: undefined,
+					} as TextStreamPart<TOOLS>);
+					controller.enqueue({
+						type: "finish",
+						finishReason: "stop",
+						rawFinishReason: "yaml-output-stop-sequence",
+						totalUsage: ZERO_LANGUAGE_MODEL_USAGE,
+					} as TextStreamPart<TOOLS>);
+					return;
+				}
+
+				const retainedSuffixLength = Math.min(
+					pendingText.length,
+					Math.max(0, maxStopSequenceLength - 1),
+				);
+				const emitLength = pendingText.length - retainedSuffixLength;
+				if (emitLength > 0) {
+					enqueuePending(controller, pendingText.slice(0, emitLength));
+					pendingText = pendingText.slice(emitLength);
+				}
+			},
+			flush(controller) {
+				if (!stopped && pendingText) {
+					enqueuePending(controller, pendingText);
+				}
+			},
+		});
+	};
+}
+
 function toTokenUsage(usage: LanguageModelUsage): TokenUsage {
 	const inputTokens =
 		typeof usage?.inputTokens === "number"
@@ -407,6 +567,7 @@ function buildProviderOptions(params: {
 	const capability = getReasoningModelCapability(params.provider, params.model);
 	if (params.provider === "vllm") {
 		const enabled = params.reasoningEffort === "enabled";
+		const reasoningEnabled = params.reasoningEffort !== "none";
 		const glmReasoningEnabled =
 			capability?.model === "glm" && params.reasoningEffort !== "none";
 		const deepSeekV4ReasoningEnabled =
@@ -414,6 +575,11 @@ function buildProviderOptions(params: {
 			params.reasoningEffort !== "none";
 		return {
 			vllm: {
+				...(reasoningEnabled
+					? {
+							thinking_token_budget: featureFlags.maxThinkingTokenBudget,
+						}
+					: {}),
 				...(capability?.model === "qwen"
 					? {
 							chat_template_kwargs: {
@@ -610,6 +776,19 @@ async function runProviderChatInternal(
 	if (args.onOutputChunk || args.onLifecycleEvent) {
 		let firstDeltaEmitted = false;
 		let firstTextDeltaEmitted = false;
+		let matchedOutputStopSequence: string | undefined;
+		let outputStopEventEmitted = false;
+		const outputStopSequences = args.outputStopSequences ?? [];
+		const outputStopAbortController =
+			outputStopSequences.length > 0 ? new AbortController() : undefined;
+		const providerAbortSignal = outputStopAbortController
+			? args.abortSignal
+				? AbortSignal.any([
+						args.abortSignal,
+						outputStopAbortController.signal,
+					])
+				: outputStopAbortController.signal
+			: args.abortSignal;
 		const streamed = streamText({
 			model: model as any,
 			...(args.openAIInputMessages
@@ -622,9 +801,25 @@ async function runProviderChatInternal(
 							),
 						}
 					: { prompt: args.prompt }),
-			abortSignal: args.abortSignal,
+			abortSignal: providerAbortSignal,
 			maxOutputTokens: args.options.reserveOutputTokens,
 			temperature: isVLLMProvider ? 0.2 : undefined,
+			...(outputStopSequences.length > 0
+				? {
+						experimental_transform: createFinalOutputStopTransform({
+							stopSequences: outputStopSequences,
+							onStop: (sequence) => {
+								matchedOutputStopSequence = sequence;
+								outputStopAbortController?.abort(
+									new DOMException(
+										"YAML output stop sequence reached.",
+										"AbortError",
+									),
+								);
+							},
+						}),
+					}
+				: {}),
 			onChunk: ({ chunk }) => {
 				if (chunk.type !== "text-delta" && chunk.type !== "reasoning-delta") {
 					return;
@@ -640,17 +835,26 @@ async function runProviderChatInternal(
 					firstTextDeltaEmitted = true;
 					args.onLifecycleEvent?.({ type: "first_text_delta" });
 				}
+				if (
+					chunk.type === "text-delta" &&
+					matchedOutputStopSequence !== undefined &&
+					!outputStopEventEmitted
+				) {
+					outputStopEventEmitted = true;
+					args.onLifecycleEvent?.({
+						type: "output_stop_sequence",
+						sequence: matchedOutputStopSequence,
+					});
+				}
 			},
 			providerOptions: providerOptions as unknown as NonNullable<
 				Parameters<typeof streamText>[0]["providerOptions"]
 			>,
 		});
-		const chunks: string[] = [];
-		for await (const chunk of streamed.textStream) {
-			console.log(chunk);
-			chunks.push(chunk);
-			args.onOutputChunk?.(chunk);
-		}
+		const chunks = await collectStreamedText(
+			streamed.textStream,
+			args.onOutputChunk,
+		);
 		args.onLifecycleEvent?.({
 			type: "text_stream_complete",
 			chunkCount: chunks.length,
@@ -776,6 +980,22 @@ export function __buildProviderOptionsForTests(params: {
 
 export function __buildOpenRouterModelSettingsForTests() {
 	return buildOpenRouterModelSettings();
+}
+
+export async function __collectStreamedTextForTests(
+	textStream: AsyncIterable<string>,
+	onOutputChunk?: (chunk: string) => void,
+): Promise<string[]> {
+	return await collectStreamedText(textStream, onOutputChunk);
+}
+
+export function __createFinalOutputStopTransformForTests<
+	TOOLS extends ToolSet,
+>(params: {
+	stopSequences: readonly string[];
+	onStop?: (sequence: string) => void;
+}): StreamTextTransform<TOOLS> {
+	return createFinalOutputStopTransform(params);
 }
 
 export async function runProviderChat(

@@ -72,6 +72,15 @@ test("resolves provider capabilities, paths, environment, and overrides", () => 
 	assert.equal(
 		resolveOptions({
 			...base,
+			provider: "together",
+			model: "deepseek-ai/DeepSeek-V4-Flash-0731",
+			reasoningEffort: "low",
+		}).reasoningEffort,
+		"low",
+	);
+	assert.equal(
+		resolveOptions({
+			...base,
 			provider: "vllm",
 			model: "my-QWEN-model",
 			apiKey: undefined,
@@ -104,11 +113,11 @@ test("resolves provider capabilities, paths, environment, and overrides", () => 
 			...base,
 			provider: "vllm",
 			model: "deepseek-ai/DeepSeek-V4-Flash-0731",
-			reasoningEffort: "max",
+			reasoningEffort: "low",
 			apiKey: undefined,
 			endpointUrl: "http://38.147.81.21:8000/v1",
 		}).reasoningEffort,
-		"max",
+		"low",
 	);
 	assert.equal(
 		resolveOptions({

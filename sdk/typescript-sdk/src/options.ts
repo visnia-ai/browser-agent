@@ -53,13 +53,20 @@ const CAPABILITIES: Capability[] = [
 		"low",
 	]),
 	["together", "zai-org/GLM-5.2", false, ["none", "high", "max"], "high"],
+	[
+		"together",
+		"deepseek-ai/DeepSeek-V4-Flash-0731",
+		false,
+		["none", "low", "high", "max"],
+		"high",
+	],
 	["vllm", "qwen", true, ["none", "enabled"], "enabled"],
 	["vllm", "glm", true, ["none", "high", "max"], "high"],
 	[
 		"vllm",
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
 		false,
-		["none", "high", "max"],
+		["none", "low", "high", "max"],
 		"high",
 	],
 ];
