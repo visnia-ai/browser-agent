@@ -360,7 +360,6 @@ describe("provider options", () => {
 			reasoningEffort: "none",
 		});
 		assert.deepEqual(options.vllm, {
-			include_usage: true,
 			reasoning: { enabled: false },
 			chat_template_kwargs: {
 				enable_thinking: false,
@@ -377,7 +376,6 @@ describe("provider options", () => {
 				reasoningEffort,
 			});
 			assert.deepEqual(options.vllm, {
-				include_usage: true,
 				chat_template_kwargs: {
 					enable_thinking: true,
 					reasoning_effort: reasoningEffort,
@@ -394,7 +392,6 @@ describe("provider options", () => {
 				reasoningEffort,
 			});
 			assert.deepEqual(options.vllm, {
-				include_usage: true,
 				chat_template_kwargs: {
 					thinking: true,
 					reasoning_effort: reasoningEffort,
@@ -408,7 +405,6 @@ describe("provider options", () => {
 			reasoningEffort: "none",
 		});
 		assert.deepEqual(disabled.vllm, {
-			include_usage: true,
 			reasoning: { enabled: false },
 			chat_template_kwargs: {
 				enable_thinking: false,

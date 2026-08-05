@@ -244,6 +244,7 @@ function buildLanguageModel(options: {
 			name: `${options.runtimeConfig.provider}`,
 			baseURL: options.runtimeConfig.endpointUrl,
 			apiKey: options.runtimeConfig.apiKey || "EMPTY",
+			includeUsage: true,
 		}).chatModel(options.model);
 	}
 	if (options.runtimeConfig.adapter === "anthropic") {
@@ -413,7 +414,6 @@ function buildProviderOptions(params: {
 			params.reasoningEffort !== "none";
 		return {
 			vllm: {
-				include_usage: true,
 				...(capability?.model === "qwen"
 					? {
 							chat_template_kwargs: {
@@ -488,7 +488,6 @@ function buildProviderOptions(params: {
 			reasoningSummary: "detailed",
 		},
 		vllm: {
-			include_usage: true,
 			chat_template_kwargs: {
 				enable_thinking: true,
 			},
