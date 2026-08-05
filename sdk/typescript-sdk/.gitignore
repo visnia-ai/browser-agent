@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+bin/
+cli-manifest.json
+*.tgz
+!package-lock.json

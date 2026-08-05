@@ -1,0 +1,64 @@
+stage_llms:
+  workflowPlanner:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: medium
+  aggregatedResults:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: medium
+  findTargetURL:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: none
+  createChecklist:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: medium
+  preExecutionDomPruning:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: medium
+  runAgent:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: medium
+  dataExtraction:
+    provider: openai
+    model: gpt-5.4-mini
+    reasoning_effort: medium
+  verifySuccess:
+    provider: openai
+    model: gpt-5.5
+    reasoning_effort: medium
+
+feature_flags:
+  workflow_orchestration: true
+  pre_step_screenshot_in_latest_user_prompt: false
+  user_takeover_tool: false
+  auth_takeover: true
+  pre_execution_dom_pruning: false
+
+browser_profiles:
+  mode: seeded
+  seed_user_data_dir: "/tmp/chrome_workspace"
+  per_worker_user_data_root: "/tmp/browser-profiles/browser-agent-test"
+  reuse_existing_worker_profiles: false
+
+headless: false
+wait_between_tasks_ms: 0
+task_runs: 1
+task_run_retry_count: 2
+save_steps_context: true
+save_task_logs: true
+max_steps: 80
+workflow_max_parallel_nodes: 4
+step_messages_jsonl_path: "/tmp/browser-agent-test/steps.jsonl"
+file_workspace_root: "/tmp/file-workspace/browser-agent-test"
+download_dir: "/tmp/file-workspace/browser-agent-test/downloads"
+
+concurrency: 2
+
+tasks:
+  #- task: "Who won the 2024 Nobel Prize in Physics? Can you show me the Wikipedia link of each laureate individually? Then, for each of them, where did they receive their PhD? For each university, how many other Nobel laureates have graduated from there to date? Please also include the names and links to the official Nobel Prize biographies of those other laureates."
+  - task: "Use google flight to find the cheapest flight to sydney from paris between September 23rd and October 15th, for 2 people + 1 kid in economy class. In parallel, look for accommodations on airbnb for the same dates. Make sure that the accommodations have a laundry machine, and are close to the sea, located in Manly."

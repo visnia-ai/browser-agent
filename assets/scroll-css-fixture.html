@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scroll Fixture - CSS Overflow</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "SF Pro Text", "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #f3f4f6;
+      }
+      .layout {
+        max-width: 880px;
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      #css-scroll-container {
+        height: 220px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 2px solid #374151;
+        border-radius: 10px;
+        background: #f9fafb;
+      }
+      .row {
+        padding: 12px 14px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 14px;
+      }
+      .row:nth-child(2n) {
+        background: #eef2ff;
+      }
+      #non-scroll-container {
+        border: 1px solid #9ca3af;
+        border-radius: 8px;
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="card">
+        <h1>CSS Scroll Fixture</h1>
+        <p>
+          This container is intentionally overflow-driven via CSS so tests can
+          verify scroll-capable DOM behavior.
+        </p>
+        <div id="css-scroll-container" data-testid="css-scroll-container" tabindex="0"></div>
+      </section>
+
+      <section class="card" id="non-scroll-container">
+        <h2>Non-scroll Reference</h2>
+        <p>This section should not be scrollable.</p>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        const root = document.getElementById("css-scroll-container");
+        const rows = 80;
+        for (let i = 1; i <= rows; i++) {
+          const el = document.createElement("div");
+          el.className = "row";
+          el.textContent = `Static row ${i}`;
+          root.appendChild(el);
+        }
+
+        window.__cssScrollFixtureState = {
+          mode: "css-overflow",
+          rowCount: rows,
+          metrics: {
+            clientHeight: root.clientHeight,
+            scrollHeight: root.scrollHeight,
+            scrollWidth: root.scrollWidth,
+            clientWidth: root.clientWidth,
+          },
+        };
+      })();
+    </script>
+  </body>
+</html>

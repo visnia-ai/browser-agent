@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Print Dialog Fixture</title>
+	</head>
+	<body>
+		<button id="print-button" data-bid="1" type="button">
+			Open print
+		</button>
+		<p id="status">idle</p>
+		<script>
+			const button = document.getElementById("print-button");
+			const status = document.getElementById("status");
+
+			button.addEventListener("click", () => {
+				window.__printClickCount = (window.__printClickCount || 0) + 1;
+				status.textContent = "print-clicked";
+				window.print();
+			});
+		</script>
+	</body>
+</html>

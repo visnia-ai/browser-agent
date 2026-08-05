@@ -1,0 +1,24 @@
+{
+  "nodeNames": {
+    "na": "div",
+    "nb": "footer",
+    "nc": "header",
+    "nd": "main",
+    "ne": "nav"
+  },
+  "attributes": {
+    "aa": "aria-label",
+    "ab": "role",
+    "ac": "href",
+    "ad": "type",
+    "ae": "aria-labelledby",
+    "af": "value",
+    "ag": "for",
+    "ah": "placeholder",
+    "ai": "title"
+  },
+  "roleRename": {
+    "cell": "gridcell",
+    "bt": "button"
+  }
+}

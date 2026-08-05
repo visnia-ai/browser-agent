@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>File Picker Fixture</title>
+	</head>
+	<body>
+		<main>
+			<h1>File Picker Fixture</h1>
+			<button id="choose-file" data-bid="1" type="button">
+				Choose file
+			</button>
+			<button id="choose-file-stop-propagation" data-bid="2" type="button">
+				Choose file and stop propagation
+			</button>
+			<input id="file-input" type="file" hidden />
+			<p id="status">no file selected</p>
+		</main>
+		<script>
+			const button = document.getElementById("choose-file");
+			const stopPropagationButton = document.getElementById(
+				"choose-file-stop-propagation",
+			);
+			const input = document.getElementById("file-input");
+			const status = document.getElementById("status");
+
+			window.__selectedFileNames = [];
+			window.__filePickerButtonClicks = 0;
+			window.__stoppedFilePickerPropagation = false;
+			button.addEventListener("click", () => {
+				window.__filePickerButtonClicks += 1;
+				status.textContent = "picker opened";
+				input.click();
+			});
+			stopPropagationButton.addEventListener("click", (event) => {
+				window.__filePickerButtonClicks += 1;
+				window.__stoppedFilePickerPropagation = true;
+				event.preventDefault();
+				event.stopPropagation();
+				event.stopImmediatePropagation();
+				status.textContent = "picker opened with stopped propagation";
+				input.click();
+			});
+			input.addEventListener("change", () => {
+				window.__selectedFileNames = Array.from(input.files || []).map(
+					(file) => file.name,
+				);
+				status.textContent = `selected: ${window.__selectedFileNames.join(", ")}`;
+			});
+		</script>
+	</body>
+</html>

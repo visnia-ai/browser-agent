@@ -1,0 +1,1465 @@
+couldBeHidden
+  c-wiz bid="5f1":
+    header banner:
+      bid="5f0":
+        bid="5eu":
+          bid="3nb" button: "Main menu"
+          hidden:
+            button: "Go back, Close"
+            a bid="3nd,3nc" presentation: "Google"
+            heading
+        bid="5ev":
+          div:
+            button bid="3ol":
+            button bid="3om":
+            nav scroll-enabled:
+              button bid="3on" link:
+              button bid="3oo" link:
+              button bid="3op" link:
+              button bid="3oq" link:
+              button bid="3or" link:
+          span:
+            button bid="3nl": "Change appearance"
+        bid="5ez,5ey":
+          bid="5ex,3os,5ew,3nm" button: "Google apps"
+          a bid="3no,3nn": "Sign in Sign in"
+c-wiz scroll-enabled:
+  div:
+  div:
+    search:
+      title: "Flight search"
+      bid="3nu" combobox:
+        bid="3nr,3nq": "Round trip"
+      button bid="3nv": "1 passenger, change number of passengers."
+      bid="3o1" combobox:
+        bid="3ny,3nx": "Economy"
+      input bid="3o2" type="text" combobox label="Where from?": "New York"
+      button bid="3o4,3o3": "Swap origin and destination."
+      input bid="3o5" type="text" combobox label="Where to?": "London"
+      input bid="3o6" type="text" placeholder="Departure": "Fri, May 1"
+      input bid="3o9" type="text" placeholder="Return": "Thu, May 7"
+      title: "Filters"
+      button bid="3oc": "All filters"
+      bid="3p1" scroll-enabled:
+        bid="3ot,3od": "Stops, Not selected"
+        bid="3ou,3oe": "Airlines, Not selected"
+        bid="3ov,3of": "Bags, Not selected"
+        bid="3ow,3og": "Price, Not selected"
+        bid="3ox,3oh": "Times, Not selected"
+        bid="3oy,3oi": "Emissions, Not selected"
+        bid="3oz,3oj": "Connecting airports, Not selected"
+        bid="3p0,3ok": "Duration, Not selected"
+      couldBeHidden
+        button bid="5f4": "Previous"
+      couldBeHidden
+        button bid="5f5": "Next"
+    main:
+      title: "Search results"
+      alert: "40 results returned."
+      tablist:
+        bid="3pb,3pa,3p9,3p8,3p7,3p6" tab: "Best"
+          bid="3p4,3p3,3p2" button: "Learn more about ranking"
+          hidden:
+        bid="3po,3pn,3pm,3pl" tab: "Cheapest"
+          bid="3pe,3pd,3pc" text label="434 US dollars": "from $434"
+          bid="3pk,3pj":
+            bid="3ph,3pg,3pf" button: "Learn more about ranking"
+            hidden:
+      tabpanel:
+        title: "Top departing flights"
+        "Ranked based on price and convenience Prices include required taxes + fees for 1 adult."
+          bid="3pq,3pp" button: "Learn more about ranking"
+          "Optional charges\n                                and may apply."
+            bid="3pr" button: "bag fees"
+            "info."
+              bid="3ps" button: "Passenger\n                                    assistance"
+        button bid="3pt": "Sorted by top flights, Change sort order."
+        list:
+          div:
+            bid="3pu" link: "From 478 US dollars round trip total. 1 stop flight with Icelandair. Leaves John F. Kennedy International Airport at 8:30 PM on Friday, May 1 and arrives at London Gatwick Airport at 11:45 AM on Saturday, May 2. Total duration 10 hr 15 min. Layover (1 of 1) is a 1 hr 15 min layover at Keflavík International Airport in Reykjavík. Select flight"
+            bid="3ra,3r9":
+              bid="3r8,3r7":
+                bid="3pw,3pv" presentation
+                bid="3qa":
+                  bid="3q7,3q6" label="Leaves John F. Kennedy International Airport at 8:30 PM on Friday, May 1 and arrives at London Gatwick Airport at 11:45 AM on Saturday, May 2.": "–"
+                    bid="3q0":
+                      bid="3pz,3py,3px" text: "Departure time: 8:30 PM. Departure time: 8:30 PM."
+                    bid="3q5":
+                      bid="3q4,3q3,3q2,3q1" text: "Arrival time: 11:45 AM on  Saturday, May 2. Arrival time: 11:45 AM on  Saturday, May 2. +1"
+                  bid="3q9,3q8": "Icelandair"
+                bid="3ql":
+                  bid="3qb": "Total duration 10 hr 15 min."
+                  bid="3qk": "–"
+                    bid="3qf,3qe":
+                      bid="3qd,3qc": "JFK"
+                    bid="3qj,3qi":
+                      bid="3qh,3qg": "LGW"
+                bid="3qs":
+                  bid="3qn,3qm": "1 stop flight."
+                  bid="3qr,3qq": "Layover (1 of 1) is a 1 hr 15 min layover at Keflavík International Airport in Reykjavík."
+                    bid="3qp,3qo": "KEF"
+                bid="3r0,3qz":
+                  bid="3qu,3qt": "454 kg CO2e"
+                  bid="3qy":
+                    bid="3qw,3qv": "+10% emissions"
+                    bid="3qx" button: "Carbon emissions estimate: 454 kilograms. +10% emissions. Learn more about this emissions estimate"
+                bid="3r6":
+                  bid="3r4":
+                    bid="3r3,3r2" text label="478 US dollars": "$478"
+                  bid="3r5": "round trip"
+            button bid="3rb": "Flight details. Leaves John F. Kennedy International Airport at 8:30 PM on Friday, May 1 and arrives at London Gatwick Airport at 11:45 AM on Saturday, May 2."
+          div:
+            bid="3rc" link: "From 489 US dollars round trip total. Nonstop flight with Norse Atlantic UK. Leaves John F. Kennedy International Airport at 6:20 PM on Friday, May 1 and arrives at London Gatwick Airport at 6:20 AM on Saturday, May 2. Total duration 7 hr.  Select flight"
+            bid="3su,3st":
+              bid="3sn,3sm":
+                bid="3re,3rd" presentation
+                bid="3rs":
+                  bid="3rp,3ro" label="Leaves John F. Kennedy International Airport at 6:20 PM on Friday, May 1 and arrives at London Gatwick Airport at 6:20 AM on Saturday, May 2.": "–"
+                    bid="3ri":
+                      bid="3rh,3rg,3rf" text: "Departure time: 6:20 PM. Departure time: 6:20 PM."
+                    bid="3rn":
+                      bid="3rm,3rl,3rk,3rj" text: "Arrival time: 6:20 AM on  Saturday, May 2. Arrival time: 6:20 AM on  Saturday, May 2. +1"
+                  bid="3rr,3rq": "Norse\n                                              Atlantic UK"
+                bid="3s3":
+                  bid="3rt": "Total duration 7 hr."
+                  bid="3s2": "–"
+                    bid="3rx,3rw":
+                      bid="3rv,3ru": "JFK"
+                    bid="3s1,3s0":
+                      bid="3rz,3ry": "LGW"
+                bid="3s7":
+                  bid="3s5,3s4": "Nonstop flight."
+                bid="3sf,3se":
+                  bid="3s9,3s8": "348 kg CO2e"
+                  bid="3sd":
+                    bid="3sb,3sa": "-16% emissions"
+                    bid="3sc" button: "Carbon emissions estimate: 348 kilograms. -16% emissions. Learn more about this emissions estimate"
+                bid="3sl":
+                  bid="3sj":
+                    bid="3si,3sh" text label="489 US dollars": "$489"
+                  bid="3sk": "round trip"
+              bid="3ss":
+                bid="3sq": "as much CO2e as"
+                  bid="3so": "Avoids"
+                  bid="3sp": "3,957 trees absorb in a day"
+                bid="3sr" button: "Avoids as much CO2e as 3957 trees absorb in a day. Learn more about this calculation."
+            button bid="3sv": "Flight details. Leaves John F. Kennedy International Airport at 6:20 PM on Friday, May 1 and arrives at London Gatwick Airport at 6:20 AM on Saturday, May 2."
+          div:
+            bid="3sw" link: "From 528 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 7:50 AM on Friday, May 1 and arrives at Heathrow Airport at 7:45 PM on Friday, May 1. Total duration 6 hr 55 min.  Select flight"
+            bid="3ua,3u9":
+              bid="3u8,3u7":
+                bid="3sy,3sx" presentation
+                bid="3td":
+                  bid="3t8,3t7" label="Leaves John F. Kennedy International Airport at 7:50 AM on Friday, May 1 and arrives at Heathrow Airport at 7:45 PM on Friday, May 1.": "–"
+                    bid="3t2":
+                      bid="3t1,3t0,3sz" text: "Departure time: 7:50 AM. Departure time: 7:50 AM."
+                    bid="3t6":
+                      bid="3t5,3t4,3t3" text: "Arrival time: 7:45 PM. Arrival time: 7:45 PM."
+                  bid="3tc":
+                    bid="3t9": "British\n                                              Airways"
+                    bid="3tb": "Finnair, Iberia"
+                bid="3to":
+                  bid="3te": "Total duration 6 hr 55 min."
+                  bid="3tn": "–"
+                    bid="3ti,3th":
+                      bid="3tg,3tf": "JFK"
+                    bid="3tm,3tl":
+                      bid="3tk,3tj": "LHR"
+                bid="3ts":
+                  bid="3tq,3tp": "Nonstop flight."
+                bid="3u0,3tz":
+                  bid="3tu,3tt": "423 kg CO2e"
+                  bid="3ty":
+                    bid="3tw,3tv": "Avg emissions"
+                    bid="3tx" button: "Carbon emissions estimate: 423 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="3u6":
+                  bid="3u4":
+                    bid="3u3,3u2" text label="528 US dollars": "$528"
+                  bid="3u5": "round trip"
+            button bid="3ub": "Flight details. Leaves John F. Kennedy International Airport at 7:50 AM on Friday, May 1 and arrives at Heathrow Airport at 7:45 PM on Friday, May 1."
+        title: "Price insights"
+        bid="3un":
+          bid="3ui":
+            bid="3uf,3ue,3ud,3uc" presentation
+            bid="3uh,3ug": "Prices are currently typical"
+          bid="3uk": "View price history"
+          bid="3um,3ul": "View price history"
+        region: "Find the best price"
+          "Track prices"
+          bid="3us,3ur":
+            bid="3uq,3up,3uo" button link: "Learn more about tracked prices"
+          "Track prices from New York to\n                                  London departing 2026-05-01 and returning 2026-05-07"
+          label:
+            bid="3ut": "May 1 – 7"
+            span:
+              button bid="3v3" switch: "Track prices from New York to London departing 2026-05-01 and returning 2026-05-07"
+          "Track prices from New York to London - Any\n                                  dates"
+          label:
+            bid="3v4": "Any dates"
+            span:
+              button bid="3ve" switch
+          button bid="3vf":
+            "Date grid"
+          button bid="3vg":
+            "Price graph"
+        title: "Other departing flights"
+        list:
+          div:
+            bid="3vh" link: "From 459 US dollars round trip total. 1 stop flight with Icelandair. Leaves Newark Liberty International Airport at 8:25 PM on Friday, May 1 and arrives at London Gatwick Airport at 11:45 AM on Saturday, May 2. Total duration 10 hr 20 min. Layover (1 of 1) is a 1 hr 20 min layover at Keflavík International Airport in Reykjavík. Select flight"
+            bid="3wx,3ww":
+              bid="3wv,3wu":
+                bid="3vj,3vi" presentation
+                bid="3vx":
+                  bid="3vu,3vt" label="Leaves Newark Liberty International Airport at 8:25 PM on Friday, May 1 and arrives at London Gatwick Airport at 11:45 AM on Saturday, May 2.": "–"
+                    bid="3vn":
+                      bid="3vm,3vl,3vk" text: "Departure time: 8:25 PM. Departure time: 8:25 PM."
+                    bid="3vs":
+                      bid="3vr,3vq,3vp,3vo" text: "Arrival time: 11:45 AM on  Saturday, May 2. Arrival time: 11:45 AM on  Saturday, May 2. +1"
+                  bid="3vw,3vv": "Icelandair"
+                bid="3w8":
+                  bid="3vy": "Total duration 10 hr 20 min."
+                  bid="3w7": "–"
+                    bid="3w2,3w1":
+                      bid="3w0,3vz": "EWR"
+                    bid="3w6,3w5":
+                      bid="3w4,3w3": "LGW"
+                bid="3wf":
+                  bid="3wa,3w9": "1 stop flight."
+                  bid="3we,3wd": "Layover (1 of 1) is a 1 hr 20 min layover at Keflavík International Airport in Reykjavík."
+                    bid="3wc,3wb": "KEF"
+                bid="3wn,3wm":
+                  bid="3wh,3wg": "440 kg CO2e"
+                  bid="3wl":
+                    bid="3wj,3wi": "+7% emissions"
+                    bid="3wk" button: "Carbon emissions estimate: 440 kilograms. +7% emissions. Learn more about this emissions estimate"
+                bid="3wt":
+                  bid="3wr":
+                    bid="3wq,3wp" text label="459 US dollars": "$459"
+                  bid="3ws": "round trip"
+            button bid="3wy": "Flight details. Leaves Newark Liberty International Airport at 8:25 PM on Friday, May 1 and arrives at London Gatwick Airport at 11:45 AM on Saturday, May 2."
+          div:
+            bid="3wz" link: "From 461 US dollars round trip total. 1 stop flight with Icelandair. Leaves John F. Kennedy International Airport at 8:30 PM on Friday, May 1 and arrives at Heathrow Airport at 11:55 AM on Saturday, May 2. Total duration 10 hr 25 min. Layover (1 of 1) is a 1 hr 20 min layover at Keflavík International Airport in Reykjavík. Select flight"
+            bid="3yf,3ye":
+              bid="3yd,3yc":
+                bid="3x1,3x0" presentation
+                bid="3xf":
+                  bid="3xc,3xb" label="Leaves John F. Kennedy International Airport at 8:30 PM on Friday, May 1 and arrives at Heathrow Airport at 11:55 AM on Saturday, May 2.": "–"
+                    bid="3x5":
+                      bid="3x4,3x3,3x2" text: "Departure time: 8:30 PM. Departure time: 8:30 PM."
+                    bid="3xa":
+                      bid="3x9,3x8,3x7,3x6" text: "Arrival time: 11:55 AM on  Saturday, May 2. Arrival time: 11:55 AM on  Saturday, May 2. +1"
+                  bid="3xe,3xd": "Icelandair"
+                bid="3xq":
+                  bid="3xg": "Total duration 10 hr 25 min."
+                  bid="3xp": "–"
+                    bid="3xk,3xj":
+                      bid="3xi,3xh": "JFK"
+                    bid="3xo,3xn":
+                      bid="3xm,3xl": "LHR"
+                bid="3xx":
+                  bid="3xs,3xr": "1 stop flight."
+                  bid="3xw,3xv": "Layover (1 of 1) is a 1 hr 20 min layover at Keflavík International Airport in Reykjavík."
+                    bid="3xu,3xt": "KEF"
+                bid="3y5,3y4":
+                  bid="3xz,3xy": "446 kg CO2e"
+                  bid="3y3":
+                    bid="3y1,3y0": "+8% emissions"
+                    bid="3y2" button: "Carbon emissions estimate: 446 kilograms. +8% emissions. Learn more about this emissions estimate"
+                bid="3yb":
+                  bid="3y9":
+                    bid="3y8,3y7" text label="461 US dollars": "$461"
+                  bid="3ya": "round trip"
+            button bid="3yg": "Flight details. Leaves John F. Kennedy International Airport at 8:30 PM on Friday, May 1 and arrives at Heathrow Airport at 11:55 AM on Saturday, May 2."
+          div:
+            bid="3yh" link: "From 478 US dollars round trip total. 1 stop flight with Icelandair. Leaves John F. Kennedy International Airport at 11:10 PM on Friday, May 1 and arrives at London Gatwick Airport at 2:40 PM on Saturday, May 2. Total duration 10 hr 30 min. Layover (1 of 1) is a 1 hr 35 min layover at Keflavík International Airport in Reykjavík. Select flight"
+            bid="3zx,3zw":
+              bid="3zv,3zu":
+                bid="3yj,3yi" presentation
+                bid="3yx":
+                  bid="3yu,3yt" label="Leaves John F. Kennedy International Airport at 11:10 PM on Friday, May 1 and arrives at London Gatwick Airport at 2:40 PM on Saturday, May 2.": "–"
+                    bid="3yn":
+                      bid="3ym,3yl,3yk" text: "Departure time: 11:10 PM. Departure time: 11:10 PM."
+                    bid="3ys":
+                      bid="3yr,3yq,3yp,3yo" text: "Arrival time: 2:40 PM on  Saturday, May 2. Arrival time: 2:40 PM on  Saturday, May 2. +1"
+                  bid="3yw,3yv": "Icelandair"
+                bid="3z8":
+                  bid="3yy": "Total duration 10 hr 30 min."
+                  bid="3z7": "–"
+                    bid="3z2,3z1":
+                      bid="3z0,3yz": "JFK"
+                    bid="3z6,3z5":
+                      bid="3z4,3z3": "LGW"
+                bid="3zf":
+                  bid="3za,3z9": "1 stop flight."
+                  bid="3ze,3zd": "Layover (1 of 1) is a 1 hr 35 min layover at Keflavík International Airport in Reykjavík."
+                    bid="3zc,3zb": "KEF"
+                bid="3zn,3zm":
+                  bid="3zh,3zg": "454 kg CO2e"
+                  bid="3zl":
+                    bid="3zj,3zi": "+10% emissions"
+                    bid="3zk" button: "Carbon emissions estimate: 454 kilograms. +10% emissions. Learn more about this emissions estimate"
+                bid="3zt":
+                  bid="3zr":
+                    bid="3zq,3zp" text label="478 US dollars": "$478"
+                  bid="3zs": "round trip"
+            button bid="3zy": "Flight details. Leaves John F. Kennedy International Airport at 11:10 PM on Friday, May 1 and arrives at London Gatwick Airport at 2:40 PM on Saturday, May 2."
+          div:
+            bid="3zz" link: "From 512 US dollars round trip total. 1 stop flight with Aer Lingus. Leaves John F. Kennedy International Airport at 6:25 PM on Friday, May 1 and arrives at Heathrow Airport at 9:05 AM on Saturday, May 2. Total duration 9 hr 40 min. Layover (1 of 1) is a 1 hr 30 min layover at Shannon Airport in Shannon. Select flight"
+            bid="41f,41e":
+              bid="41d,41c":
+                bid="401,400" presentation
+                bid="40f":
+                  bid="40c,40b" label="Leaves John F. Kennedy International Airport at 6:25 PM on Friday, May 1 and arrives at Heathrow Airport at 9:05 AM on Saturday, May 2.": "–"
+                    bid="405":
+                      bid="404,403,402" text: "Departure time: 6:25 PM. Departure time: 6:25 PM."
+                    bid="40a":
+                      bid="409,408,407,406" text: "Arrival time: 9:05 AM on  Saturday, May 2. Arrival time: 9:05 AM on  Saturday, May 2. +1"
+                  bid="40e,40d": "Aer\n                                              Lingus"
+                bid="40q":
+                  bid="40g": "Total duration 9 hr 40 min."
+                  bid="40p": "–"
+                    bid="40k,40j":
+                      bid="40i,40h": "JFK"
+                    bid="40o,40n":
+                      bid="40m,40l": "LHR"
+                bid="40x":
+                  bid="40s,40r": "1 stop flight."
+                  bid="40w,40v": "Layover (1 of 1) is a 1 hr 30 min layover at Shannon Airport in Shannon."
+                    bid="40u,40t": "SNN"
+                bid="415,414":
+                  bid="40z,40y": "435 kg CO2e"
+                  bid="413":
+                    bid="411,410": "Avg emissions"
+                    bid="412" button: "Carbon emissions estimate: 435 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="41b":
+                  bid="419":
+                    bid="418,417" text label="512 US dollars": "$512"
+                  bid="41a": "round trip"
+            button bid="41g": "Flight details. Leaves John F. Kennedy International Airport at 6:25 PM on Friday, May 1 and arrives at Heathrow Airport at 9:05 AM on Saturday, May 2."
+          div:
+            bid="41h" link: "From 514 US dollars round trip total. Nonstop flight with American. Leaves John F. Kennedy International Airport at 9:35 AM on Friday, May 1 and arrives at Heathrow Airport at 9:40 PM on Friday, May 1. Total duration 7 hr 5 min.  Select flight"
+            bid="42v,42u":
+              bid="42t,42s":
+                bid="41j,41i" presentation
+                bid="41y":
+                  bid="41t,41s" label="Leaves John F. Kennedy International Airport at 9:35 AM on Friday, May 1 and arrives at Heathrow Airport at 9:40 PM on Friday, May 1.": "–"
+                    bid="41n":
+                      bid="41m,41l,41k" text: "Departure time: 9:35 AM. Departure time: 9:35 AM."
+                    bid="41r":
+                      bid="41q,41p,41o" text: "Arrival time: 9:40 PM. Arrival time: 9:40 PM."
+                  bid="41x":
+                    bid="41u": "American"
+                    bid="41w": "Finnair, British Airways"
+                bid="429":
+                  bid="41z": "Total duration 7 hr 5 min."
+                  bid="428": "–"
+                    bid="423,422":
+                      bid="421,420": "JFK"
+                    bid="427,426":
+                      bid="425,424": "LHR"
+                bid="42d":
+                  bid="42b,42a": "Nonstop flight."
+                bid="42l,42k":
+                  bid="42f,42e": "377 kg CO2e"
+                  bid="42j":
+                    bid="42h,42g": "-9% emissions"
+                    bid="42i" button: "Carbon emissions estimate: 377 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="42r":
+                  bid="42p":
+                    bid="42o,42n" text label="514 US dollars": "$514"
+                  bid="42q": "round trip"
+            button bid="42w": "Flight details. Leaves John F. Kennedy International Airport at 9:35 AM on Friday, May 1 and arrives at Heathrow Airport at 9:40 PM on Friday, May 1."
+          div:
+            bid="42x" link: "From 514 US dollars round trip total. Nonstop flight with American. Leaves John F. Kennedy International Airport at 6:20 PM on Friday, May 1 and arrives at Heathrow Airport at 6:25 AM on Saturday, May 2. Total duration 7 hr 5 min.  Select flight"
+            bid="44c,44b":
+              bid="44a,449":
+                bid="42z,42y" presentation
+                bid="43f":
+                  bid="43a,439" label="Leaves John F. Kennedy International Airport at 6:20 PM on Friday, May 1 and arrives at Heathrow Airport at 6:25 AM on Saturday, May 2.": "–"
+                    bid="433":
+                      bid="432,431,430" text: "Departure time: 6:20 PM. Departure time: 6:20 PM."
+                    bid="438":
+                      bid="437,436,435,434" text: "Arrival time: 6:25 AM on  Saturday, May 2. Arrival time: 6:25 AM on  Saturday, May 2. +1"
+                  bid="43e":
+                    bid="43b": "American"
+                    bid="43d": "Finnair, British Airways"
+                bid="43q":
+                  bid="43g": "Total duration 7 hr 5 min."
+                  bid="43p": "–"
+                    bid="43k,43j":
+                      bid="43i,43h": "JFK"
+                    bid="43o,43n":
+                      bid="43m,43l": "LHR"
+                bid="43u":
+                  bid="43s,43r": "Nonstop flight."
+                bid="442,441":
+                  bid="43w,43v": "377 kg CO2e"
+                  bid="440":
+                    bid="43y,43x": "-9% emissions"
+                    bid="43z" button: "Carbon emissions estimate: 377 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="448":
+                  bid="446":
+                    bid="445,444" text label="514 US dollars": "$514"
+                  bid="447": "round trip"
+            button bid="44d": "Flight details. Leaves John F. Kennedy International Airport at 6:20 PM on Friday, May 1 and arrives at Heathrow Airport at 6:25 AM on Saturday, May 2."
+          div:
+            bid="44e" link: "From 514 US dollars round trip total. Nonstop flight with American. Leaves John F. Kennedy International Airport at 7:20 PM on Friday, May 1 and arrives at Heathrow Airport at 7:20 AM on Saturday, May 2. Total duration 7 hr.  Select flight"
+            bid="45t,45s":
+              bid="45r,45q":
+                bid="44g,44f" presentation
+                bid="44w":
+                  bid="44r,44q" label="Leaves John F. Kennedy International Airport at 7:20 PM on Friday, May 1 and arrives at Heathrow Airport at 7:20 AM on Saturday, May 2.": "–"
+                    bid="44k":
+                      bid="44j,44i,44h" text: "Departure time: 7:20 PM. Departure time: 7:20 PM."
+                    bid="44p":
+                      bid="44o,44n,44m,44l" text: "Arrival time: 7:20 AM on  Saturday, May 2. Arrival time: 7:20 AM on  Saturday, May 2. +1"
+                  bid="44v":
+                    bid="44s": "American"
+                    bid="44u": "Finnair, British Airways"
+                bid="457":
+                  bid="44x": "Total duration 7 hr."
+                  bid="456": "–"
+                    bid="451,450":
+                      bid="44z,44y": "JFK"
+                    bid="455,454":
+                      bid="453,452": "LHR"
+                bid="45b":
+                  bid="459,458": "Nonstop flight."
+                bid="45j,45i":
+                  bid="45d,45c": "283 kg CO2e"
+                  bid="45h":
+                    bid="45f,45e": "-31% emissions"
+                    bid="45g" button: "Carbon emissions estimate: 283 kilograms. -31% emissions. Learn more about this emissions estimate"
+                bid="45p":
+                  bid="45n":
+                    bid="45m,45l" text label="514 US dollars": "$514"
+                  bid="45o": "round trip"
+            button bid="45u": "Flight details. Leaves John F. Kennedy International Airport at 7:20 PM on Friday, May 1 and arrives at Heathrow Airport at 7:20 AM on Saturday, May 2."
+          div:
+            bid="45v" link: "From 526 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 8:25 AM on Friday, May 1 and arrives at Heathrow Airport at 8:40 PM on Friday, May 1. Total duration 7 hr 15 min.  Select flight"
+            bid="479,478":
+              bid="477,476":
+                bid="45x,45w" presentation
+                bid="46c":
+                  bid="467,466" label="Leaves Newark Liberty International Airport at 8:25 AM on Friday, May 1 and arrives at Heathrow Airport at 8:40 PM on Friday, May 1.": "–"
+                    bid="461":
+                      bid="460,45z,45y" text: "Departure time: 8:25 AM. Departure time: 8:25 AM."
+                    bid="465":
+                      bid="464,463,462" text: "Arrival time: 8:40 PM. Arrival time: 8:40 PM."
+                  bid="46b":
+                    bid="468": "United"
+                    bid="46a": "Austrian"
+                bid="46n":
+                  bid="46d": "Total duration 7 hr 15 min."
+                  bid="46m": "–"
+                    bid="46h,46g":
+                      bid="46f,46e": "EWR"
+                    bid="46l,46k":
+                      bid="46j,46i": "LHR"
+                bid="46r":
+                  bid="46p,46o": "Nonstop flight."
+                bid="46z,46y":
+                  bid="46t,46s": "376 kg CO2e"
+                  bid="46x":
+                    bid="46v,46u": "-9% emissions"
+                    bid="46w" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="475":
+                  bid="473":
+                    bid="472,471" text label="526 US dollars": "$526"
+                  bid="474": "round trip"
+            button bid="47a": "Flight details. Leaves Newark Liberty International Airport at 8:25 AM on Friday, May 1 and arrives at Heathrow Airport at 8:40 PM on Friday, May 1."
+          div:
+            bid="47b" link: "From 526 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 9:20 AM on Friday, May 1 and arrives at Heathrow Airport at 9:35 PM on Friday, May 1. Total duration 7 hr 15 min.  Select flight"
+            bid="48n,48m":
+              bid="48l,48k":
+                bid="47d,47c" presentation
+                bid="47q":
+                  bid="47n,47m" label="Leaves Newark Liberty International Airport at 9:20 AM on Friday, May 1 and arrives at Heathrow Airport at 9:35 PM on Friday, May 1.": "–"
+                    bid="47h":
+                      bid="47g,47f,47e" text: "Departure time: 9:20 AM. Departure time: 9:20 AM."
+                    bid="47l":
+                      bid="47k,47j,47i" text: "Arrival time: 9:35 PM. Arrival time: 9:35 PM."
+                  bid="47p,47o": "United"
+                bid="481":
+                  bid="47r": "Total duration 7 hr 15 min."
+                  bid="480": "–"
+                    bid="47v,47u":
+                      bid="47t,47s": "EWR"
+                    bid="47z,47y":
+                      bid="47x,47w": "LHR"
+                bid="485":
+                  bid="483,482": "Nonstop flight."
+                bid="48d,48c":
+                  bid="487,486": "376 kg CO2e"
+                  bid="48b":
+                    bid="489,488": "-9% emissions"
+                    bid="48a" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="48j":
+                  bid="48h":
+                    bid="48g,48f" text label="526 US dollars": "$526"
+                  bid="48i": "round trip"
+            button bid="48o": "Flight details. Leaves Newark Liberty International Airport at 9:20 AM on Friday, May 1 and arrives at Heathrow Airport at 9:35 PM on Friday, May 1."
+          div:
+            bid="48p" link: "From 526 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 5:25 PM on Friday, May 1 and arrives at Heathrow Airport at 5:55 AM on Saturday, May 2. Total duration 7 hr 30 min.  Select flight"
+            bid="4a4,4a3":
+              bid="4a2,4a1":
+                bid="48r,48q" presentation
+                bid="497":
+                  bid="492,491" label="Leaves Newark Liberty International Airport at 5:25 PM on Friday, May 1 and arrives at Heathrow Airport at 5:55 AM on Saturday, May 2.": "–"
+                    bid="48v":
+                      bid="48u,48t,48s" text: "Departure time: 5:25 PM. Departure time: 5:25 PM."
+                    bid="490":
+                      bid="48z,48y,48x,48w" text: "Arrival time: 5:55 AM on  Saturday, May 2. Arrival time: 5:55 AM on  Saturday, May 2. +1"
+                  bid="496":
+                    bid="493": "United"
+                    bid="495": "Austrian"
+                bid="49i":
+                  bid="498": "Total duration 7 hr 30 min."
+                  bid="49h": "–"
+                    bid="49c,49b":
+                      bid="49a,499": "EWR"
+                    bid="49g,49f":
+                      bid="49e,49d": "LHR"
+                bid="49m":
+                  bid="49k,49j": "Nonstop flight."
+                bid="49u,49t":
+                  bid="49o,49n": "376 kg CO2e"
+                  bid="49s":
+                    bid="49q,49p": "-9% emissions"
+                    bid="49r" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="4a0":
+                  bid="49y":
+                    bid="49x,49w" text label="526 US dollars": "$526"
+                  bid="49z": "round trip"
+            button bid="4a5": "Flight details. Leaves Newark Liberty International Airport at 5:25 PM on Friday, May 1 and arrives at Heathrow Airport at 5:55 AM on Saturday, May 2."
+          div:
+            bid="4a6" link: "From 526 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 7:50 PM on Friday, May 1 and arrives at Heathrow Airport at 8:20 AM on Saturday, May 2. Total duration 7 hr 30 min.  Select flight"
+            bid="4bj,4bi":
+              bid="4bh,4bg":
+                bid="4a8,4a7" presentation
+                bid="4am":
+                  bid="4aj,4ai" label="Leaves Newark Liberty International Airport at 7:50 PM on Friday, May 1 and arrives at Heathrow Airport at 8:20 AM on Saturday, May 2.": "–"
+                    bid="4ac":
+                      bid="4ab,4aa,4a9" text: "Departure time: 7:50 PM. Departure time: 7:50 PM."
+                    bid="4ah":
+                      bid="4ag,4af,4ae,4ad" text: "Arrival time: 8:20 AM on  Saturday, May 2. Arrival time: 8:20 AM on  Saturday, May 2. +1"
+                  bid="4al,4ak": "United"
+                bid="4ax":
+                  bid="4an": "Total duration 7 hr 30 min."
+                  bid="4aw": "–"
+                    bid="4ar,4aq":
+                      bid="4ap,4ao": "EWR"
+                    bid="4av,4au":
+                      bid="4at,4as": "LHR"
+                bid="4b1":
+                  bid="4az,4ay": "Nonstop flight."
+                bid="4b9,4b8":
+                  bid="4b3,4b2": "376 kg CO2e"
+                  bid="4b7":
+                    bid="4b5,4b4": "-9% emissions"
+                    bid="4b6" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="4bf":
+                  bid="4bd":
+                    bid="4bc,4bb" text label="526 US dollars": "$526"
+                  bid="4be": "round trip"
+            button bid="4bk": "Flight details. Leaves Newark Liberty International Airport at 7:50 PM on Friday, May 1 and arrives at Heathrow Airport at 8:20 AM on Saturday, May 2."
+          div:
+            bid="4bl" link: "From 526 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 8:45 PM on Friday, May 1 and arrives at Heathrow Airport at 9:20 AM on Saturday, May 2. Total duration 7 hr 35 min.  Select flight"
+            bid="4d0,4cz":
+              bid="4cy,4cx":
+                bid="4bn,4bm" presentation
+                bid="4c3":
+                  bid="4by,4bx" label="Leaves Newark Liberty International Airport at 8:45 PM on Friday, May 1 and arrives at Heathrow Airport at 9:20 AM on Saturday, May 2.": "–"
+                    bid="4br":
+                      bid="4bq,4bp,4bo" text: "Departure time: 8:45 PM. Departure time: 8:45 PM."
+                    bid="4bw":
+                      bid="4bv,4bu,4bt,4bs" text: "Arrival time: 9:20 AM on  Saturday, May 2. Arrival time: 9:20 AM on  Saturday, May 2. +1"
+                  bid="4c2":
+                    bid="4bz": "United"
+                    bid="4c1": "Austrian"
+                bid="4ce":
+                  bid="4c4": "Total duration 7 hr 35 min."
+                  bid="4cd": "–"
+                    bid="4c8,4c7":
+                      bid="4c6,4c5": "EWR"
+                    bid="4cc,4cb":
+                      bid="4ca,4c9": "LHR"
+                bid="4ci":
+                  bid="4cg,4cf": "Nonstop flight."
+                bid="4cq,4cp":
+                  bid="4ck,4cj": "376 kg CO2e"
+                  bid="4co":
+                    bid="4cm,4cl": "-9% emissions"
+                    bid="4cn" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="4cw":
+                  bid="4cu":
+                    bid="4ct,4cs" text label="526 US dollars": "$526"
+                  bid="4cv": "round trip"
+            button bid="4d1": "Flight details. Leaves Newark Liberty International Airport at 8:45 PM on Friday, May 1 and arrives at Heathrow Airport at 9:20 AM on Saturday, May 2."
+          div:
+            bid="4d2" link: "From 526 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 10:00 PM on Friday, May 1 and arrives at Heathrow Airport at 10:25 AM on Saturday, May 2. Total duration 7 hr 25 min.  Select flight"
+            bid="4eh,4eg":
+              bid="4ef,4ee":
+                bid="4d4,4d3" presentation
+                bid="4dk":
+                  bid="4df,4de" label="Leaves Newark Liberty International Airport at 10:00 PM on Friday, May 1 and arrives at Heathrow Airport at 10:25 AM on Saturday, May 2.": "–"
+                    bid="4d8":
+                      bid="4d7,4d6,4d5" text: "Departure time: 10:00 PM. Departure time: 10:00 PM."
+                    bid="4dd":
+                      bid="4dc,4db,4da,4d9" text: "Arrival time: 10:25 AM on  Saturday, May 2. Arrival time: 10:25 AM on  Saturday, May 2. +1"
+                  bid="4dj":
+                    bid="4dg": "United"
+                    bid="4di": "Austrian"
+                bid="4dv":
+                  bid="4dl": "Total duration 7 hr 25 min."
+                  bid="4du": "–"
+                    bid="4dp,4do":
+                      bid="4dn,4dm": "EWR"
+                    bid="4dt,4ds":
+                      bid="4dr,4dq": "LHR"
+                bid="4dz":
+                  bid="4dx,4dw": "Nonstop flight."
+                bid="4e7,4e6":
+                  bid="4e1,4e0": "376 kg CO2e"
+                  bid="4e5":
+                    bid="4e3,4e2": "-9% emissions"
+                    bid="4e4" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="4ed":
+                  bid="4eb":
+                    bid="4ea,4e9" text label="526 US dollars": "$526"
+                  bid="4ec": "round trip"
+            button bid="4ei": "Flight details. Leaves Newark Liberty International Airport at 10:00 PM on Friday, May 1 and arrives at Heathrow Airport at 10:25 AM on Saturday, May 2."
+          div:
+            bid="4ej" link: "From 528 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 6:45 PM on Friday, May 1 and arrives at Heathrow Airport at 6:50 AM on Saturday, May 2. Total duration 7 hr 5 min.  Select flight"
+            bid="4fy,4fx":
+              bid="4fw,4fv":
+                bid="4el,4ek" presentation
+                bid="4f1":
+                  bid="4ew,4ev" label="Leaves John F. Kennedy International Airport at 6:45 PM on Friday, May 1 and arrives at Heathrow Airport at 6:50 AM on Saturday, May 2.": "–"
+                    bid="4ep":
+                      bid="4eo,4en,4em" text: "Departure time: 6:45 PM. Departure time: 6:45 PM."
+                    bid="4eu":
+                      bid="4et,4es,4er,4eq" text: "Arrival time: 6:50 AM on  Saturday, May 2. Arrival time: 6:50 AM on  Saturday, May 2. +1"
+                  bid="4f0":
+                    bid="4ex": "British\n                                              Airways"
+                    bid="4ez": "Finnair"
+                bid="4fc":
+                  bid="4f2": "Total duration 7 hr 5 min."
+                  bid="4fb": "–"
+                    bid="4f6,4f5":
+                      bid="4f4,4f3": "JFK"
+                    bid="4fa,4f9":
+                      bid="4f8,4f7": "LHR"
+                bid="4fg":
+                  bid="4fe,4fd": "Nonstop flight."
+                bid="4fo,4fn":
+                  bid="4fi,4fh": "385 kg CO2e"
+                  bid="4fm":
+                    bid="4fk,4fj": "-7% emissions"
+                    bid="4fl" button: "Carbon emissions estimate: 385 kilograms. -7% emissions. Learn more about this emissions estimate"
+                bid="4fu":
+                  bid="4fs":
+                    bid="4fr,4fq" text label="528 US dollars": "$528"
+                  bid="4ft": "round trip"
+            button bid="4fz": "Flight details. Leaves John F. Kennedy International Airport at 6:45 PM on Friday, May 1 and arrives at Heathrow Airport at 6:50 AM on Saturday, May 2."
+          div:
+            bid="4g0" link: "From 528 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 7:30 PM on Friday, May 1 and arrives at Heathrow Airport at 7:45 AM on Saturday, May 2. Total duration 7 hr 15 min.  Select flight"
+            bid="4hf,4he":
+              bid="4hd,4hc":
+                bid="4g2,4g1" presentation
+                bid="4gi":
+                  bid="4gd,4gc" label="Leaves John F. Kennedy International Airport at 7:30 PM on Friday, May 1 and arrives at Heathrow Airport at 7:45 AM on Saturday, May 2.": "–"
+                    bid="4g6":
+                      bid="4g5,4g4,4g3" text: "Departure time: 7:30 PM. Departure time: 7:30 PM."
+                    bid="4gb":
+                      bid="4ga,4g9,4g8,4g7" text: "Arrival time: 7:45 AM on  Saturday, May 2. Arrival time: 7:45 AM on  Saturday, May 2. +1"
+                  bid="4gh":
+                    bid="4ge": "British\n                                              Airways"
+                    bid="4gg": "Finnair"
+                bid="4gt":
+                  bid="4gj": "Total duration 7 hr 15 min."
+                  bid="4gs": "–"
+                    bid="4gn,4gm":
+                      bid="4gl,4gk": "JFK"
+                    bid="4gr,4gq":
+                      bid="4gp,4go": "LHR"
+                bid="4gx":
+                  bid="4gv,4gu": "Nonstop flight."
+                bid="4h5,4h4":
+                  bid="4gz,4gy": "423 kg CO2e"
+                  bid="4h3":
+                    bid="4h1,4h0": "Avg emissions"
+                    bid="4h2" button: "Carbon emissions estimate: 423 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="4hb":
+                  bid="4h9":
+                    bid="4h8,4h7" text label="528 US dollars": "$528"
+                  bid="4ha": "round trip"
+            button bid="4hg": "Flight details. Leaves John F. Kennedy International Airport at 7:30 PM on Friday, May 1 and arrives at Heathrow Airport at 7:45 AM on Saturday, May 2."
+          div:
+            bid="4hh" link: "From 528 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 8:55 PM on Friday, May 1 and arrives at Heathrow Airport at 9:10 AM on Saturday, May 2. Total duration 7 hr 15 min.  Select flight"
+            bid="4iw,4iv":
+              bid="4iu,4it":
+                bid="4hj,4hi" presentation
+                bid="4hz":
+                  bid="4hu,4ht" label="Leaves John F. Kennedy International Airport at 8:55 PM on Friday, May 1 and arrives at Heathrow Airport at 9:10 AM on Saturday, May 2.": "–"
+                    bid="4hn":
+                      bid="4hm,4hl,4hk" text: "Departure time: 8:55 PM. Departure time: 8:55 PM."
+                    bid="4hs":
+                      bid="4hr,4hq,4hp,4ho" text: "Arrival time: 9:10 AM on  Saturday, May 2. Arrival time: 9:10 AM on  Saturday, May 2. +1"
+                  bid="4hy":
+                    bid="4hv": "British\n                                              Airways"
+                    bid="4hx": "Finnair"
+                bid="4ia":
+                  bid="4i0": "Total duration 7 hr 15 min."
+                  bid="4i9": "–"
+                    bid="4i4,4i3":
+                      bid="4i2,4i1": "JFK"
+                    bid="4i8,4i7":
+                      bid="4i6,4i5": "LHR"
+                bid="4ie":
+                  bid="4ic,4ib": "Nonstop flight."
+                bid="4im,4il":
+                  bid="4ig,4if": "423 kg CO2e"
+                  bid="4ik":
+                    bid="4ii,4ih": "Avg emissions"
+                    bid="4ij" button: "Carbon emissions estimate: 423 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="4is":
+                  bid="4iq":
+                    bid="4ip,4io" text label="528 US dollars": "$528"
+                  bid="4ir": "round trip"
+            button bid="4ix": "Flight details. Leaves John F. Kennedy International Airport at 8:55 PM on Friday, May 1 and arrives at Heathrow Airport at 9:10 AM on Saturday, May 2."
+          div:
+            bid="4iy" link: "From 537 US dollars round trip total. Nonstop flight with Virgin Atlantic. Leaves John F. Kennedy International Airport at 8:15 AM on Friday, May 1 and arrives at Heathrow Airport at 8:10 PM on Friday, May 1. Total duration 6 hr 55 min.  Select flight"
+            bid="4kc,4kb":
+              bid="4ka,4k9":
+                bid="4j0,4iz" presentation
+                bid="4jf":
+                  bid="4ja,4j9" label="Leaves John F. Kennedy International Airport at 8:15 AM on Friday, May 1 and arrives at Heathrow Airport at 8:10 PM on Friday, May 1.": "–"
+                    bid="4j4":
+                      bid="4j3,4j2,4j1" text: "Departure time: 8:15 AM. Departure time: 8:15 AM."
+                    bid="4j8":
+                      bid="4j7,4j6,4j5" text: "Arrival time: 8:10 PM. Arrival time: 8:10 PM."
+                  bid="4je":
+                    bid="4jb": "Virgin\n                                              Atlantic"
+                    bid="4jd": "Air France, KLM"
+                bid="4jq":
+                  bid="4jg": "Total duration 6 hr 55 min."
+                  bid="4jp": "–"
+                    bid="4jk,4jj":
+                      bid="4ji,4jh": "JFK"
+                    bid="4jo,4jn":
+                      bid="4jm,4jl": "LHR"
+                bid="4ju":
+                  bid="4js,4jr": "Nonstop flight."
+                bid="4k2,4k1":
+                  bid="4jw,4jv": "340 kg CO2e"
+                  bid="4k0":
+                    bid="4jy,4jx": "-18% emissions"
+                    bid="4jz" button: "Carbon emissions estimate: 340 kilograms. -18% emissions. Learn more about this emissions estimate"
+                bid="4k8":
+                  bid="4k6":
+                    bid="4k5,4k4" text label="537 US dollars": "$537"
+                  bid="4k7": "round trip"
+            button bid="4kd": "Flight details. Leaves John F. Kennedy International Airport at 8:15 AM on Friday, May 1 and arrives at Heathrow Airport at 8:10 PM on Friday, May 1."
+          div:
+            bid="4ke" link: "From 537 US dollars round trip total. Nonstop flight with Virgin Atlantic. Leaves John F. Kennedy International Airport at 6:00 PM on Friday, May 1 and arrives at Heathrow Airport at 6:20 AM on Saturday, May 2. Total duration 7 hr 20 min.  Select flight"
+            bid="4lt,4ls":
+              bid="4lr,4lq":
+                bid="4kg,4kf" presentation
+                bid="4kw":
+                  bid="4kr,4kq" label="Leaves John F. Kennedy International Airport at 6:00 PM on Friday, May 1 and arrives at Heathrow Airport at 6:20 AM on Saturday, May 2.": "–"
+                    bid="4kk":
+                      bid="4kj,4ki,4kh" text: "Departure time: 6:00 PM. Departure time: 6:00 PM."
+                    bid="4kp":
+                      bid="4ko,4kn,4km,4kl" text: "Arrival time: 6:20 AM on  Saturday, May 2. Arrival time: 6:20 AM on  Saturday, May 2. +1"
+                  bid="4kv":
+                    bid="4ks": "Virgin\n                                              Atlantic"
+                    bid="4ku": "Air France, KLM"
+                bid="4l7":
+                  bid="4kx": "Total duration 7 hr 20 min."
+                  bid="4l6": "–"
+                    bid="4l1,4l0":
+                      bid="4kz,4ky": "JFK"
+                    bid="4l5,4l4":
+                      bid="4l3,4l2": "LHR"
+                bid="4lb":
+                  bid="4l9,4l8": "Nonstop flight."
+                bid="4lj,4li":
+                  bid="4ld,4lc": "335 kg CO2e"
+                  bid="4lh":
+                    bid="4lf,4le": "-19% emissions"
+                    bid="4lg" button: "Carbon emissions estimate: 335 kilograms. -19% emissions. Learn more about this emissions estimate"
+                bid="4lp":
+                  bid="4ln":
+                    bid="4lm,4ll" text label="537 US dollars": "$537"
+                  bid="4lo": "round trip"
+            button bid="4lu": "Flight details. Leaves John F. Kennedy International Airport at 6:00 PM on Friday, May 1 and arrives at Heathrow Airport at 6:20 AM on Saturday, May 2."
+          div:
+            bid="4lv" link: "From 537 US dollars round trip total. Nonstop flight with Virgin Atlantic. Leaves John F. Kennedy International Airport at 6:30 PM on Friday, May 1 and arrives at Heathrow Airport at 6:45 AM on Saturday, May 2. Total duration 7 hr 15 min.  Select flight"
+            bid="4na,4n9":
+              bid="4n8,4n7":
+                bid="4lx,4lw" presentation
+                bid="4md":
+                  bid="4m8,4m7" label="Leaves John F. Kennedy International Airport at 6:30 PM on Friday, May 1 and arrives at Heathrow Airport at 6:45 AM on Saturday, May 2.": "–"
+                    bid="4m1":
+                      bid="4m0,4lz,4ly" text: "Departure time: 6:30 PM. Departure time: 6:30 PM."
+                    bid="4m6":
+                      bid="4m5,4m4,4m3,4m2" text: "Arrival time: 6:45 AM on  Saturday, May 2. Arrival time: 6:45 AM on  Saturday, May 2. +1"
+                  bid="4mc":
+                    bid="4m9": "Virgin\n                                              Atlantic"
+                    bid="4mb": "Air France, KLM"
+                bid="4mo":
+                  bid="4me": "Total duration 7 hr 15 min."
+                  bid="4mn": "–"
+                    bid="4mi,4mh":
+                      bid="4mg,4mf": "JFK"
+                    bid="4mm,4ml":
+                      bid="4mk,4mj": "LHR"
+                bid="4ms":
+                  bid="4mq,4mp": "Nonstop flight."
+                bid="4n0,4mz":
+                  bid="4mu,4mt": "335 kg CO2e"
+                  bid="4my":
+                    bid="4mw,4mv": "-19% emissions"
+                    bid="4mx" button: "Carbon emissions estimate: 335 kilograms. -19% emissions. Learn more about this emissions estimate"
+                bid="4n6":
+                  bid="4n4":
+                    bid="4n3,4n2" text label="537 US dollars": "$537"
+                  bid="4n5": "round trip"
+            button bid="4nb": "Flight details. Leaves John F. Kennedy International Airport at 6:30 PM on Friday, May 1 and arrives at Heathrow Airport at 6:45 AM on Saturday, May 2."
+          div:
+            bid="4nc" link: "From 537 US dollars round trip total. Nonstop flight with Virgin Atlantic. Leaves John F. Kennedy International Airport at 7:00 PM on Friday, May 1 and arrives at Heathrow Airport at 7:15 AM on Saturday, May 2. Total duration 7 hr 15 min.  Select flight"
+            bid="4or,4oq":
+              bid="4op,4oo":
+                bid="4ne,4nd" presentation
+                bid="4nu":
+                  bid="4np,4no" label="Leaves John F. Kennedy International Airport at 7:00 PM on Friday, May 1 and arrives at Heathrow Airport at 7:15 AM on Saturday, May 2.": "–"
+                    bid="4ni":
+                      bid="4nh,4ng,4nf" text: "Departure time: 7:00 PM. Departure time: 7:00 PM."
+                    bid="4nn":
+                      bid="4nm,4nl,4nk,4nj" text: "Arrival time: 7:15 AM on  Saturday, May 2. Arrival time: 7:15 AM on  Saturday, May 2. +1"
+                  bid="4nt":
+                    bid="4nq": "Virgin\n                                              Atlantic"
+                    bid="4ns": "Air France, KLM"
+                bid="4o5":
+                  bid="4nv": "Total duration 7 hr 15 min."
+                  bid="4o4": "–"
+                    bid="4nz,4ny":
+                      bid="4nx,4nw": "JFK"
+                    bid="4o3,4o2":
+                      bid="4o1,4o0": "LHR"
+                bid="4o9":
+                  bid="4o7,4o6": "Nonstop flight."
+                bid="4oh,4og":
+                  bid="4ob,4oa": "335 kg CO2e"
+                  bid="4of":
+                    bid="4od,4oc": "-19% emissions"
+                    bid="4oe" button: "Carbon emissions estimate: 335 kilograms. -19% emissions. Learn more about this emissions estimate"
+                bid="4on":
+                  bid="4ol":
+                    bid="4ok,4oj" text label="537 US dollars": "$537"
+                  bid="4om": "round trip"
+            button bid="4os": "Flight details. Leaves John F. Kennedy International Airport at 7:00 PM on Friday, May 1 and arrives at Heathrow Airport at 7:15 AM on Saturday, May 2."
+          div:
+            bid="4ot" link: "From 537 US dollars round trip total. Nonstop flight with Virgin Atlantic. Leaves John F. Kennedy International Airport at 8:45 PM on Friday, May 1 and arrives at Heathrow Airport at 8:50 AM on Saturday, May 2. Total duration 7 hr 5 min.  Select flight"
+            bid="4q8,4q7":
+              bid="4q6,4q5":
+                bid="4ov,4ou" presentation
+                bid="4pb":
+                  bid="4p6,4p5" label="Leaves John F. Kennedy International Airport at 8:45 PM on Friday, May 1 and arrives at Heathrow Airport at 8:50 AM on Saturday, May 2.": "–"
+                    bid="4oz":
+                      bid="4oy,4ox,4ow" text: "Departure time: 8:45 PM. Departure time: 8:45 PM."
+                    bid="4p4":
+                      bid="4p3,4p2,4p1,4p0" text: "Arrival time: 8:50 AM on  Saturday, May 2. Arrival time: 8:50 AM on  Saturday, May 2. +1"
+                  bid="4pa":
+                    bid="4p7": "Virgin\n                                              Atlantic"
+                    bid="4p9": "Air France, KLM"
+                bid="4pm":
+                  bid="4pc": "Total duration 7 hr 5 min."
+                  bid="4pl": "–"
+                    bid="4pg,4pf":
+                      bid="4pe,4pd": "JFK"
+                    bid="4pk,4pj":
+                      bid="4pi,4ph": "LHR"
+                bid="4pq":
+                  bid="4po,4pn": "Nonstop flight."
+                bid="4py,4px":
+                  bid="4ps,4pr": "335 kg CO2e"
+                  bid="4pw":
+                    bid="4pu,4pt": "-19% emissions"
+                    bid="4pv" button: "Carbon emissions estimate: 335 kilograms. -19% emissions. Learn more about this emissions estimate"
+                bid="4q4":
+                  bid="4q2":
+                    bid="4q1,4q0" text label="537 US dollars": "$537"
+                  bid="4q3": "round trip"
+            button bid="4q9": "Flight details. Leaves John F. Kennedy International Airport at 8:45 PM on Friday, May 1 and arrives at Heathrow Airport at 8:50 AM on Saturday, May 2."
+          div:
+            bid="4qa" link: "From 537 US dollars round trip total. Nonstop flight with Delta. Leaves John F. Kennedy International Airport at 10:00 PM on Friday, May 1 and arrives at Heathrow Airport at 10:20 AM on Saturday, May 2. Total duration 7 hr 20 min.  Select flight"
+            bid="4rp,4ro":
+              bid="4rn,4rm":
+                bid="4qc,4qb" presentation
+                bid="4qs":
+                  bid="4qn,4qm" label="Leaves John F. Kennedy International Airport at 10:00 PM on Friday, May 1 and arrives at Heathrow Airport at 10:20 AM on Saturday, May 2.": "–"
+                    bid="4qg":
+                      bid="4qf,4qe,4qd" text: "Departure time: 10:00 PM. Departure time: 10:00 PM."
+                    bid="4ql":
+                      bid="4qk,4qj,4qi,4qh" text: "Arrival time: 10:20 AM on  Saturday, May 2. Arrival time: 10:20 AM on  Saturday, May 2. +1"
+                  bid="4qr":
+                    bid="4qo": "Delta"
+                    bid="4qq": "Air France, KLM"
+                bid="4r3":
+                  bid="4qt": "Total duration 7 hr 20 min."
+                  bid="4r2": "–"
+                    bid="4qx,4qw":
+                      bid="4qv,4qu": "JFK"
+                    bid="4r1,4r0":
+                      bid="4qz,4qy": "LHR"
+                bid="4r7":
+                  bid="4r5,4r4": "Nonstop flight."
+                bid="4rf,4re":
+                  bid="4r9,4r8": "345 kg CO2e"
+                  bid="4rd":
+                    bid="4rb,4ra": "-16% emissions"
+                    bid="4rc" button: "Carbon emissions estimate: 345 kilograms. -16% emissions. Learn more about this emissions estimate"
+                bid="4rl":
+                  bid="4rj":
+                    bid="4ri,4rh" text label="537 US dollars": "$537"
+                  bid="4rk": "round trip"
+            button bid="4rq": "Flight details. Leaves John F. Kennedy International Airport at 10:00 PM on Friday, May 1 and arrives at Heathrow Airport at 10:20 AM on Saturday, May 2."
+          div:
+            bid="4rr" link: "From 537 US dollars round trip total. Nonstop flight with Virgin Atlantic. Leaves John F. Kennedy International Airport at 11:40 PM on Friday, May 1 and arrives at Heathrow Airport at 12:05 PM on Saturday, May 2. Total duration 7 hr 25 min.  Select flight"
+            bid="4t6,4t5":
+              bid="4t4,4t3":
+                bid="4rt,4rs" presentation
+                bid="4s9":
+                  bid="4s4,4s3" label="Leaves John F. Kennedy International Airport at 11:40 PM on Friday, May 1 and arrives at Heathrow Airport at 12:05 PM on Saturday, May 2.": "–"
+                    bid="4rx":
+                      bid="4rw,4rv,4ru" text: "Departure time: 11:40 PM. Departure time: 11:40 PM."
+                    bid="4s2":
+                      bid="4s1,4s0,4rz,4ry" text: "Arrival time: 12:05 PM on  Saturday, May 2. Arrival time: 12:05 PM on  Saturday, May 2. +1"
+                  bid="4s8":
+                    bid="4s5": "Virgin\n                                              Atlantic"
+                    bid="4s7": "Air France, KLM"
+                bid="4sk":
+                  bid="4sa": "Total duration 7 hr 25 min."
+                  bid="4sj": "–"
+                    bid="4se,4sd":
+                      bid="4sc,4sb": "JFK"
+                    bid="4si,4sh":
+                      bid="4sg,4sf": "LHR"
+                bid="4so":
+                  bid="4sm,4sl": "Nonstop flight."
+                bid="4sw,4sv":
+                  bid="4sq,4sp": "352 kg CO2e"
+                  bid="4su":
+                    bid="4ss,4sr": "-15% emissions"
+                    bid="4st" button: "Carbon emissions estimate: 352 kilograms. -15% emissions. Learn more about this emissions estimate"
+                bid="4t2":
+                  bid="4t0":
+                    bid="4sz,4sy" text label="537 US dollars": "$537"
+                  bid="4t1": "round trip"
+            button bid="4t7": "Flight details. Leaves John F. Kennedy International Airport at 11:40 PM on Friday, May 1 and arrives at Heathrow Airport at 12:05 PM on Saturday, May 2."
+          div:
+            bid="4t8" link: "From 543 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 9:30 PM on Friday, May 1 and arrives at Heathrow Airport at 9:40 AM on Saturday, May 2. Total duration 7 hr 10 min.  Select flight"
+            bid="4un,4um":
+              bid="4ul,4uk":
+                bid="4ta,4t9" presentation
+                bid="4tq":
+                  bid="4tl,4tk" label="Leaves John F. Kennedy International Airport at 9:30 PM on Friday, May 1 and arrives at Heathrow Airport at 9:40 AM on Saturday, May 2.": "–"
+                    bid="4te":
+                      bid="4td,4tc,4tb" text: "Departure time: 9:30 PM. Departure time: 9:30 PM."
+                    bid="4tj":
+                      bid="4ti,4th,4tg,4tf" text: "Arrival time: 9:40 AM on  Saturday, May 2. Arrival time: 9:40 AM on  Saturday, May 2. +1"
+                  bid="4tp":
+                    bid="4tm": "British\n                                              Airways"
+                    bid="4to": "Finnair"
+                bid="4u1":
+                  bid="4tr": "Total duration 7 hr 10 min."
+                  bid="4u0": "–"
+                    bid="4tv,4tu":
+                      bid="4tt,4ts": "JFK"
+                    bid="4tz,4ty":
+                      bid="4tx,4tw": "LHR"
+                bid="4u5":
+                  bid="4u3,4u2": "Nonstop flight."
+                bid="4ud,4uc":
+                  bid="4u7,4u6": "423 kg CO2e"
+                  bid="4ub":
+                    bid="4u9,4u8": "Avg emissions"
+                    bid="4ua" button: "Carbon emissions estimate: 423 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="4uj":
+                  bid="4uh":
+                    bid="4ug,4uf" text label="543 US dollars": "$543"
+                  bid="4ui": "round trip"
+            button bid="4uo": "Flight details. Leaves John F. Kennedy International Airport at 9:30 PM on Friday, May 1 and arrives at Heathrow Airport at 9:40 AM on Saturday, May 2."
+          div:
+            bid="4up" link: "From 548 US dollars round trip total. 1 stop flight with United. Operated by Republic Airways DBA United Express. Leaves LaGuardia Airport at 7:29 PM on Friday, May 1 and arrives at Heathrow Airport at 10:40 AM on Saturday, May 2. Total duration 10 hr 11 min. Layover (1 of 1) is a 50 min layover at Dulles International Airport in Washington. Select flight"
+            bid="4w7,4w6":
+              bid="4w5,4w4":
+                bid="4ur,4uq" presentation
+                bid="4v7":
+                  bid="4v2,4v1" label="Leaves LaGuardia Airport at 7:29 PM on Friday, May 1 and arrives at Heathrow Airport at 10:40 AM on Saturday, May 2.": "–"
+                    bid="4uv":
+                      bid="4uu,4ut,4us" text: "Departure time: 7:29 PM. Departure time: 7:29 PM."
+                    bid="4v0":
+                      bid="4uz,4uy,4ux,4uw" text: "Arrival time: 10:40 AM on  Saturday, May 2. Arrival time: 10:40 AM on  Saturday, May 2. +1"
+                  bid="4v6":
+                    bid="4v3": "United"
+                    bid="4v5": "Operated by Republic Airways\n                                              DBA United Express"
+                bid="4vi":
+                  bid="4v8": "Total duration 10 hr 11 min."
+                  bid="4vh": "–"
+                    bid="4vc,4vb":
+                      bid="4va,4v9": "LGA"
+                    bid="4vg,4vf":
+                      bid="4ve,4vd": "LHR"
+                bid="4vp":
+                  bid="4vk,4vj": "1 stop flight."
+                  bid="4vo,4vn": "Layover (1 of 1) is a 50 min layover at Dulles International Airport in Washington."
+                    bid="4vm,4vl": "IAD"
+                bid="4vx,4vw":
+                  bid="4vr,4vq": "540 kg CO2e"
+                  bid="4vv":
+                    bid="4vt,4vs": "+31% emissions"
+                    bid="4vu" button: "Carbon emissions estimate: 540 kilograms. +31% emissions. Learn more about this emissions estimate"
+                bid="4w3":
+                  bid="4w1":
+                    bid="4w0,4vz" text label="548 US dollars": "$548"
+                  bid="4w2": "round trip"
+            button bid="4w8": "Flight details. Leaves LaGuardia Airport at 7:29 PM on Friday, May 1 and arrives at Heathrow Airport at 10:40 AM on Saturday, May 2."
+          div:
+            bid="4w9" link: "From 558 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 6:30 PM on Friday, May 1 and arrives at Heathrow Airport at 6:30 AM on Saturday, May 2. Total duration 7 hr.  Select flight"
+            bid="4xo,4xn":
+              bid="4xm,4xl":
+                bid="4wb,4wa" presentation
+                bid="4wr":
+                  bid="4wm,4wl" label="Leaves John F. Kennedy International Airport at 6:30 PM on Friday, May 1 and arrives at Heathrow Airport at 6:30 AM on Saturday, May 2.": "–"
+                    bid="4wf":
+                      bid="4we,4wd,4wc" text: "Departure time: 6:30 PM. Departure time: 6:30 PM."
+                    bid="4wk":
+                      bid="4wj,4wi,4wh,4wg" text: "Arrival time: 6:30 AM on  Saturday, May 2. Arrival time: 6:30 AM on  Saturday, May 2. +1"
+                  bid="4wq":
+                    bid="4wn": "British\n                                              Airways"
+                    bid="4wp": "Finnair"
+                bid="4x2":
+                  bid="4ws": "Total duration 7 hr."
+                  bid="4x1": "–"
+                    bid="4ww,4wv":
+                      bid="4wu,4wt": "JFK"
+                    bid="4x0,4wz":
+                      bid="4wy,4wx": "LHR"
+                bid="4x6":
+                  bid="4x4,4x3": "Nonstop flight."
+                bid="4xe,4xd":
+                  bid="4x8,4x7": "385 kg CO2e"
+                  bid="4xc":
+                    bid="4xa,4x9": "-7% emissions"
+                    bid="4xb" button: "Carbon emissions estimate: 385 kilograms. -7% emissions. Learn more about this emissions estimate"
+                bid="4xk":
+                  bid="4xi":
+                    bid="4xh,4xg" text label="558 US dollars": "$558"
+                  bid="4xj": "round trip"
+            button bid="4xp": "Flight details. Leaves John F. Kennedy International Airport at 6:30 PM on Friday, May 1 and arrives at Heathrow Airport at 6:30 AM on Saturday, May 2."
+          div:
+            bid="4xq" link: "From 573 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 7:10 PM on Friday, May 1 and arrives at Heathrow Airport at 7:20 AM on Saturday, May 2. Total duration 7 hr 10 min.  Select flight"
+            bid="4z5,4z4":
+              bid="4z3,4z2":
+                bid="4xs,4xr" presentation
+                bid="4y8":
+                  bid="4y3,4y2" label="Leaves John F. Kennedy International Airport at 7:10 PM on Friday, May 1 and arrives at Heathrow Airport at 7:20 AM on Saturday, May 2.": "–"
+                    bid="4xw":
+                      bid="4xv,4xu,4xt" text: "Departure time: 7:10 PM. Departure time: 7:10 PM."
+                    bid="4y1":
+                      bid="4y0,4xz,4xy,4xx" text: "Arrival time: 7:20 AM on  Saturday, May 2. Arrival time: 7:20 AM on  Saturday, May 2. +1"
+                  bid="4y7":
+                    bid="4y4": "British\n                                              Airways"
+                    bid="4y6": "Finnair"
+                bid="4yj":
+                  bid="4y9": "Total duration 7 hr 10 min."
+                  bid="4yi": "–"
+                    bid="4yd,4yc":
+                      bid="4yb,4ya": "JFK"
+                    bid="4yh,4yg":
+                      bid="4yf,4ye": "LHR"
+                bid="4yn":
+                  bid="4yl,4yk": "Nonstop flight."
+                bid="4yv,4yu":
+                  bid="4yp,4yo": "385 kg CO2e"
+                  bid="4yt":
+                    bid="4yr,4yq": "-7% emissions"
+                    bid="4ys" button: "Carbon emissions estimate: 385 kilograms. -7% emissions. Learn more about this emissions estimate"
+                bid="4z1":
+                  bid="4yz":
+                    bid="4yy,4yx" text label="573 US dollars": "$573"
+                  bid="4z0": "round trip"
+            button bid="4z6": "Flight details. Leaves John F. Kennedy International Airport at 7:10 PM on Friday, May 1 and arrives at Heathrow Airport at 7:20 AM on Saturday, May 2."
+          div:
+            bid="4z7" link: "From 603 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 8:05 PM on Friday, May 1 and arrives at Heathrow Airport at 8:15 AM on Saturday, May 2. Total duration 7 hr 10 min.  Select flight"
+            bid="50m,50l":
+              bid="50k,50j":
+                bid="4z9,4z8" presentation
+                bid="4zp":
+                  bid="4zk,4zj" label="Leaves John F. Kennedy International Airport at 8:05 PM on Friday, May 1 and arrives at Heathrow Airport at 8:15 AM on Saturday, May 2.": "–"
+                    bid="4zd":
+                      bid="4zc,4zb,4za" text: "Departure time: 8:05 PM. Departure time: 8:05 PM."
+                    bid="4zi":
+                      bid="4zh,4zg,4zf,4ze" text: "Arrival time: 8:15 AM on  Saturday, May 2. Arrival time: 8:15 AM on  Saturday, May 2. +1"
+                  bid="4zo":
+                    bid="4zl": "British\n                                              Airways"
+                    bid="4zn": "Finnair"
+                bid="500":
+                  bid="4zq": "Total duration 7 hr 10 min."
+                  bid="4zz": "–"
+                    bid="4zu,4zt":
+                      bid="4zs,4zr": "JFK"
+                    bid="4zy,4zx":
+                      bid="4zw,4zv": "LHR"
+                bid="504":
+                  bid="502,501": "Nonstop flight."
+                bid="50c,50b":
+                  bid="506,505": "385 kg CO2e"
+                  bid="50a":
+                    bid="508,507": "-7% emissions"
+                    bid="509" button: "Carbon emissions estimate: 385 kilograms. -7% emissions. Learn more about this emissions estimate"
+                bid="50i":
+                  bid="50g":
+                    bid="50f,50e" text label="603 US dollars": "$603"
+                  bid="50h": "round trip"
+            button bid="50n": "Flight details. Leaves John F. Kennedy International Airport at 8:05 PM on Friday, May 1 and arrives at Heathrow Airport at 8:15 AM on Saturday, May 2."
+          div:
+            bid="50o" link: "From 603 US dollars round trip total. Nonstop flight with British Airways. Leaves Newark Liberty International Airport at 9:25 PM on Friday, May 1 and arrives at Heathrow Airport at 9:30 AM on Saturday, May 2. Total duration 7 hr 5 min.  Select flight"
+            bid="523,522":
+              bid="521,520":
+                bid="50q,50p" presentation
+                bid="516":
+                  bid="511,510" label="Leaves Newark Liberty International Airport at 9:25 PM on Friday, May 1 and arrives at Heathrow Airport at 9:30 AM on Saturday, May 2.": "–"
+                    bid="50u":
+                      bid="50t,50s,50r" text: "Departure time: 9:25 PM. Departure time: 9:25 PM."
+                    bid="50z":
+                      bid="50y,50x,50w,50v" text: "Arrival time: 9:30 AM on  Saturday, May 2. Arrival time: 9:30 AM on  Saturday, May 2. +1"
+                  bid="515":
+                    bid="512": "British\n                                              Airways"
+                    bid="514": "Finnair, Iberia"
+                bid="51h":
+                  bid="517": "Total duration 7 hr 5 min."
+                  bid="51g": "–"
+                    bid="51b,51a":
+                      bid="519,518": "EWR"
+                    bid="51f,51e":
+                      bid="51d,51c": "LHR"
+                bid="51l":
+                  bid="51j,51i": "Nonstop flight."
+                bid="51t,51s":
+                  bid="51n,51m": "298 kg CO2e"
+                  bid="51r":
+                    bid="51p,51o": "-28% emissions"
+                    bid="51q" button: "Carbon emissions estimate: 298 kilograms. -28% emissions. Learn more about this emissions estimate"
+                bid="51z":
+                  bid="51x":
+                    bid="51w,51v" text label="603 US dollars": "$603"
+                  bid="51y": "round trip"
+            button bid="524": "Flight details. Leaves Newark Liberty International Airport at 9:25 PM on Friday, May 1 and arrives at Heathrow Airport at 9:30 AM on Saturday, May 2."
+          div:
+            bid="525" link: "From 603 US dollars round trip total. Nonstop flight with British Airways. Leaves John F. Kennedy International Airport at 10:40 PM on Friday, May 1 and arrives at Heathrow Airport at 10:35 AM on Saturday, May 2. Total duration 6 hr 55 min.  Select flight"
+            bid="53k,53j":
+              bid="53i,53h":
+                bid="527,526" presentation
+                bid="52n":
+                  bid="52i,52h" label="Leaves John F. Kennedy International Airport at 10:40 PM on Friday, May 1 and arrives at Heathrow Airport at 10:35 AM on Saturday, May 2.": "–"
+                    bid="52b":
+                      bid="52a,529,528" text: "Departure time: 10:40 PM. Departure time: 10:40 PM."
+                    bid="52g":
+                      bid="52f,52e,52d,52c" text: "Arrival time: 10:35 AM on  Saturday, May 2. Arrival time: 10:35 AM on  Saturday, May 2. +1"
+                  bid="52m":
+                    bid="52j": "British\n                                              Airways"
+                    bid="52l": "Finnair"
+                bid="52y":
+                  bid="52o": "Total duration 6 hr 55 min."
+                  bid="52x": "–"
+                    bid="52s,52r":
+                      bid="52q,52p": "JFK"
+                    bid="52w,52v":
+                      bid="52u,52t": "LHR"
+                bid="532":
+                  bid="530,52z": "Nonstop flight."
+                bid="53a,539":
+                  bid="534,533": "297 kg CO2e"
+                  bid="538":
+                    bid="536,535": "-28% emissions"
+                    bid="537" button: "Carbon emissions estimate: 297 kilograms. -28% emissions. Learn more about this emissions estimate"
+                bid="53g":
+                  bid="53e":
+                    bid="53d,53c" text label="603 US dollars": "$603"
+                  bid="53f": "round trip"
+            button bid="53l": "Flight details. Leaves John F. Kennedy International Airport at 10:40 PM on Friday, May 1 and arrives at Heathrow Airport at 10:35 AM on Saturday, May 2."
+          div:
+            bid="53m" link: "From 606 US dollars round trip total. Nonstop flight with JetBlue. Leaves John F. Kennedy International Airport at 8:45 AM on Friday, May 1 and arrives at Heathrow Airport at 8:45 PM on Friday, May 1. Total duration 7 hr.  Select flight"
+            bid="54y,54x":
+              bid="54w,54v":
+                bid="53o,53n" presentation
+                bid="541":
+                  bid="53y,53x" label="Leaves John F. Kennedy International Airport at 8:45 AM on Friday, May 1 and arrives at Heathrow Airport at 8:45 PM on Friday, May 1.": "–"
+                    bid="53s":
+                      bid="53r,53q,53p" text: "Departure time: 8:45 AM. Departure time: 8:45 AM."
+                    bid="53w":
+                      bid="53v,53u,53t" text: "Arrival time: 8:45 PM. Arrival time: 8:45 PM."
+                  bid="540,53z": "JetBlue"
+                bid="54c":
+                  bid="542": "Total duration 7 hr."
+                  bid="54b": "–"
+                    bid="546,545":
+                      bid="544,543": "JFK"
+                    bid="54a,549":
+                      bid="548,547": "LHR"
+                bid="54g":
+                  bid="54e,54d": "Nonstop flight."
+                bid="54o,54n":
+                  bid="54i,54h": "546 kg CO2e"
+                  bid="54m":
+                    bid="54k,54j": "+32% emissions"
+                    bid="54l" button: "Carbon emissions estimate: 546 kilograms. +32% emissions. Learn more about this emissions estimate"
+                bid="54u":
+                  bid="54s":
+                    bid="54r,54q" text label="606 US dollars": "$606"
+                  bid="54t": "round trip"
+            button bid="54z": "Flight details. Leaves John F. Kennedy International Airport at 8:45 AM on Friday, May 1 and arrives at Heathrow Airport at 8:45 PM on Friday, May 1."
+          div:
+            bid="550" link: "From 614 US dollars round trip total. 2 stops flight with SWISS. Operated by Helvetic. Leaves John F. Kennedy International Airport at 7:25 PM on Friday, May 1 and arrives at London City Airport at 1:45 PM on Sunday, May 3. Total duration 37 hr 20 min. Layover (1 of 2) is a 11 hr 5 min layover at Geneva Airport in Geneva. Layover (2 of 2) is a 15 hr 50 min overnight layover at Zurich Airport in Zürich. Select flight"
+            bid="56p,56o":
+              bid="56n,56m":
+                bid="552,551" presentation
+                bid="55i":
+                  bid="55d,55c" label="Leaves John F. Kennedy International Airport at 7:25 PM on Friday, May 1 and arrives at London City Airport at 1:45 PM on Sunday, May 3.": "–"
+                    bid="556":
+                      bid="555,554,553" text: "Departure time: 7:25 PM. Departure time: 7:25 PM."
+                    bid="55b":
+                      bid="55a,559,558,557" text: "Arrival time: 1:45 PM on  Sunday, May 3. Arrival time: 1:45 PM on  Sunday, May 3. +2"
+                  bid="55h":
+                    bid="55e": "SWISS"
+                    bid="55g": "Operated by Helvetic"
+                bid="55t":
+                  bid="55j": "Total duration 37 hr 20 min."
+                  bid="55s": "–"
+                    bid="55n,55m":
+                      bid="55l,55k": "JFK"
+                    bid="55r,55q":
+                      bid="55p,55o": "LCY"
+                bid="567":
+                  bid="55z":
+                    bid="55u": "2 stops flight."
+                    bid="55y,55x":
+                  bid="566" label="Layover (1 of 2) is a 11 hr 5 min layover at Geneva Airport in Geneva. Layover (2 of 2) is a 15 hr 50 min overnight layover at Zurich Airport in Zürich.": ","
+                    bid="562":
+                      bid="561,560": "GVA"
+                    bid="565":
+                      bid="564,563": "ZRH"
+                bid="56f,56e":
+                  bid="569,568": "602 kg CO2e"
+                  bid="56d":
+                    bid="56b,56a": "+46% emissions"
+                    bid="56c" button: "Carbon emissions estimate: 602 kilograms. +46% emissions. Learn more about this emissions estimate"
+                bid="56l":
+                  bid="56j":
+                    bid="56i,56h" text label="614 US dollars": "$614"
+                  bid="56k": "round trip"
+            button bid="56q": "Flight details. Leaves John F. Kennedy International Airport at 7:25 PM on Friday, May 1 and arrives at London City Airport at 1:45 PM on Sunday, May 3."
+          div:
+            bid="56r" link: "From 614 US dollars round trip total. 2 stops flight with SWISS. Operated by Helvetic. Leaves John F. Kennedy International Airport at 7:25 PM on Friday, May 1 and arrives at London City Airport at 1:45 PM on Sunday, May 3. Total duration 37 hr 20 min. Layover (1 of 2) is a 9 hr 30 min layover at Geneva Airport in Geneva. Layover (2 of 2) is a 17 hr 25 min overnight layover at Zurich Airport in Zürich. Select flight"
+            bid="58g,58f":
+              bid="58e,58d":
+                bid="56t,56s" presentation
+                bid="579":
+                  bid="574,573" label="Leaves John F. Kennedy International Airport at 7:25 PM on Friday, May 1 and arrives at London City Airport at 1:45 PM on Sunday, May 3.": "–"
+                    bid="56x":
+                      bid="56w,56v,56u" text: "Departure time: 7:25 PM. Departure time: 7:25 PM."
+                    bid="572":
+                      bid="571,570,56z,56y" text: "Arrival time: 1:45 PM on  Sunday, May 3. Arrival time: 1:45 PM on  Sunday, May 3. +2"
+                  bid="578":
+                    bid="575": "SWISS"
+                    bid="577": "Operated by Helvetic"
+                bid="57k":
+                  bid="57a": "Total duration 37 hr 20 min."
+                  bid="57j": "–"
+                    bid="57e,57d":
+                      bid="57c,57b": "JFK"
+                    bid="57i,57h":
+                      bid="57g,57f": "LCY"
+                bid="57y":
+                  bid="57q":
+                    bid="57l": "2 stops flight."
+                    bid="57p,57o":
+                  bid="57x" label="Layover (1 of 2) is a 9 hr 30 min layover at Geneva Airport in Geneva. Layover (2 of 2) is a 17 hr 25 min overnight layover at Zurich Airport in Zürich.": ","
+                    bid="57t":
+                      bid="57s,57r": "GVA"
+                    bid="57w":
+                      bid="57v,57u": "ZRH"
+                bid="586,585":
+                  bid="580,57z": "602 kg CO2e"
+                  bid="584":
+                    bid="582,581": "+46% emissions"
+                    bid="583" button: "Carbon emissions estimate: 602 kilograms. +46% emissions. Learn more about this emissions estimate"
+                bid="58c":
+                  bid="58a":
+                    bid="589,588" text label="614 US dollars": "$614"
+                  bid="58b": "round trip"
+            button bid="58h": "Flight details. Leaves John F. Kennedy International Airport at 7:25 PM on Friday, May 1 and arrives at London City Airport at 1:45 PM on Sunday, May 3."
+          div:
+            bid="58i" link: "From 618 US dollars round trip total. Nonstop flight with Delta. Leaves John F. Kennedy International Airport at 8:15 PM on Friday, May 1 and arrives at Heathrow Airport at 8:50 AM on Saturday, May 2. Total duration 7 hr 35 min.  Select flight"
+            bid="59x,59w":
+              bid="59v,59u":
+                bid="58k,58j" presentation
+                bid="590":
+                  bid="58v,58u" label="Leaves John F. Kennedy International Airport at 8:15 PM on Friday, May 1 and arrives at Heathrow Airport at 8:50 AM on Saturday, May 2.": "–"
+                    bid="58o":
+                      bid="58n,58m,58l" text: "Departure time: 8:15 PM. Departure time: 8:15 PM."
+                    bid="58t":
+                      bid="58s,58r,58q,58p" text: "Arrival time: 8:50 AM on  Saturday, May 2. Arrival time: 8:50 AM on  Saturday, May 2. +1"
+                  bid="58z":
+                    bid="58w": "Delta"
+                    bid="58y": "KLM"
+                bid="59b":
+                  bid="591": "Total duration 7 hr 35 min."
+                  bid="59a": "–"
+                    bid="595,594":
+                      bid="593,592": "JFK"
+                    bid="599,598":
+                      bid="597,596": "LHR"
+                bid="59f":
+                  bid="59d,59c": "Nonstop flight."
+                bid="59n,59m":
+                  bid="59h,59g": "428 kg CO2e"
+                  bid="59l":
+                    bid="59j,59i": "Avg emissions"
+                    bid="59k" button: "Carbon emissions estimate: 428 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="59t":
+                  bid="59r":
+                    bid="59q,59p" text label="618 US dollars": "$618"
+                  bid="59s": "round trip"
+            button bid="59y": "Flight details. Leaves John F. Kennedy International Airport at 8:15 PM on Friday, May 1 and arrives at Heathrow Airport at 8:50 AM on Saturday, May 2."
+          div:
+            bid="59z" link: "From 624 US dollars round trip total. Nonstop flight with JetBlue. Leaves John F. Kennedy International Airport at 8:52 PM on Friday, May 1 and arrives at Heathrow Airport at 9:30 AM on Saturday, May 2. Total duration 7 hr 38 min.  Select flight"
+            bid="5be,5bd":
+              bid="5bc,5bb":
+                bid="5a1,5a0" presentation
+                bid="5ah":
+                  bid="5ac,5ab" label="Leaves John F. Kennedy International Airport at 8:52 PM on Friday, May 1 and arrives at Heathrow Airport at 9:30 AM on Saturday, May 2.": "–"
+                    bid="5a5":
+                      bid="5a4,5a3,5a2" text: "Departure time: 8:52 PM. Departure time: 8:52 PM."
+                    bid="5aa":
+                      bid="5a9,5a8,5a7,5a6" text: "Arrival time: 9:30 AM on  Saturday, May 2. Arrival time: 9:30 AM on  Saturday, May 2. +1"
+                  bid="5ag":
+                    bid="5ad": "JetBlue"
+                    bid="5af": "Tap Air Portugal"
+                bid="5as":
+                  bid="5ai": "Total duration 7 hr 38 min."
+                  bid="5ar": "–"
+                    bid="5am,5al":
+                      bid="5ak,5aj": "JFK"
+                    bid="5aq,5ap":
+                      bid="5ao,5an": "LHR"
+                bid="5aw":
+                  bid="5au,5at": "Nonstop flight."
+                bid="5b4,5b3":
+                  bid="5ay,5ax": "546 kg CO2e"
+                  bid="5b2":
+                    bid="5b0,5az": "+32% emissions"
+                    bid="5b1" button: "Carbon emissions estimate: 546 kilograms. +32% emissions. Learn more about this emissions estimate"
+                bid="5ba":
+                  bid="5b8":
+                    bid="5b7,5b6" text label="624 US dollars": "$624"
+                  bid="5b9": "round trip"
+            button bid="5bf": "Flight details. Leaves John F. Kennedy International Airport at 8:52 PM on Friday, May 1 and arrives at Heathrow Airport at 9:30 AM on Saturday, May 2."
+          div:
+            bid="5bg" link: "From 674 US dollars round trip total. Nonstop flight with British Airways. Leaves Newark Liberty International Airport at 5:50 PM on Friday, May 1 and arrives at Heathrow Airport at 5:50 AM on Saturday, May 2. Total duration 7 hr.  Select flight"
+            bid="5cv,5cu":
+              bid="5ct,5cs":
+                bid="5bi,5bh" presentation
+                bid="5by":
+                  bid="5bt,5bs" label="Leaves Newark Liberty International Airport at 5:50 PM on Friday, May 1 and arrives at Heathrow Airport at 5:50 AM on Saturday, May 2.": "–"
+                    bid="5bm":
+                      bid="5bl,5bk,5bj" text: "Departure time: 5:50 PM. Departure time: 5:50 PM."
+                    bid="5br":
+                      bid="5bq,5bp,5bo,5bn" text: "Arrival time: 5:50 AM on  Saturday, May 2. Arrival time: 5:50 AM on  Saturday, May 2. +1"
+                  bid="5bx":
+                    bid="5bu": "British\n                                              Airways"
+                    bid="5bw": "Finnair, Iberia"
+                bid="5c9":
+                  bid="5bz": "Total duration 7 hr."
+                  bid="5c8": "–"
+                    bid="5c3,5c2":
+                      bid="5c1,5c0": "EWR"
+                    bid="5c7,5c6":
+                      bid="5c5,5c4": "LHR"
+                bid="5cd":
+                  bid="5cb,5ca": "Nonstop flight."
+                bid="5cl,5ck":
+                  bid="5cf,5ce": "425 kg CO2e"
+                  bid="5cj":
+                    bid="5ch,5cg": "Avg emissions"
+                    bid="5ci" button: "Carbon emissions estimate: 425 kilograms. Average emissions. Learn more about this emissions estimate"
+                bid="5cr":
+                  bid="5cp":
+                    bid="5co,5cn" text label="674 US dollars": "$674"
+                  bid="5cq": "round trip"
+            button bid="5cw": "Flight details. Leaves Newark Liberty International Airport at 5:50 PM on Friday, May 1 and arrives at Heathrow Airport at 5:50 AM on Saturday, May 2."
+          div:
+            bid="5cx" link: "From 765 US dollars round trip total. Nonstop flight with United. Leaves Newark Liberty International Airport at 6:45 PM on Friday, May 1 and arrives at Heathrow Airport at 7:15 AM on Saturday, May 2. Total duration 7 hr 30 min.  Select flight"
+            bid="5ec,5eb":
+              bid="5ea,5e9":
+                bid="5cz,5cy" presentation
+                bid="5df":
+                  bid="5da,5d9" label="Leaves Newark Liberty International Airport at 6:45 PM on Friday, May 1 and arrives at Heathrow Airport at 7:15 AM on Saturday, May 2.": "–"
+                    bid="5d3":
+                      bid="5d2,5d1,5d0" text: "Departure time: 6:45 PM. Departure time: 6:45 PM."
+                    bid="5d8":
+                      bid="5d7,5d6,5d5,5d4" text: "Arrival time: 7:15 AM on  Saturday, May 2. Arrival time: 7:15 AM on  Saturday, May 2. +1"
+                  bid="5de":
+                    bid="5db": "United"
+                    bid="5dd": "Austrian"
+                bid="5dq":
+                  bid="5dg": "Total duration 7 hr 30 min."
+                  bid="5dp": "–"
+                    bid="5dk,5dj":
+                      bid="5di,5dh": "EWR"
+                    bid="5do,5dn":
+                      bid="5dm,5dl": "LHR"
+                bid="5du":
+                  bid="5ds,5dr": "Nonstop flight."
+                bid="5e2,5e1":
+                  bid="5dw,5dv": "376 kg CO2e"
+                  bid="5e0":
+                    bid="5dy,5dx": "-9% emissions"
+                    bid="5dz" button: "Carbon emissions estimate: 376 kilograms. -9% emissions. Learn more about this emissions estimate"
+                bid="5e8":
+                  bid="5e6":
+                    bid="5e5,5e4" text label="765 US dollars": "$765"
+                  bid="5e7": "round trip"
+            button bid="5ed": "Flight details. Leaves Newark Liberty International Airport at 6:45 PM on Friday, May 1 and arrives at Heathrow Airport at 7:15 AM on Saturday, May 2."
+          bid="5ei":
+            bid="5eg,5ef,5ee": "View more flights"
+            bid="5eh": "View more flights"
+    footer:
+      div:
+        button bid="5ej":
+          "​"
+            "Language, English (United States)"
+        button bid="5ek":
+          "​"
+            "Location, Luxembourg"
+        button bid="5el": "Currency USD"
+          "Currency"
+            "USD"
+      div:
+        a bid="5em": "About Google Travel"
+        a bid="5en": "Privacy"
+        a bid="5eo": "Terms"
+        a bid="5ep": "Join user studies"
+        bid="5eq" button: "Report Illegal Content"
+        a bid="5er": "Feedback"
+        a bid="5es": "Help Center and Consumer Information"
+      div:
+        p: "Displayed currencies may differ from the currencies used to purchase flights."
+          a bid="5et": "Learn more about currencies"
+        p: "Prices are final prices and include all taxes and fees, including payment fees\n                          for the cheapest common payment method (which may differ depending on the provider).\n                          Additional charges may apply for other types of payment, luggage, meals, WLAN or other\n                          additional services. Prices, availability and travel details are provided based on the latest\n                          information received from our partners. This information is reflected in the results within a\n                          period of less than 24 hours. Additional conditions may also be applied by our partners. You\n                          should then check prices and conditions with the services providers before booking."
+"Main menu"
+"Google apps"

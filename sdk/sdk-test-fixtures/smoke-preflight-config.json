@@ -1,0 +1,14 @@
+{
+	"provider": "openai",
+	"model": "gpt-5.4",
+	"reasoning_effort": "low",
+	"headless": true,
+	"executable_path": "/definitely/missing/chrome",
+	"max_steps": 1,
+	"concurrency": 1,
+	"task_runs": 1,
+	"task_run_retry_count": 0,
+	"download_dir": "/tmp/browser-agent-sdk-smoke-downloads",
+	"file_workspace_root": "/tmp/browser-agent-sdk-smoke-workspace",
+	"tasks": [{ "task": "smoke test" }]
+}

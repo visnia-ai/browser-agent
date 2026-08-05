@@ -1,0 +1,19 @@
+{
+    "testdata": [
+        {
+            "domain_url": "",
+            "username": "",
+            "password": "",
+        },
+        {
+            "domain_url": "",
+            "username": "",
+            "password": "",
+        },
+        {
+            "domain_url": "",
+            "username": "",
+            "password": "",
+        }
+    ]
+}

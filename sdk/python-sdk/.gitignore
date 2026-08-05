@@ -1,0 +1,7 @@
+.venv/
+.coverage
+.ruff_cache/
+dist/
+src/browser_agent/bin/
+__pycache__/
+*.py[cod]

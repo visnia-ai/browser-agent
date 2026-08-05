@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "browser-agent-python-sdk"
+version = "1.0.10"
+description = "Python SDK for Browser Agent"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE.md"]
+requires-python = ">=3.11"
+dependencies = []
+keywords = ["ai", "automation", "browser", "browser-agent", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Repository = "https://github.com/browser-agent/browser-agent"
+Issues = "https://github.com/browser-agent/browser-agent/issues"
+
+[project.optional-dependencies]
+test = ["coverage[toml]>=7.6,<8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/browser_agent"]
+
+[tool.hatch.build.hooks.custom]
+
+[tool.coverage.run]
+branch = true
+source = ["browser_agent"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = false

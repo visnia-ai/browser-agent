@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scroll Fixture - Lazy Loading</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "SF Pro Text", "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #f8fafc;
+      }
+      .shell {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      #lazy-scroll-container {
+        height: 260px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 2px solid #0f172a;
+        border-radius: 12px;
+        background: #ffffff;
+      }
+      .entry {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 14px;
+      }
+      .entry.batch-even {
+        background: #ecfeff;
+      }
+      #status {
+        margin-top: 10px;
+        color: #334155;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <h1>Lazy Scroll Fixture</h1>
+      <p>
+        More rows are appended when the container is scrolled near the bottom.
+      </p>
+      <div id="lazy-scroll-container" data-testid="lazy-scroll-container" tabindex="0"></div>
+      <p id="status" data-testid="lazy-status">Booting fixture...</p>
+    </main>
+    <script src="/scroll-lazy-fixture.js"></script>
+  </body>
+</html>

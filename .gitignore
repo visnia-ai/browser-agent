@@ -1,0 +1,44 @@
+# OS metadata
+.DS_Store
+._*
+Thumbs.db
+
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+.sdk-build/
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Test and coverage artifacts
+coverage/
+.nyc_output/
+.website-validation-*/
+
+# Runtime and generated artifacts
+tmp/
+generated-tools/
+generated-skills/
+runtime/llm-env.d.ts
+runtime/llm-env.js
+
+# Logs and package archives
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+browser-agent-*.tgz
+
+# Python tooling
+__pycache__/
+*.py[cod]
+
+.browser-agent-workspace*
+scripts/test-typescript-sdk-uncommitted.ts
+
+config/temp_config/

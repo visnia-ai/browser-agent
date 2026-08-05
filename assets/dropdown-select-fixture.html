@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <body>
+    <p>
+      This fixture file:
+      <a href="dropdown-select-fixture.html">dropdown-select-fixture.html</a>
+    </p>
+    <label for="fruit">Fruit</label>
+    <select id="fruit" data-bid="1">
+      <option value="">Pick one</option>
+      <option value="apple">Apple</option>
+      <option value="banana">Banana</option>
+    </select>
+    <label for="dry-ingredient">Dry ingredient</label>
+    <select id="dry-ingredient" data-bid="2">
+      <option value="">Pick one</option>
+      <option value="sugar">Sugar</option>
+      <option value="flour">Flour</option>
+      <option value="honey">Honey</option>
+      <option value="starch">Starch</option>
+    </select>
+    <label for="mix-in">Mix-in</label>
+    <select id="mix-in" data-bid="3">
+      <option value="">Pick one</option>
+      <option value="eggs">Eggs</option>
+      <option value="chocolate">Chocolate</option>
+      <option value="vanilla">Vanilla</option>
+      <option value="butter">Butter</option>
+    </select>
+    <button type="button" id="decoy-a" data-bid="10" style="cursor: not-allowed">
+      Submit 1
+    </button>
+    <button type="button" id="decoy-b" data-bid="11" style="cursor: not-allowed">
+      Submit 2
+    </button>
+    <button type="button" id="real-submit" data-bid="12">Submit 3</button>
+    <button type="button" id="decoy-c" data-bid="13" style="cursor: not-allowed">
+      Submit 4
+    </button>
+    <div id="status"></div>
+    <script>
+      document.getElementById("real-submit").addEventListener("click", () => {
+        const fruit = document.getElementById("fruit");
+        const dry = document.getElementById("dry-ingredient");
+        const mix = document.getElementById("mix-in");
+        const parts = [fruit.value, dry.value, mix.value];
+        document.getElementById("status").textContent = "ok:" + parts.join(",");
+      });
+    </script>
+  </body>
+</html>
