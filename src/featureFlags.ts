@@ -1,12 +1,12 @@
 export const featureFlags = {
-	// Caps reasoning tokens for reasoning-enabled vLLM requests.
-	maxThinkingTokenBudget: 2048,
-	// Stops YAML generations after a closing marker in final-output text.
-	yamlOutputStopSequences: ["</yaml>"],
+	// Optional cap for reasoning-enabled vLLM requests. Omitted by default.
+	maxThinkingTokenBudget: undefined as number | undefined,
+	// Optional final-output text stops. Disabled by default.
+	yamlOutputStopSequences: [] as string[],
 	// Adds structured previous-step action context to executor outputs and history.
-	executorActionContextFields: true,
+	executorActionContextFields: false,
 	// Requires a top-level executor thinking field for any model reasoning.
 	executorThinkingField: false,
-	// Carries provider reasoning into subsequent executor assistant messages.
-	includeReasoningTokensInPreviousSteps: false,
+	// Carries provider reasoning into subsequent executor assistant messages for every provider.
+	includeReasoningTokensInPreviousSteps: true,
 };

@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import { randomUUID } from "node:crypto";
 import type { ModelMessage } from "ai";
 import yaml from "js-yaml";
 import { MAX_STEPS } from "../agents/constants.js";
@@ -29,6 +28,12 @@ import {
 } from "../agents/executor-utils/step-execution.js";
 import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
 import { configFeatureFlags } from "../config-feature-flags.js";
+import { featureFlags as internalFeatureFlags } from "../featureFlags.js";
+import { supportsOpenAIExplicitPromptCaching } from "../llm-capabilities.js";
+import {
+	buildOpenAIExplicitNoCacheRequest,
+	buildOpenAIPromptCacheRequest,
+} from "../agents/openai-prompt-cache.js";
 import { shouldSaveStepsContext } from "../runtime-options.js";
 import { createDefaultCoreDeps } from "./deps.js";
 import {
@@ -146,12 +151,15 @@ function sumTokenUsage(usages: TokenUsage[]): RunAgentTokenTotals {
 			input_tokens: acc.input_tokens + usage.input_tokens,
 			cached_input_tokens:
 				acc.cached_input_tokens + (usage.cached_input_tokens ?? 0),
+			cache_write_tokens:
+				acc.cache_write_tokens + (usage.cache_write_tokens ?? 0),
 			output_tokens: acc.output_tokens + usage.output_tokens,
 			total_tokens: acc.total_tokens + usage.total_tokens,
 		}),
 		{
 			input_tokens: 0,
 			cached_input_tokens: 0,
+			cache_write_tokens: 0,
 			output_tokens: 0,
 			total_tokens: 0,
 		},
@@ -162,15 +170,20 @@ function combineStepAttemptUsage(usages: TokenUsage[]): TokenUsage {
 	const combined: TokenUsage = {
 		input_tokens: 0,
 		cached_input_tokens: 0,
+		cache_write_tokens: 0,
 		output_tokens: 0,
 		total_tokens: 0,
 	};
 	let hasReasoningTokens = false;
 	let hasNonReasoningOutputTokens = false;
+	let hasGenerationTime = false;
+	let hasTimeToFirstToken = false;
 	for (const usage of usages) {
 		combined.input_tokens += usage.input_tokens;
 		combined.cached_input_tokens =
 			(combined.cached_input_tokens ?? 0) + (usage.cached_input_tokens ?? 0);
+		combined.cache_write_tokens =
+			(combined.cache_write_tokens ?? 0) + (usage.cache_write_tokens ?? 0);
 		combined.output_tokens += usage.output_tokens;
 		combined.total_tokens += usage.total_tokens;
 		if (typeof usage.reasoning_tokens === "number") {
@@ -184,11 +197,22 @@ function combineStepAttemptUsage(usages: TokenUsage[]): TokenUsage {
 				(combined.non_reasoning_output_tokens ?? 0) +
 				usage.non_reasoning_output_tokens;
 		}
+		if (typeof usage.generation_time_ms === "number") {
+			hasGenerationTime = true;
+			combined.generation_time_ms =
+				(combined.generation_time_ms ?? 0) + usage.generation_time_ms;
+		}
+		if (typeof usage.time_to_first_token_ms === "number") {
+			hasTimeToFirstToken = true;
+			combined.time_to_first_token_ms = usage.time_to_first_token_ms;
+		}
 	}
 	if (!hasReasoningTokens) delete combined.reasoning_tokens;
 	if (!hasNonReasoningOutputTokens) {
 		delete combined.non_reasoning_output_tokens;
 	}
+	if (!hasGenerationTime) delete combined.generation_time_ms;
+	if (!hasTimeToFirstToken) delete combined.time_to_first_token_ms;
 	return combined;
 }
 
@@ -197,6 +221,7 @@ function buildStepTokenUsage(step: number, usage?: TokenUsage): StepTokenUsage {
 		step,
 		input_tokens: usage?.input_tokens ?? 0,
 		cached_input_tokens: usage?.cached_input_tokens ?? 0,
+		cache_write_tokens: usage?.cache_write_tokens ?? 0,
 		output_tokens: usage?.output_tokens ?? 0,
 		total_tokens: usage?.total_tokens ?? 0,
 	};
@@ -279,6 +304,7 @@ function createDefaultGenerateStep(): RunAgentGenerateStep {
 		caller,
 		abortSignal,
 		providerContinuation,
+		openAIPromptCache,
 	}): Promise<ChatJSONResult<ModelStepResult>> =>
 		await chatYAML<ModelStepResult>(
 			messages,
@@ -288,6 +314,7 @@ function createDefaultGenerateStep(): RunAgentGenerateStep {
 			abortSignal,
 			undefined,
 			providerContinuation,
+			openAIPromptCache,
 		);
 }
 
@@ -311,6 +338,9 @@ function serializeStepContextForDisk(
 	return messages.map((message) => ({
 		role: message.role,
 		content: redactMessageContentForDisk(message.content),
+		...(message.providerOptions
+			? { providerOptions: message.providerOptions }
+			: {}),
 		...(typeof message.reasoning_tokens === "string"
 			? { reasoning_tokens: message.reasoning_tokens }
 			: {}),
@@ -764,10 +794,40 @@ export async function runAgent(
 	const openAIEncryptedResponsesEnabled =
 		input.stageLLMs.runAgent.provider === "openai" &&
 		input.featureFlags.openAIEncryptedResponses;
-	const openAIPromptCacheKey = openAIEncryptedResponsesEnabled
-		? randomUUID()
-		: undefined;
 	const openAIProjectionStrategy = input.featureFlags.semanticProjectionHistory;
+	const openAIExplicitPromptCachingEnabled =
+		input.featureFlags.openAIExplicitPromptCaching &&
+		openAIProjectionStrategy === "current" &&
+		supportsOpenAIExplicitPromptCaching(
+			input.stageLLMs.runAgent.provider,
+			input.stageLLMs.runAgent.model,
+		);
+	const openAIPromptCache = openAIExplicitPromptCachingEnabled
+		? buildOpenAIPromptCacheRequest({
+				model: input.stageLLMs.runAgent.model,
+				shard: input.promptCacheShard ?? "core",
+				featureFlags: input.featureFlags,
+				executorActionContextFields:
+					internalFeatureFlags.executorActionContextFields,
+			})
+		: undefined;
+	const dataExtractionPromptCache =
+		input.featureFlags.openAIExplicitPromptCaching &&
+		input.stageLLMs.dataExtraction !== undefined &&
+		supportsOpenAIExplicitPromptCaching(
+			input.stageLLMs.dataExtraction.provider,
+			input.stageLLMs.dataExtraction.model,
+		)
+			? buildOpenAIExplicitNoCacheRequest()
+			: undefined;
+	const verificationPromptCache =
+		input.featureFlags.openAIExplicitPromptCaching &&
+		supportsOpenAIExplicitPromptCaching(
+			successVerifierLLMOptions.provider,
+			successVerifierLLMOptions.model,
+		)
+			? buildOpenAIExplicitNoCacheRequest()
+			: undefined;
 	let committedOpenAIContinuationMessages: ModelMessage[] = [];
 	let committedOpenAIReasoningStateByStep: OpenAIEncryptedReasoningState[] = [];
 	const commitOpenAIProviderState = (
@@ -899,6 +959,8 @@ export async function runAgent(
 										validatorFeedback: pendingValidatorFeedback,
 										modelOutputErrors,
 										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
+										openAIExplicitPromptCaching:
+											openAIExplicitPromptCachingEnabled,
 									}),
 							}),
 					);
@@ -922,18 +984,16 @@ export async function runAgent(
 						? []
 						: committedOpenAIContinuationMessages;
 					const providerContinuation =
-						openAIEncryptedResponsesEnabled && openAIPromptCacheKey
+						openAIEncryptedResponsesEnabled
 							? openAIProjectionStrategy === "current"
 								? {
 										provider: "openai" as const,
 										strategy: "current" as const,
-										promptCacheKey: openAIPromptCacheKey,
 										reasoningStateByStep: committedOpenAIReasoningStateByStep,
 									}
 								: {
 										provider: "openai" as const,
 										strategy: "cumulative" as const,
-										promptCacheKey: openAIPromptCacheKey,
 										messages: continuationMessages,
 										inputMode:
 											continuationMessages.length > 0
@@ -1007,12 +1067,14 @@ export async function runAgent(
 											: "executor_step",
 										abortSignal,
 										providerContinuation,
+										openAIPromptCache,
 									}),
 							}),
 					);
 					const {
 						data: rawStep,
 						usage,
+						accepted_usage: acceptedUsage,
 						reasoning_tokens,
 						raw_response,
 						providerContinuation: candidateProviderContinuation,
@@ -1080,7 +1142,7 @@ export async function runAgent(
 						await input.onStepCompleted?.({
 							stepNumber,
 							step: parsedRawStep,
-							usage,
+							usage: accountedStepUsage,
 							promptContext: {
 								current_url:
 									typeof promptResult.prompt.payload.currentURL === "string"
@@ -1116,7 +1178,10 @@ export async function runAgent(
 							usage: accountedStepUsage,
 						});
 						if (providerContinuation) {
-							commitOpenAIProviderState(candidateProviderContinuation, usage);
+							commitOpenAIProviderState(
+								candidateProviderContinuation,
+								acceptedUsage ?? usage,
+							);
 						}
 						break;
 					}
@@ -1139,6 +1204,8 @@ export async function runAgent(
 										stepsHistory,
 										stepNumber,
 										dataExtractionLLMOptions: input.stageLLMs.dataExtraction,
+										dataExtractionPromptCache,
+										verificationPromptCache,
 										recordModelInvocation: input.recordModelInvocation,
 										sessionChecklist: session.activeChecklist,
 										verificationPurpose:
@@ -1204,7 +1271,7 @@ export async function runAgent(
 					await input.onStepCompleted?.({
 						stepNumber,
 						step: processResult.step,
-						usage,
+						usage: accountedStepUsage,
 						browse: processResult.browse,
 						promptContext: {
 							current_url:
@@ -1367,7 +1434,10 @@ export async function runAgent(
 						usage: accountedStepUsage,
 					});
 					if (providerContinuation) {
-						commitOpenAIProviderState(candidateProviderContinuation, usage);
+						commitOpenAIProviderState(
+							candidateProviderContinuation,
+							acceptedUsage ?? usage,
+						);
 					}
 					break;
 				} catch (error) {

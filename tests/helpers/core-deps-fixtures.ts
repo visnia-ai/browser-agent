@@ -40,6 +40,7 @@ export function createMockCoreDeps(
 		extractDataWholeContext: false,
 		semanticProjectionHistory: "current",
 		openAIEncryptedResponses: true,
+		openAIExplicitPromptCaching: true,
 		optimizeExecutorStepDelays: false,
 		optimizeTextInput: false,
 	};

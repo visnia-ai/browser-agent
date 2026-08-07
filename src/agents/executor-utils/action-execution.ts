@@ -23,6 +23,7 @@ import type {
 	ExecuteActionsResult,
 	ExecutorResultItem,
 	LLMOptions,
+	OpenAIPromptCacheRequest,
 	StageModelInvocationTrace,
 } from "../types.js";
 import type {
@@ -258,6 +259,8 @@ function normalizeAuthTakeoverAttemptEvent(
 		const totalTokens = toFiniteInteger(tokenUsageValue.total_tokens);
 		const cachedInputTokens =
 			toFiniteInteger(tokenUsageValue.cached_input_tokens) ?? 0;
+		const cacheWriteTokens =
+			toFiniteInteger(tokenUsageValue.cache_write_tokens) ?? 0;
 		const timeToFirstTokenMs = toFiniteInteger(
 			tokenUsageValue.time_to_first_token_ms,
 		);
@@ -272,6 +275,7 @@ function normalizeAuthTakeoverAttemptEvent(
 			event.token_usage = {
 				input_tokens: inputTokens,
 				cached_input_tokens: cachedInputTokens,
+				cache_write_tokens: cacheWriteTokens,
 				output_tokens: outputTokens,
 				total_tokens: totalTokens,
 				...(typeof timeToFirstTokenMs === "number"
@@ -397,6 +401,7 @@ export async function executeActions(params: {
 	userTask?: string;
 	pageProjection?: string;
 	dataExtractionLLMOptions?: LLMOptions;
+	dataExtractionPromptCache?: OpenAIPromptCacheRequest;
 	estimateTokenCount?: (text: string) => number;
 	recordModelInvocation?: (trace: StageModelInvocationTrace) => void;
 	downloadedFiles?: string[];
@@ -881,6 +886,7 @@ export async function executeActions(params: {
 								currentUrl: params.currentUrl ?? "",
 								pageProjection: selectedProjection,
 								llmOptions: params.dataExtractionLLMOptions!,
+								openAIPromptCache: params.dataExtractionPromptCache,
 								estimateTokenCount: params.estimateTokenCount,
 								abortSignal,
 								traceOptions: {

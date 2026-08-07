@@ -110,6 +110,7 @@ export async function runTrainingRollout(
 			return {
 				data: result.data,
 				usage: result.usage,
+				accepted_usage: result.accepted_usage,
 				reasoning_tokens: result.reasoning_tokens,
 				raw_response: result.rawModelOutputText,
 				providerContinuation: result.providerContinuation,

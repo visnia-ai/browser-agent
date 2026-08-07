@@ -134,13 +134,16 @@ describe("reportExecution", () => {
 		assert.match(recap[parentIndex + 1] ?? "", /↳ extract_data #1/);
 		assert.match(
 			recap[parentIndex + 1] ?? "",
-			/30\s+\|\s+0\s+\|\s+0\s+\|\s+5\s+\|\s+35\s+\|\s+1\.23\s+\|\s+—$/,
+			/30\s+\|\s+0\s+\|\s+0\s+\|\s+0\s+\|\s+5\s+\|\s+35\s+\|\s+1\.23\s+\|\s+—$/,
 		);
 		assert.match(recap[parentIndex + 2] ?? "", /↳ extract_data #2/);
 		assert.match(recap[parentIndex + 2] ?? "", /2\.35\s+\|\s+—$/);
 		assert.match(recap[parentIndex + 3] ?? "", /^\s+2\s+\|/);
 		const total = recap.find((line) => line.startsWith("Total")) ?? "";
-		assert.match(total, /300\s+\|\s+0\s+\|\s+0\s+\|\s+30\s+\|\s+330/);
+		assert.match(
+			total,
+			/300\s+\|\s+0\s+\|\s+0\s+\|\s+0\s+\|\s+30\s+\|\s+330/,
+		);
 		assert.include(recap, "Extraction subrows are excluded from Total.");
 	});
 
@@ -260,17 +263,17 @@ describe("reportExecution", () => {
 		assert.isTrue(firstVerification < secondVerification);
 		assert.match(
 			recap[firstPreprocess] ?? "",
-			/30\s+\|\s+—\s+\|\s+3\s+\|\s+3\s+\|\s+36\s+\|\s+—\s+\|\s+—$/,
+			/30\s+\|\s+—\s+\|\s+—\s+\|\s+3\s+\|\s+3\s+\|\s+36\s+\|\s+—\s+\|\s+—$/,
 		);
 		assert.match(
 			recap[secondPreprocess] ?? "",
-			/10\s+\|\s+—\s+\|\s+—\s+\|\s+—\s+\|\s+14\s+\|\s+—\s+\|\s+—$/,
+			/10\s+\|\s+—\s+\|\s+—\s+\|\s+—\s+\|\s+—\s+\|\s+14\s+\|\s+—\s+\|\s+—$/,
 		);
 		assert.match(recap[secondVerification] ?? "", /(\s+—\s+\|){6}\s+—$/);
 		const total = recap.find((line) => line.startsWith("Total")) ?? "";
 		assert.match(
 			total,
-			/180\s+\|\s+25\s+\|\s+11\s+\|\s+17\s+\|\s+212\s+\|\s+3\.00\s+\|\s+3\.00$/,
+			/180\s+\|\s+25\s+\|\s+0\s+\|\s+11\s+\|\s+17\s+\|\s+212\s+\|\s+3\.00\s+\|\s+3\.00$/,
 		);
 		assert.strictEqual(recap[1]?.length, recap[3]?.length);
 	});

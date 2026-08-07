@@ -8,24 +8,39 @@ import {
 	shouldIncludeExecutorReasoningHistory,
 	type ExecutorPromptOptions,
 } from "../agents/prompts.js";
+import {
+	createOpenAICachedUserContent,
+	createOpenAIStableStepUserContent,
+} from "../agents/openai-prompt-cache.js";
 
 export function buildHistoryMessagesFromFullStepHistory(
 	stepsHistory: StepHistoryEntry[],
 	_options: ExecutorPromptOptions = {},
 	historyOptions: {
 		omitProjectionContext?: boolean;
+		openAIExplicitPromptCaching?: boolean;
 	} = {},
 ): Message[] {
 	const messages: Message[] = [];
 
-	for (const step of stepsHistory) {
+	for (const [index, step] of stepsHistory.entries()) {
 		const payload = { ...step.payload };
 		if (historyOptions.omitProjectionContext) {
 			stripProjectionContextFromHistoryPayload(payload);
 		}
 		delete payload.validRefs;
 		delete payload.plan;
-		messages.push(userMessage(yaml.dump(payload)));
+		const payloadText = yaml.dump(payload);
+		const isImmediatelyPreviousStep = index === stepsHistory.length - 1;
+		messages.push(
+			userMessage(
+				historyOptions.openAIExplicitPromptCaching
+					? isImmediatelyPreviousStep
+						? createOpenAICachedUserContent(payloadText)
+						: createOpenAIStableStepUserContent(payloadText)
+					: payloadText,
+			),
+		);
 		const reasoningTokens = shouldIncludeExecutorReasoningHistory()
 			? step.reasoningTokens?.trim()
 			: undefined;

@@ -1226,10 +1226,6 @@ describe("core-api", () => {
 			mode: "process_model_step_output",
 			rawStepOutput: {
 				thinking: "plan",
-				previousStepStatus: "progressed",
-				previousStepOutcome: "Opened the form.",
-				currentStateObservation: "The form is visible.",
-				nextActionRationale: "Fill the form.",
 				tools: [{ click: "1" }],
 				done: false,
 				result: { foo: "bar" },
@@ -1248,12 +1244,10 @@ describe("core-api", () => {
 		if (result.mode === "process_model_step_output") {
 			assert.strictEqual(result.step.done, false);
 			assert.strictEqual(result.step.actions.length, 1);
-			assert.deepInclude(result.step, {
-				previousStepStatus: "progressed",
-				previousStepOutcome: "Opened the form.",
-				currentStateObservation: "The form is visible.",
-				nextActionRationale: "Fill the form.",
-			});
+			assert.notProperty(result.step, "previousStepStatus");
+			assert.notProperty(result.step, "previousStepOutcome");
+			assert.notProperty(result.step, "currentStateObservation");
+			assert.notProperty(result.step, "nextActionRationale");
 		}
 		assert.strictEqual(stepsHistory.length, 1);
 		assert.deepEqual(stepsHistory[0].payload, {
@@ -1268,8 +1262,8 @@ describe("core-api", () => {
 		assert.deepEqual(assistant.tools, [{ click: "1" }]);
 		assert.strictEqual(assistant.done, false);
 		assert.deepEqual(assistant.result, { foo: "bar" });
-		assert.strictEqual(assistant.previousStepStatus, "progressed");
-		assert.strictEqual(assistant.previousStepOutcome, "Opened the form.");
+		assert.notProperty(assistant, "previousStepStatus");
+		assert.notProperty(assistant, "previousStepOutcome");
 	});
 
 	it("rejects a malformed action list before mutating checklist or history", async () => {

@@ -15,6 +15,8 @@ export interface ConfigFeatureFlags {
 	semanticProjectionHistory: "current" | "cumulative";
 	/** Chain OpenAI executor steps with client-held encrypted reasoning. */
 	openAIEncryptedResponses: boolean;
+	/** Use GPT-5.6 explicit prompt-cache breakpoints for executor prompts. */
+	openAIExplicitPromptCaching: boolean;
 	/** Skip the post-step settling delay when every action is agent-local. */
 	optimizeExecutorStepDelays: boolean;
 	/** Insert text in bulk for safe fields instead of typing one character at a time. */
@@ -30,6 +32,7 @@ export const configFeatureFlags: ConfigFeatureFlags = {
 	extractDataWholeContext: false,
 	semanticProjectionHistory: "current",
 	openAIEncryptedResponses: true,
+	openAIExplicitPromptCaching: true,
 	optimizeExecutorStepDelays: false,
 	optimizeTextInput: false,
 };
@@ -69,6 +72,12 @@ export function mergeConfigFeatureFlags(
 			: {}),
 		...(overrides.openAIEncryptedResponses !== undefined
 			? { openAIEncryptedResponses: overrides.openAIEncryptedResponses }
+			: {}),
+		...(overrides.openAIExplicitPromptCaching !== undefined
+			? {
+					openAIExplicitPromptCaching:
+						overrides.openAIExplicitPromptCaching,
+				}
 			: {}),
 		...(overrides.optimizeExecutorStepDelays !== undefined
 			? {
@@ -112,6 +121,10 @@ export function setConfigFeatureFlags(
 	if (flags.openAIEncryptedResponses !== undefined) {
 		configFeatureFlags.openAIEncryptedResponses =
 			flags.openAIEncryptedResponses;
+	}
+	if (flags.openAIExplicitPromptCaching !== undefined) {
+		configFeatureFlags.openAIExplicitPromptCaching =
+			flags.openAIExplicitPromptCaching;
 	}
 	if (flags.optimizeExecutorStepDelays !== undefined) {
 		configFeatureFlags.optimizeExecutorStepDelays =

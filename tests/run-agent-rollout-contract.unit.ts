@@ -32,7 +32,6 @@ describe("runTrainingRollout", () => {
 		let callCount = 0;
 		const continuationInputs: Array<{
 			messageCount: number;
-			promptCacheKey: string;
 		}> = [];
 
 		const result = await runTrainingRollout(deps, {
@@ -65,7 +64,6 @@ describe("runTrainingRollout", () => {
 				assert.isDefined(providerContinuation);
 				continuationInputs.push({
 					messageCount: providerContinuation?.messages.length ?? 0,
-					promptCacheKey: providerContinuation!.promptCacheKey,
 				});
 				assert.isArray(messages);
 				assert.strictEqual(
@@ -147,10 +145,6 @@ describe("runTrainingRollout", () => {
 		assert.strictEqual(callCount, 2);
 		assert.equal(continuationInputs[0]?.messageCount, 0);
 		assert.equal(continuationInputs[1]?.messageCount, 1);
-		assert.equal(
-			continuationInputs[0]?.promptCacheKey,
-			continuationInputs[1]?.promptCacheKey,
-		);
 		assert.isTrue(result.run.completed);
 		assert.isTrue(result.run.successful);
 		assert.lengthOf(result.steps, 2);
@@ -880,7 +874,7 @@ describe("runTrainingRollout", () => {
 		});
 	});
 
-	it("uses distinct cache keys for parallel executor trajectories", async () => {
+	it("uses stable cache keys partitioned by executor shard", async () => {
 		const keys: string[] = [];
 		const runOnce = async (port: number) => {
 			const deps = createMockCoreDeps({
@@ -896,14 +890,15 @@ describe("runTrainingRollout", () => {
 				stageLLMs: {
 					findTargetURL: { provider: "openai", model: "gpt-test" },
 					createChecklist: { provider: "openai", model: "gpt-test" },
-					runAgent: { provider: "openai", model: "gpt-test" },
+					runAgent: { provider: "openai", model: "gpt-5.6-luna" },
 					verifySuccess: { provider: "openai", model: "gpt-test" },
 				},
 				dataExtraction: { provider: "openai", model: "gpt-test" },
 				featureFlags: deps.featureFlags,
+				promptCacheShard: `worker-${port}`,
 				maxSteps: 1,
-				generateStep: async ({ providerContinuation }) => {
-					keys.push(providerContinuation!.promptCacheKey);
+				generateStep: async ({ openAIPromptCache }) => {
+					keys.push(openAIPromptCache!.promptCacheKey);
 					return {
 						data: {
 							thinking: "Done",

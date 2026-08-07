@@ -320,6 +320,7 @@ describe("runTask retry loop", () => {
 		assert.deepEqual(result.totals, {
 			input_tokens: 83,
 			cached_input_tokens: 5,
+			cache_write_tokens: 0,
 			reasoning_tokens: 3,
 			non_reasoning_output_tokens: 11,
 			output_tokens: 14,

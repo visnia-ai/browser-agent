@@ -3,6 +3,7 @@ import type { LLMOptions, Message } from "../agents/types.js";
 import type { buildStepMessages } from "../agents/executor-utils/step-execution.js";
 import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
 import { toCompletionPrompt } from "../agents/providers/message-serialization.js";
+import { isOpenAICacheMarkerPart } from "../agents/openai-prompt-cache.js";
 
 const PROJECTION_TRUNCATION_MARKER =
 	"\n...[projection truncated for context budget]...\n";
@@ -173,12 +174,27 @@ function stripProjectionContextFromHistoryMessages(
 	history: Message[],
 ): Message[] {
 	return history.map((message) => {
-		if (message.role !== "user" || typeof message.content !== "string") {
+		if (message.role !== "user") {
 			return message;
 		}
+		const contentParts = Array.isArray(message.content)
+			? message.content
+			: undefined;
+		const yamlTextPartIndex = contentParts?.findIndex(
+			(part) => part.type === "text" && !isOpenAICacheMarkerPart(part),
+		);
+		const contentText =
+			typeof message.content === "string"
+				? message.content
+				: yamlTextPartIndex !== undefined && yamlTextPartIndex >= 0
+					? (contentParts?.[yamlTextPartIndex]?.type === "text"
+							? contentParts[yamlTextPartIndex].text
+							: undefined)
+					: undefined;
+		if (contentText === undefined) return message;
 		let parsed: unknown;
 		try {
-			parsed = yaml.load(message.content);
+			parsed = yaml.load(contentText);
 		} catch {
 			return message;
 		}
@@ -187,7 +203,18 @@ function stripProjectionContextFromHistoryMessages(
 		}
 		const payload = { ...(parsed as Record<string, unknown>) };
 		stripProjectionContextFromHistoryPayload(payload);
-		return { ...message, content: yaml.dump(payload) };
+		const strippedText = yaml.dump(payload);
+		if (!contentParts || yamlTextPartIndex === undefined || yamlTextPartIndex < 0) {
+			return { ...message, content: strippedText };
+		}
+		return {
+			...message,
+			content: contentParts.map((part, index) =>
+				index === yamlTextPartIndex && part.type === "text"
+					? { ...part, text: strippedText }
+					: part,
+			),
+		};
 	});
 }
 

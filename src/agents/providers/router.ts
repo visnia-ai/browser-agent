@@ -9,6 +9,7 @@ import type {
 	OpenAIEncryptedContinuationInput,
 	OpenAIEncryptedContinuationOutput,
 	OpenAIEncryptedReasoningState,
+	OpenAIPromptCacheRequest,
 } from "../types.js";
 import type { ModelMessage } from "ai";
 import {
@@ -34,6 +35,58 @@ const DEFAULT_CHAT_YAML_STALL_LOG_INTERVAL_MS = 5_000;
 const CHAT_YAML_HARD_TIMEOUT_MS_ENV = "BROWSER_AGENT_CHAT_YAML_HARD_TIMEOUT_MS";
 const CHAT_YAML_STALL_LOG_INTERVAL_MS_ENV =
 	"BROWSER_AGENT_CHAT_YAML_STALL_LOG_INTERVAL_MS";
+
+function combineTokenUsage(usages: TokenUsage[]): TokenUsage {
+	const combined: TokenUsage = {
+		input_tokens: 0,
+		cached_input_tokens: 0,
+		cache_write_tokens: 0,
+		output_tokens: 0,
+		total_tokens: 0,
+	};
+	let hasReasoningTokens = false;
+	let hasNonReasoningOutputTokens = false;
+	let hasGenerationTime = false;
+	let hasTimeToFirstToken = false;
+	for (const usage of usages) {
+		combined.input_tokens += usage.input_tokens;
+		combined.cached_input_tokens =
+			(combined.cached_input_tokens ?? 0) +
+			(usage.cached_input_tokens ?? 0);
+		combined.cache_write_tokens =
+			(combined.cache_write_tokens ?? 0) +
+			(usage.cache_write_tokens ?? 0);
+		combined.output_tokens += usage.output_tokens;
+		combined.total_tokens += usage.total_tokens;
+		if (typeof usage.reasoning_tokens === "number") {
+			hasReasoningTokens = true;
+			combined.reasoning_tokens =
+				(combined.reasoning_tokens ?? 0) + usage.reasoning_tokens;
+		}
+		if (typeof usage.non_reasoning_output_tokens === "number") {
+			hasNonReasoningOutputTokens = true;
+			combined.non_reasoning_output_tokens =
+				(combined.non_reasoning_output_tokens ?? 0) +
+				usage.non_reasoning_output_tokens;
+		}
+		if (typeof usage.generation_time_ms === "number") {
+			hasGenerationTime = true;
+			combined.generation_time_ms =
+				(combined.generation_time_ms ?? 0) + usage.generation_time_ms;
+		}
+		if (typeof usage.time_to_first_token_ms === "number") {
+			hasTimeToFirstToken = true;
+			combined.time_to_first_token_ms = usage.time_to_first_token_ms;
+		}
+	}
+	if (!hasReasoningTokens) delete combined.reasoning_tokens;
+	if (!hasNonReasoningOutputTokens) {
+		delete combined.non_reasoning_output_tokens;
+	}
+	if (!hasGenerationTime) delete combined.generation_time_ms;
+	if (!hasTimeToFirstToken) delete combined.time_to_first_token_ms;
+	return combined;
+}
 
 type ChatYAMLRequestPhase =
 	| "awaiting_first_token"
@@ -283,9 +336,66 @@ function collectReasoningParts(messages: ModelMessage[]): unknown[] {
 	});
 }
 
+function toOpenAIModelMessage(message: Message): ModelMessage {
+	const providerOptions = message.providerOptions as ModelMessage["providerOptions"];
+	if (message.role === "system") {
+		return {
+			role: "system",
+			content: messageContentToText(message.content),
+			...(providerOptions ? { providerOptions } : {}),
+		};
+	}
+	if (message.role === "assistant") {
+		return {
+			role: "assistant",
+			content: messageContentToText(message.content),
+			...(providerOptions ? { providerOptions } : {}),
+		};
+	}
+	if (typeof message.content === "string") {
+		return {
+			role: "user",
+			content: message.content,
+			...(providerOptions ? { providerOptions } : {}),
+		};
+	}
+	return {
+		role: "user",
+		content: message.content.map((part) => {
+			if (part.type === "text") {
+				return {
+					type: "text" as const,
+					text: part.text,
+					...(part.providerOptions
+						? { providerOptions: part.providerOptions as any }
+						: {}),
+				};
+			}
+			return {
+				type: "file" as const,
+				mediaType: "image",
+				data: new URL(part.image_url.url),
+				providerOptions: {
+					...(part.providerOptions ?? {}),
+					openai: {
+						...(part.providerOptions?.openai ?? {}),
+						imageDetail: part.image_url.detail ?? "auto",
+					},
+				},
+			};
+		}),
+		...(providerOptions ? { providerOptions } : {}),
+	} as ModelMessage;
+}
+
+function buildOpenAIModelMessages(messages: Message[]): ModelMessage[] {
+	return messages.map(toOpenAIModelMessage);
+}
+
 function buildCurrentOpenAIReplayMessages(
 	messages: Message[],
 	reasoningStateByStep: OpenAIEncryptedReasoningState[],
+	includeSystemMessage = false,
 ): ModelMessage[] {
 	const nonSystemMessages = messages.filter(
 		(message) => message.role !== "system",
@@ -300,10 +410,12 @@ function buildCurrentOpenAIReplayMessages(
 	);
 	let assistantIndex = 0;
 
-	return nonSystemMessages.map((message): ModelMessage => {
+	const replayMessages = includeSystemMessage ? messages : nonSystemMessages;
+	return replayMessages.map((message): ModelMessage => {
+		if (message.role === "system") return toOpenAIModelMessage(message);
 		const contentText = messageContentToText(message.content);
 		if (message.role === "user") {
-			return { role: "user", content: contentText };
+			return toOpenAIModelMessage(message);
 		}
 		const reasoningIndex = assistantIndex++ - missingOldestReasoningCount;
 		const reasoningParts = collectReasoningParts(
@@ -624,10 +736,16 @@ export async function chatYAML<T>(
 	abortSignal?: AbortSignal,
 	onOutputChunk?: (chunk: string) => void,
 	providerContinuation?: OpenAIEncryptedContinuationInput,
+	openAIPromptCache?: OpenAIPromptCacheRequest,
 ): Promise<ChatJSONResult<T>> {
 	const { provider, model } = options;
 	const usesOpenAIContinuation =
 		provider === "openai" && providerContinuation?.provider === "openai";
+	const usesOpenAIPromptCachePolicy =
+		provider === "openai" && openAIPromptCache !== undefined;
+	const usesOpenAIPromptCacheBreakpoints =
+		usesOpenAIPromptCachePolicy &&
+		typeof openAIPromptCache.promptCacheKey === "string";
 	const systemMessage = messages.find((message) => message.role === "system");
 	const continuationMessages = usesOpenAIContinuation
 		? providerContinuation.strategy === "current"
@@ -644,9 +762,13 @@ export async function chatYAML<T>(
 			? buildCurrentOpenAIReplayMessages(
 					messages,
 					providerContinuation.reasoningStateByStep,
+					usesOpenAIPromptCacheBreakpoints,
 				)
-			: undefined;
-	const instructions = usesOpenAIContinuation
+			: usesOpenAIPromptCacheBreakpoints
+				? buildOpenAIModelMessages(messages)
+				: undefined;
+	const instructions =
+		usesOpenAIContinuation && !usesOpenAIPromptCacheBreakpoints
 		? systemMessage
 			? messageContentToText(systemMessage.content)
 			: ""
@@ -660,6 +782,7 @@ export async function chatYAML<T>(
 	});
 	const operationStartedAt = Date.now();
 	let lastAttempt = 0;
+	const attemptUsages: TokenUsage[] = [];
 
 	try {
 		const result = await withRetries(
@@ -698,6 +821,11 @@ export async function chatYAML<T>(
 							? "current"
 							: providerContinuation.inputMode
 						: "disabled",
+					prompt_cache_mode: usesOpenAIPromptCachePolicy
+						? "explicit"
+						: provider === "openai"
+							? "implicit"
+							: "disabled",
 					hard_timeout_ms: hardTimeoutMs,
 				});
 
@@ -800,6 +928,9 @@ export async function chatYAML<T>(
 										? providerContinuation
 										: undefined,
 									openAIInputMessages,
+									openAIPromptCache: usesOpenAIPromptCachePolicy
+										? openAIPromptCache
+										: undefined,
 									abortSignal: abortController.signal,
 									onOutputChunk,
 									outputStopSequences: featureFlags.yamlOutputStopSequences,
@@ -922,6 +1053,7 @@ export async function chatYAML<T>(
 				if (firstDeltaMs !== undefined) {
 					usage.time_to_first_token_ms = firstDeltaMs;
 				}
+				attemptUsages.push({ ...usage });
 				logChatYAMLEvent("provider_complete", {
 					caller: resolvedCaller,
 					provider,
@@ -932,6 +1064,7 @@ export async function chatYAML<T>(
 					time_to_first_text_ms: firstTextDeltaMs,
 					input_tokens: usage.input_tokens,
 					cached_input_tokens: usage.cached_input_tokens,
+					cache_write_tokens: usage.cache_write_tokens,
 					output_tokens: usage.output_tokens,
 					total_tokens: usage.total_tokens,
 				});
@@ -998,7 +1131,8 @@ export async function chatYAML<T>(
 					});
 					return {
 						data: parsed as T,
-						usage,
+						usage: combineTokenUsage(attemptUsages),
+						accepted_usage: usage,
 						reasoning_tokens,
 						raw_response: content,
 						...(candidateContinuation
@@ -1045,7 +1179,8 @@ export async function chatYAML<T>(
 								});
 								return {
 									data: repairedParsed as T,
-									usage,
+									usage: combineTokenUsage(attemptUsages),
+									accepted_usage: usage,
 									reasoning_tokens,
 									raw_response: content,
 									...(candidateContinuation
@@ -1103,7 +1238,8 @@ export async function chatYAML<T>(
 								});
 								return {
 									data: mergedParsed,
-									usage,
+									usage: combineTokenUsage(attemptUsages),
+									accepted_usage: usage,
 									reasoning_tokens,
 									raw_response: content,
 									...(candidateContinuation

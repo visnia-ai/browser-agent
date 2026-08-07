@@ -86,7 +86,6 @@ describe("OpenAI response continuation routing", () => {
 			{
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: committedMessages,
 				inputMode: "incremental",
 				newMessageStartIndex: 3,
@@ -127,7 +126,6 @@ describe("OpenAI response continuation routing", () => {
 			{
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: [],
 				inputMode: "full",
 			},
@@ -175,7 +173,6 @@ describe("OpenAI response continuation routing", () => {
 			{
 				provider: "openai",
 				strategy: "current",
-				promptCacheKey: "trajectory-key",
 				reasoningStateByStep: [
 					{
 						messages: [
@@ -226,6 +223,72 @@ describe("OpenAI response continuation routing", () => {
 		);
 	});
 
+	it("preserves structured breakpoints without encrypted reasoning", async () => {
+		let request: ProviderChatArgs | undefined;
+		__setProviderOverrideForTests("openai", async (args) => {
+			request = args;
+			return { content: "value: ok", usage, reasoning_tokens: "" };
+		});
+		const breakpoint = {
+			openai: { promptCacheBreakpoint: { mode: "explicit" } },
+		};
+
+		await chatYAML(
+			[
+				{
+					role: "system",
+					content: "STABLE SYSTEM",
+					providerOptions: breakpoint,
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "BEGIN CURRENT STEP",
+							providerOptions: breakpoint,
+						},
+						{ type: "text", text: "MUTABLE PAGE" },
+					],
+				},
+			],
+			options,
+			"explicit-cache-test",
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{
+				promptCacheKey: "stable-worker-key",
+				promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			},
+		);
+
+		assert.isUndefined(request?.instructions);
+		assert.deepEqual(request?.openAIPromptCache, {
+			promptCacheKey: "stable-worker-key",
+			promptCacheOptions: { mode: "explicit", ttl: "30m" },
+		});
+		assert.deepEqual(request?.openAIInputMessages, [
+			{
+				role: "system",
+				content: "STABLE SYSTEM",
+				providerOptions: breakpoint,
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "BEGIN CURRENT STEP",
+						providerOptions: breakpoint,
+					},
+					{ type: "text", text: "MUTABLE PAGE" },
+				],
+			},
+		]);
+	});
+
 	it("keeps the same committed messages across YAML retries", async () => {
 		const continuationInputs: unknown[] = [];
 		let calls = 0;
@@ -257,7 +320,6 @@ describe("OpenAI response continuation routing", () => {
 			{
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: committedMessages,
 				inputMode: "incremental",
 				newMessageStartIndex: 3,
@@ -272,6 +334,14 @@ describe("OpenAI response continuation routing", () => {
 			...committedMessages,
 			{ role: "assistant", content: "candidate-2" },
 		]);
+		assert.deepInclude(result.usage, {
+			input_tokens: 20,
+			cached_input_tokens: 0,
+			cache_write_tokens: 0,
+			output_tokens: 4,
+			total_tokens: 24,
+		});
+		assert.deepInclude(result.accepted_usage, usage);
 	});
 
 	it("does not apply OpenAI continuation options to another provider", async () => {
@@ -295,7 +365,6 @@ describe("OpenAI response continuation routing", () => {
 			{
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: committedMessages,
 				inputMode: "incremental",
 			},
@@ -327,7 +396,6 @@ describe("OpenAI response continuation routing", () => {
 				{
 					provider: "openai",
 					strategy: "cumulative",
-					promptCacheKey: "trajectory-key",
 					messages: committedMessages,
 					inputMode: "incremental",
 					newMessageStartIndex: 3,
@@ -366,7 +434,6 @@ describe("OpenAI response continuation routing", () => {
 				{
 					provider: "openai",
 					strategy: "cumulative",
-					promptCacheKey: "trajectory-key",
 					messages: committedMessages,
 					inputMode: "incremental",
 					newMessageStartIndex: 3,

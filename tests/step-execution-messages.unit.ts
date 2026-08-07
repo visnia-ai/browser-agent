@@ -496,6 +496,21 @@ describe("step-execution-messages", () => {
 		);
 	});
 
+	it("preserves message-level cache breakpoint metadata when serializing", () => {
+		const providerOptions = {
+			openai: { promptCacheBreakpoint: { mode: "explicit" as const } },
+		};
+		const serialized = serializeMessagesForDisk([
+			{
+				role: "system",
+				content: "stable system",
+				providerOptions,
+			},
+		]);
+
+		assert.deepEqual(serialized[0].providerOptions, providerOptions);
+	});
+
 	it("redacts context YAML and preserves multiline text and memory snapshots", async () => {
 		const browser = {
 			Runtime: {

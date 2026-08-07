@@ -178,6 +178,7 @@ tasks:
 			extractDataWholeContext: false,
 			semanticProjectionHistory: "current",
 			openAIEncryptedResponses: true,
+			openAIExplicitPromptCaching: true,
 			optimizeExecutorStepDelays: false,
 			optimizeTextInput: false,
 		});
@@ -235,6 +236,7 @@ tasks:
 			extractDataWholeContext: false,
 			semanticProjectionHistory: "current",
 			openAIEncryptedResponses: true,
+			openAIExplicitPromptCaching: true,
 			optimizeExecutorStepDelays: false,
 			optimizeTextInput: false,
 		});
@@ -656,6 +658,8 @@ tasks:
 			configFeatureFlags.semanticProjectionHistory;
 		const originalOpenAIEncryptedResponses =
 			configFeatureFlags.openAIEncryptedResponses;
+		const originalOpenAIExplicitPromptCaching =
+			configFeatureFlags.openAIExplicitPromptCaching;
 		try {
 			const configPath = writeTempConfig(`
 stage_llms:
@@ -680,6 +684,7 @@ feature_flags:
   extract_data_whole_context: true
   semantic_projection_history: cumulative
   openai_encrypted_responses: false
+  openai_explicit_prompt_caching: false
   optimize_executor_step_delays: true
   optimize_text_input: true
 concurrency: 1
@@ -698,6 +703,7 @@ tasks:
 				extractDataWholeContext: true,
 				semanticProjectionHistory: "cumulative",
 				openAIEncryptedResponses: false,
+				openAIExplicitPromptCaching: false,
 				optimizeExecutorStepDelays: true,
 				optimizeTextInput: true,
 			});
@@ -710,6 +716,8 @@ tasks:
 				extractDataWholeContext: originalExtractDataWholeContext,
 				semanticProjectionHistory: originalSemanticProjectionHistory,
 				openAIEncryptedResponses: originalOpenAIEncryptedResponses,
+				openAIExplicitPromptCaching:
+					originalOpenAIExplicitPromptCaching,
 				optimizeExecutorStepDelays: false,
 				optimizeTextInput: false,
 			});
@@ -726,6 +734,8 @@ tasks:
 				originalSemanticProjectionHistory;
 			configFeatureFlags.openAIEncryptedResponses =
 				originalOpenAIEncryptedResponses;
+			configFeatureFlags.openAIExplicitPromptCaching =
+				originalOpenAIExplicitPromptCaching;
 		}
 	});
 
@@ -1613,6 +1623,8 @@ tasks:
 			configFeatureFlags.semanticProjectionHistory;
 		const originalOpenAIEncryptedResponses =
 			configFeatureFlags.openAIEncryptedResponses;
+		const originalOpenAIExplicitPromptCaching =
+			configFeatureFlags.openAIExplicitPromptCaching;
 		try {
 			const deps = createDefaultCoreDeps({
 				featureFlags: {
@@ -1624,6 +1636,7 @@ tasks:
 					extractDataWholeContext: true,
 					semanticProjectionHistory: "current",
 					openAIEncryptedResponses: false,
+					openAIExplicitPromptCaching: false,
 					optimizeExecutorStepDelays: false,
 					optimizeTextInput: false,
 				},
@@ -1638,6 +1651,7 @@ tasks:
 				extractDataWholeContext: true,
 				semanticProjectionHistory: "current",
 				openAIEncryptedResponses: false,
+				openAIExplicitPromptCaching: false,
 				optimizeExecutorStepDelays: false,
 				optimizeTextInput: false,
 			});
@@ -1655,6 +1669,8 @@ tasks:
 				originalSemanticProjectionHistory;
 			configFeatureFlags.openAIEncryptedResponses =
 				originalOpenAIEncryptedResponses;
+			configFeatureFlags.openAIExplicitPromptCaching =
+				originalOpenAIExplicitPromptCaching;
 		}
 	});
 });

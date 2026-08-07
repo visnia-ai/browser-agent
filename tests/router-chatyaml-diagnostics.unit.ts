@@ -6,6 +6,7 @@ import {
 	__collectStreamedTextForTests,
 	__createFinalOutputStopTransformForTests,
 	__setProviderOverrideForTests,
+	type ProviderChatArgs,
 } from "../src/agents/providers/ai-sdk.js";
 
 const STALL_LOG_INTERVAL_MS_ENV =
@@ -92,6 +93,17 @@ describe("router chatYAML diagnostics", () => {
 	});
 
 	it("stops final output at the retained YAML closing marker", async () => {
+		const providerUsage = {
+			inputTokens: 1200,
+			inputTokenDetails: {
+				noCacheTokens: 100,
+				cacheReadTokens: 1000,
+				cacheWriteTokens: 100,
+			},
+			outputTokens: 5,
+			outputTokenDetails: { textTokens: 5, reasoningTokens: 0 },
+			totalTokens: 1205,
+		};
 		const result = await applyFinalOutputStopTransform(
 			[
 				{ type: "text-start", id: "text-1" },
@@ -102,6 +114,12 @@ describe("router chatYAML diagnostics", () => {
 				},
 				{ type: "text-delta", id: "text-1", text: "also discarded" },
 				{ type: "text-end", id: "text-1" },
+				{
+					type: "finish",
+					finishReason: "stop",
+					rawFinishReason: "stop",
+					totalUsage: providerUsage,
+				},
 			],
 			["</yaml>"],
 		);
@@ -111,22 +129,12 @@ describe("router chatYAML diagnostics", () => {
 			"<yaml>\nvalue: accepted\n</yaml>",
 		);
 		assert.deepEqual(result.stoppedSequences, ["</yaml>"]);
-		assert.strictEqual(result.stopStreamCalls, 1);
+		assert.strictEqual(result.stopStreamCalls, 0);
 		const finish = result.parts.find((part) => part.type === "finish");
 		assert.exists(finish);
 		assert.deepEqual(
 			finish?.type === "finish" ? finish.totalUsage : undefined,
-			{
-				inputTokens: 0,
-				inputTokenDetails: {
-					noCacheTokens: 0,
-					cacheReadTokens: 0,
-					cacheWriteTokens: 0,
-				},
-				outputTokens: 0,
-				outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
-				totalTokens: 0,
-			},
+			providerUsage,
 		);
 	});
 
@@ -158,7 +166,7 @@ describe("router chatYAML diagnostics", () => {
 			),
 		);
 		assert.deepEqual(result.stoppedSequences, ["</yaml>"]);
-		assert.strictEqual(result.stopStreamCalls, 1);
+		assert.strictEqual(result.stopStreamCalls, 0);
 	});
 
 	it("flushes unmatched output and supports disabling stop sequences", async () => {
@@ -198,7 +206,7 @@ describe("router chatYAML diagnostics", () => {
 			model: "gpt-test",
 		});
 
-		assert.deepEqual(observedStopSequences, [["</yaml>"], undefined]);
+		assert.deepEqual(observedStopSequences, [[], undefined]);
 	});
 
 	it("logs lifecycle milestones, records TTFT, and omits prompt and response content", async () => {
@@ -278,6 +286,13 @@ describe("router chatYAML diagnostics", () => {
 		assert.isTrue(
 			events.some(
 				(entry) =>
+					entry.includes("event=request_start") &&
+					entry.includes('prompt_cache_mode="implicit"'),
+			),
+		);
+		assert.isTrue(
+			events.some(
+				(entry) =>
 					entry.includes("event=provider_complete") &&
 					entry.includes("cached_input_tokens=10") &&
 					entry.includes("time_to_first_token_ms="),
@@ -286,6 +301,48 @@ describe("router chatYAML diagnostics", () => {
 		assert.isFalse(logs.some((entry) => entry.includes("prompt-secret-value")));
 		assert.isFalse(
 			logs.some((entry) => entry.includes("response-secret-value")),
+		);
+	});
+
+	it("uses explicit mode without breakpoints while preserving flattened auxiliary prompts", async () => {
+		let request: ProviderChatArgs | undefined;
+		__setProviderOverrideForTests("openai", async (args) => {
+			request = args;
+			return {
+				content: "value: accepted",
+				usage: { input_tokens: 4, output_tokens: 1, total_tokens: 5 },
+				reasoning_tokens: "",
+			};
+		});
+
+		await chatYAML<{ value: string }>(
+			[
+				{ role: "system", content: "AUXILIARY SYSTEM" },
+				{ role: "user", content: "AUXILIARY PAYLOAD" },
+			],
+			{ provider: "openai", model: "gpt-5.6-luna" },
+			"auxiliary-no-cache-test",
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{
+				promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			},
+		);
+
+		assert.deepEqual(request?.openAIPromptCache, {
+			promptCacheOptions: { mode: "explicit", ttl: "30m" },
+		});
+		assert.isUndefined(request?.openAIInputMessages);
+		assert.include(request?.prompt ?? "", "SYSTEM:\nAUXILIARY SYSTEM");
+		assert.include(request?.prompt ?? "", "USER:\nAUXILIARY PAYLOAD");
+		assert.isTrue(
+			logs.some(
+				(entry) =>
+					entry.includes("event=request_start") &&
+					entry.includes('prompt_cache_mode="explicit"'),
+			),
 		);
 	});
 

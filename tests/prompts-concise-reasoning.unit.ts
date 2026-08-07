@@ -14,7 +14,22 @@ describe("executor reasoning prompts", () => {
 		featureFlags.executorActionContextFields = originalActionContextFields;
 	});
 
+	it("uses the Luna benchmark reasoning and action-context defaults for every provider", () => {
+		assert.isTrue(featureFlags.includeReasoningTokensInPreviousSteps);
+		assert.isFalse(featureFlags.executorActionContextFields);
+		assert.isUndefined(featureFlags.maxThinkingTokenBudget);
+		assert.deepEqual(featureFlags.yamlOutputStopSequences, []);
+
+		for (const provider of ["openai", "openrouter", "together", "vllm"] as const) {
+			const prompt = getExecutorSystem({ provider });
+			assert.include(prompt, "reasoning_tokens field");
+			assert.notInclude(prompt, "previousStepStatus");
+			assert.notInclude(prompt, "nextActionRationale");
+		}
+	});
+
 	it("gates action-context fields for every executor provider", () => {
+		featureFlags.executorActionContextFields = false;
 		for (const prompt of [
 			getExecutorSystem({ provider: "vllm" }),
 			getExecutorSystem({ provider: "openai" }),
@@ -48,6 +63,7 @@ describe("executor reasoning prompts", () => {
 	});
 
 	it("keeps provider-side effort independent from executor prompt instructions", () => {
+		featureFlags.executorActionContextFields = false;
 		const runAgentPrompt = getExecutorSystem();
 
 		assert.notInclude(runAgentPrompt, "previousStepStatus");

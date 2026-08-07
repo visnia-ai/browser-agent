@@ -135,49 +135,56 @@ describe("executor prompt user_takeover tool", () => {
 	});
 
 	it("shows one concrete YAML response example bounded by tags", () => {
-		const prompt = getExecutorSystem();
-		const exampleMatch = prompt.match(
-			/Example response:\n<yaml>\n([\s\S]*?)\n<\/yaml>/,
-		);
+		const originalActionContextFields =
+			featureFlags.executorActionContextFields;
+		featureFlags.executorActionContextFields = false;
+		try {
+			const prompt = getExecutorSystem();
+			const exampleMatch = prompt.match(
+				/Example response:\n<yaml>\n([\s\S]*?)\n<\/yaml>/,
+			);
 
-		assert.isNotNull(exampleMatch);
-		const exampleYaml = exampleMatch?.[1] ?? "";
-		const example = yaml.load(exampleYaml) as Record<string, unknown>;
-		assert.deepInclude(example, {
-			tools: [
-				{
-					click: "r2",
-				},
-				{
-					type: {
-						ref: "r5",
-						text: "browser automation",
-						enter: true,
+			assert.isNotNull(exampleMatch);
+			const exampleYaml = exampleMatch?.[1] ?? "";
+			const example = yaml.load(exampleYaml) as Record<string, unknown>;
+			assert.deepInclude(example, {
+				tools: [
+					{
+						click: "r2",
 					},
-				},
-			],
-		});
-		for (const field of [
-			"previousStepStatus",
-			"previousStepOutcome",
-			"currentStateObservation",
-			"nextActionRationale",
-		]) {
-			assert.notProperty(example, field);
-			assert.notInclude(prompt, field);
+					{
+						type: {
+							ref: "r5",
+							text: "browser automation",
+							enter: true,
+						},
+					},
+				],
+			});
+			for (const field of [
+				"previousStepStatus",
+				"previousStepOutcome",
+				"currentStateObservation",
+				"nextActionRationale",
+			]) {
+				assert.notProperty(example, field);
+				assert.notInclude(prompt, field);
+			}
+			assert.notProperty(example, "previousStepPlanUpdate");
+			for (const obsoleteExampleTool of [
+				"long_press",
+				"download_current_file",
+				"return_results",
+				"extract_data",
+			]) {
+				assert.notInclude(exampleYaml, obsoleteExampleTool);
+			}
+			assert.strictEqual(prompt.split("Example response:").length - 1, 1);
+			assert.notInclude(prompt, "### Misc Instructions");
+			assert.notInclude(prompt, "regenerate_plan");
+		} finally {
+			featureFlags.executorActionContextFields = originalActionContextFields;
 		}
-		assert.notProperty(example, "previousStepPlanUpdate");
-		for (const obsoleteExampleTool of [
-			"long_press",
-			"download_current_file",
-			"return_results",
-			"extract_data",
-		]) {
-			assert.notInclude(exampleYaml, obsoleteExampleTool);
-		}
-		assert.strictEqual(prompt.split("Example response:").length - 1, 1);
-		assert.notInclude(prompt, "### Misc Instructions");
-		assert.notInclude(prompt, "regenerate_plan");
 	});
 
 	it("includes action-context schema alongside omitted thinking", () => {

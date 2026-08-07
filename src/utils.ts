@@ -1109,6 +1109,15 @@ export function loadConfig(configPath: string): Config {
 				fullPath,
 				"feature_flags.openai_encrypted_responses",
 			) ?? true,
+		openAIExplicitPromptCaching:
+			parseBooleanConfigValue(
+				pickFirstDefined(featureFlagsSource, [
+					"openai_explicit_prompt_caching",
+					"openAIExplicitPromptCaching",
+				]),
+				fullPath,
+				"feature_flags.openai_explicit_prompt_caching",
+			) ?? true,
 		optimizeExecutorStepDelays:
 			parseBooleanConfigValue(
 				pickFirstDefined(featureFlagsSource, [
@@ -1655,7 +1664,7 @@ export function reportExecution(
 		...labeledStageUsage.map(({ label }) => label.length),
 		...extractionLabels.map((label) => label.length),
 	);
-	const recapHeader = `${"Step / Substep".padEnd(recapLabelWidth)} | Input     | Cached In | Reasoning | Output    | Total     | LLM Time (s) | Step Time (s)`;
+	const recapHeader = `${"Step / Substep".padEnd(recapLabelWidth)} | Input     | Cache Read | Cache Write | Reasoning | Output    | Total     | LLM Time (s) | Step Time (s)`;
 	const recapDivider = "-".repeat(recapHeader.length);
 	const runtimeMetricsByStep = new Map(
 		stepRuntimeMetrics.map((metrics) => [metrics.stepNumber, metrics]),
@@ -1674,6 +1683,7 @@ export function reportExecution(
 
 	let totalInput = 0,
 		totalCachedInput = 0,
+		totalCacheWrite = 0,
 		totalReasoning = 0,
 		totalOutput = 0,
 		totalTokens = 0,
@@ -1684,18 +1694,20 @@ export function reportExecution(
 		if (!stage.usage) {
 			const unavailable = "—".padStart(9);
 			console.log(
-				`${stage.label.padEnd(recapLabelWidth)} | ${unavailable} | ${unavailable} | ${unavailable} | ${unavailable} | ${unavailable} | ${"—".padStart(12)} | ${"—".padStart(13)}`,
+				`${stage.label.padEnd(recapLabelWidth)} | ${unavailable} | ${unavailable} | ${unavailable} | ${unavailable} | ${unavailable} | ${unavailable} | ${"—".padStart(12)} | ${"—".padStart(13)}`,
 			);
 			return;
 		}
 		const cachedInput = stage.usage.cached_input_tokens;
+		const cacheWrite = stage.usage.cache_write_tokens;
 		const { reasoning, output } = getRecapOutputUsage(stage.usage);
 		const llmTimeMs = stage.usage.generation_time_ms;
 		console.log(
-			`${stage.label.padEnd(recapLabelWidth)} | ${formatTokenCount(stage.usage.input_tokens)} | ${typeof cachedInput === "number" ? formatTokenCount(cachedInput) : "—".padStart(9)} | ${typeof reasoning === "number" ? formatTokenCount(reasoning) : "—".padStart(9)} | ${typeof output === "number" ? formatTokenCount(output) : "—".padStart(9)} | ${formatTokenCount(stage.usage.total_tokens)} | ${typeof llmTimeMs === "number" ? (llmTimeMs / 1000).toFixed(2).padStart(12) : "—".padStart(12)} | ${"—".padStart(13)}`,
+			`${stage.label.padEnd(recapLabelWidth)} | ${formatTokenCount(stage.usage.input_tokens)} | ${typeof cachedInput === "number" ? formatTokenCount(cachedInput) : "—".padStart(9)} | ${typeof cacheWrite === "number" ? formatTokenCount(cacheWrite) : "—".padStart(11)} | ${typeof reasoning === "number" ? formatTokenCount(reasoning) : "—".padStart(9)} | ${typeof output === "number" ? formatTokenCount(output) : "—".padStart(9)} | ${formatTokenCount(stage.usage.total_tokens)} | ${typeof llmTimeMs === "number" ? (llmTimeMs / 1000).toFixed(2).padStart(12) : "—".padStart(12)} | ${"—".padStart(13)}`,
 		);
 		totalInput += stage.usage.input_tokens;
 		totalCachedInput += cachedInput ?? 0;
+		totalCacheWrite += cacheWrite ?? 0;
 		totalReasoning += reasoning ?? 0;
 		totalOutput += output ?? 0;
 		totalTokens += stage.usage.total_tokens;
@@ -1708,12 +1720,13 @@ export function reportExecution(
 
 	for (const t of tokenUsage) {
 		const cachedInput = t.cached_input_tokens ?? 0;
+		const cacheWrite = t.cache_write_tokens ?? 0;
 		const { reasoning, output } = getRecapOutputUsage(t);
 		const runtimeMetrics = runtimeMetricsByStep.get(t.step);
 		const llmTimeMs = runtimeMetrics?.tokenGenerationMs ?? 0;
 		const stepTimeMs = runtimeMetrics?.totalDurationMs ?? 0;
 		console.log(
-			`${String(t.step).padStart(4).padEnd(recapLabelWidth)} | ${formatTokenCount(t.input_tokens)} | ${formatTokenCount(cachedInput)} | ${typeof reasoning === "number" ? formatTokenCount(reasoning) : "—".padStart(9)} | ${typeof output === "number" ? formatTokenCount(output) : "—".padStart(9)} | ${formatTokenCount(t.total_tokens)} | ${(llmTimeMs / 1000).toFixed(2).padStart(12)} | ${(stepTimeMs / 1000).toFixed(2).padStart(13)}`,
+			`${String(t.step).padStart(4).padEnd(recapLabelWidth)} | ${formatTokenCount(t.input_tokens)} | ${formatTokenCount(cachedInput)} | ${formatTokenCount(cacheWrite, 11)} | ${typeof reasoning === "number" ? formatTokenCount(reasoning) : "—".padStart(9)} | ${typeof output === "number" ? formatTokenCount(output) : "—".padStart(9)} | ${formatTokenCount(t.total_tokens)} | ${(llmTimeMs / 1000).toFixed(2).padStart(12)} | ${(stepTimeMs / 1000).toFixed(2).padStart(13)}`,
 		);
 		const extractions = extractionUsageByParent.get(t.step) ?? [];
 		for (const extraction of extractions) {
@@ -1722,15 +1735,17 @@ export function reportExecution(
 					? `  ↳ extract_data #${extraction.extractionIndex}`
 					: "  ↳ extract_data";
 			const extractionCachedInput = extraction.usage.cached_input_tokens ?? 0;
+			const extractionCacheWrite = extraction.usage.cache_write_tokens ?? 0;
 			const { reasoning: extractionReasoning, output: extractionOutput } =
 				getRecapOutputUsage(extraction.usage);
 			const extractionLlmTimeMs = extraction.usage.generation_time_ms ?? 0;
 			console.log(
-				`${extractionLabel.padEnd(recapLabelWidth)} | ${formatTokenCount(extraction.usage.input_tokens)} | ${formatTokenCount(extractionCachedInput)} | ${typeof extractionReasoning === "number" ? formatTokenCount(extractionReasoning) : "—".padStart(9)} | ${typeof extractionOutput === "number" ? formatTokenCount(extractionOutput) : "—".padStart(9)} | ${formatTokenCount(extraction.usage.total_tokens)} | ${(extractionLlmTimeMs / 1000).toFixed(2).padStart(12)} | ${"—".padStart(13)}`,
+				`${extractionLabel.padEnd(recapLabelWidth)} | ${formatTokenCount(extraction.usage.input_tokens)} | ${formatTokenCount(extractionCachedInput)} | ${formatTokenCount(extractionCacheWrite, 11)} | ${typeof extractionReasoning === "number" ? formatTokenCount(extractionReasoning) : "—".padStart(9)} | ${typeof extractionOutput === "number" ? formatTokenCount(extractionOutput) : "—".padStart(9)} | ${formatTokenCount(extraction.usage.total_tokens)} | ${(extractionLlmTimeMs / 1000).toFixed(2).padStart(12)} | ${"—".padStart(13)}`,
 			);
 		}
 		totalInput += t.input_tokens;
 		totalCachedInput += cachedInput;
+		totalCacheWrite += cacheWrite;
 		totalReasoning += reasoning ?? 0;
 		totalOutput += output ?? 0;
 		totalTokens += t.total_tokens;
@@ -1744,7 +1759,7 @@ export function reportExecution(
 
 	console.log(recapDivider);
 	console.log(
-		`${"Total".padEnd(recapLabelWidth)} | ${formatTokenCount(totalInput)} | ${formatTokenCount(totalCachedInput)} | ${formatTokenCount(totalReasoning)} | ${formatTokenCount(totalOutput)} | ${formatTokenCount(totalTokens)} | ${(totalLlmTimeMs / 1000).toFixed(2).padStart(12)} | ${(totalStepTimeMs / 1000).toFixed(2).padStart(13)}`,
+		`${"Total".padEnd(recapLabelWidth)} | ${formatTokenCount(totalInput)} | ${formatTokenCount(totalCachedInput)} | ${formatTokenCount(totalCacheWrite, 11)} | ${formatTokenCount(totalReasoning)} | ${formatTokenCount(totalOutput)} | ${formatTokenCount(totalTokens)} | ${(totalLlmTimeMs / 1000).toFixed(2).padStart(12)} | ${(totalStepTimeMs / 1000).toFixed(2).padStart(13)}`,
 	);
 	console.log(recapDivider);
 	if (extractionStepUsage.length > 0) {

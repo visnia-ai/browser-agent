@@ -3,6 +3,7 @@ import { chatYAML, userMessage } from "./providers/router.js";
 import type {
 	LLMOptions,
 	Message,
+	OpenAIPromptCacheRequest,
 	ChecklistItem,
 	StepResult,
 	SuccessVerificationResult,
@@ -105,6 +106,7 @@ export interface VerifyTaskSuccessInput {
 	contextMode?: "full" | "compact";
 	historyMessages?: Message[];
 	llmOptions: LLMOptions;
+	openAIPromptCache?: OpenAIPromptCacheRequest;
 	estimateTokenCount?: (text: string) => number;
 	caller?: string;
 	onTrace?: (trace: StageModelInvocationTrace) => void;
@@ -210,20 +212,28 @@ export async function verifyTaskSuccess(
 
 	const { data, usage } = await chatYAML<
 		SuccessVerificationVerdict & CompactCompletionVerdict
-	>(messages, input.llmOptions, input.caller ?? "verifyTaskSuccess", (trace) =>
-		input.onTrace?.(
-			buildStageModelInvocationTrace({
-				stage: "verifySuccess",
-				trace,
-				meta: {
-					...input.traceMeta,
-					purpose,
-					contextMode,
-					budgetMode,
-					promptBudget: budgetReport,
-				},
-			}),
-		),
+	>(
+		messages,
+		input.llmOptions,
+		input.caller ?? "verifyTaskSuccess",
+		(trace) =>
+			input.onTrace?.(
+				buildStageModelInvocationTrace({
+					stage: "verifySuccess",
+					trace,
+					meta: {
+						...input.traceMeta,
+						purpose,
+						contextMode,
+						budgetMode,
+						promptBudget: budgetReport,
+					},
+				}),
+			),
+		undefined,
+		undefined,
+		undefined,
+		input.openAIPromptCache,
 	);
 	const verdict = normalizeVerdict(data);
 

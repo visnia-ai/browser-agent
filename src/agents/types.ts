@@ -17,14 +17,22 @@ export {
 export interface Message {
 	role: "system" | "user" | "assistant";
 	content: string | ContentPart[];
+	providerOptions?: MessageProviderOptions;
 	reasoning_tokens?: string;
 }
 
+export type MessageProviderOptions = Record<string, Record<string, unknown>>;
+
 export type ContentPart =
-	| { type: "text"; text: string }
+	| {
+			type: "text";
+			text: string;
+			providerOptions?: MessageProviderOptions;
+	  }
 	| {
 			type: "image_url";
 			image_url: { url: string; detail?: "low" | "high" | "auto" };
+			providerOptions?: MessageProviderOptions;
 	  };
 
 export interface LLMOptions {
@@ -41,6 +49,7 @@ export interface LLMOptions {
 export interface TokenUsage {
 	input_tokens: number;
 	cached_input_tokens?: number;
+	cache_write_tokens?: number;
 	reasoning_tokens?: number;
 	non_reasoning_output_tokens?: number;
 	output_tokens: number;
@@ -51,7 +60,15 @@ export interface TokenUsage {
 
 interface OpenAIEncryptedContinuationBase {
 	provider: "openai";
-	promptCacheKey: string;
+}
+
+export interface OpenAIPromptCacheRequest {
+	/** Omit the key when explicit mode is used only to disable implicit caching. */
+	promptCacheKey?: string;
+	promptCacheOptions: {
+		mode: "explicit";
+		ttl: "30m";
+	};
 }
 
 export interface OpenAIEncryptedReasoningState {
@@ -88,7 +105,10 @@ export type OpenAIEncryptedContinuationOutput =
 
 export interface ChatJSONResult<T> {
 	data: T;
+	/** Billable usage across every provider attempt made by this operation. */
 	usage: TokenUsage;
+	/** Usage of the accepted provider attempt, used for continuation bookkeeping. */
+	accepted_usage?: TokenUsage;
 	reasoning_tokens: string;
 	/** Exact provider text accepted by the YAML parser, before action normalization. */
 	raw_response?: string;
@@ -250,6 +270,7 @@ export interface StepTokenUsage {
 	step: number;
 	input_tokens: number;
 	cached_input_tokens?: number;
+	cache_write_tokens?: number;
 	reasoning_tokens?: number;
 	non_reasoning_output_tokens?: number;
 	output_tokens: number;

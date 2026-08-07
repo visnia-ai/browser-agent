@@ -16,6 +16,24 @@ export function isProvider(value: unknown): value is Provider {
 	);
 }
 
+const OPENAI_EXPLICIT_PROMPT_CACHE_MODELS = [
+	"gpt-5.6",
+	"gpt-5.6-luna",
+	"gpt-5.6-terra",
+	"gpt-5.6-sol",
+] as const;
+
+export function supportsOpenAIExplicitPromptCaching(
+	provider: Provider,
+	model: string,
+): boolean {
+	if (provider !== "openai") return false;
+	return OPENAI_EXPLICIT_PROMPT_CACHE_MODELS.some(
+		(supportedModel) =>
+			model === supportedModel || model.startsWith(`${supportedModel}-`),
+	);
+}
+
 const OPENAI_REASONING_EFFORTS = [
 	"none",
 	"minimal",

@@ -161,6 +161,9 @@ function copyTokenUsage(usage: TokenUsage | StepTokenUsage): TokenUsage {
 	if (typeof usage.cached_input_tokens === "number") {
 		copied.cached_input_tokens = usage.cached_input_tokens;
 	}
+	if (typeof usage.cache_write_tokens === "number") {
+		copied.cache_write_tokens = usage.cache_write_tokens;
+	}
 	if (typeof usage.reasoning_tokens === "number") {
 		copied.reasoning_tokens = usage.reasoning_tokens;
 	}
@@ -193,6 +196,7 @@ export function sumTokenUsageInvocations(
 				"reasoning_tokens" in usage || "non_reasoning_output_tokens" in usage;
 			totals.input_tokens += usage.input_tokens;
 			totals.cached_input_tokens += usage.cached_input_tokens ?? 0;
+			totals.cache_write_tokens += usage.cache_write_tokens ?? 0;
 			totals.reasoning_tokens += usage.reasoning_tokens ?? 0;
 			totals.non_reasoning_output_tokens += hasOutputBreakdown
 				? (usage.non_reasoning_output_tokens ?? 0)
@@ -205,6 +209,7 @@ export function sumTokenUsageInvocations(
 		{
 			input_tokens: 0,
 			cached_input_tokens: 0,
+			cache_write_tokens: 0,
 			reasoning_tokens: 0,
 			non_reasoning_output_tokens: 0,
 			output_tokens: 0,
@@ -530,6 +535,7 @@ export async function runTask(input: RunTaskInput): Promise<RunTaskResult> {
 					task: input.task,
 					stageLLMs: input.stageLLMs,
 					featureFlags: configFeatureFlags,
+					promptCacheShard: `worker-${input.browserLaunch.workerId}`,
 					autoSwitchToNewTab: true,
 					requestAuthDomainCandidates: input.requestAuthDomainCandidates,
 					requestAuthIdentifierForDomain: input.requestAuthIdentifierForDomain,
@@ -541,6 +547,7 @@ export async function runTask(input: RunTaskInput): Promise<RunTaskResult> {
 							step: stepNumber,
 							input_tokens: usage.input_tokens,
 							cached_input_tokens: usage.cached_input_tokens,
+							cache_write_tokens: usage.cache_write_tokens,
 							reasoning_tokens: usage.reasoning_tokens,
 							non_reasoning_output_tokens: usage.non_reasoning_output_tokens,
 							output_tokens: usage.output_tokens,

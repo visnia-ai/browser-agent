@@ -4,6 +4,7 @@ import type { ExtractedDataResultItem } from "./executor-utils/extract-data-memo
 import type {
 	LLMOptions,
 	Message,
+	OpenAIPromptCacheRequest,
 	StageModelInvocationTrace,
 } from "./types.js";
 import { estimateTokenCount as defaultEstimateTokenCount } from "./prompt-token-estimator.js";
@@ -20,6 +21,7 @@ export interface ExtractDataResultsFromSnapshotInput {
 	currentUrl: string;
 	pageProjection: string;
 	llmOptions: LLMOptions;
+	openAIPromptCache?: OpenAIPromptCacheRequest;
 	estimateTokenCount?: (text: string) => number;
 	abortSignal?: AbortSignal;
 	traceOptions?: {
@@ -314,6 +316,9 @@ export async function extractDataResultsFromSnapshot(
 					}),
 				),
 			input.abortSignal,
+			undefined,
+			undefined,
+			input.openAIPromptCache,
 		);
 		for (const item of validateItems(
 			data,

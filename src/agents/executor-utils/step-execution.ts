@@ -10,6 +10,10 @@ import { stripPayloadForHistory } from "./history-payload.js";
 import { normalizeMemoryContentForRead } from "./memory-file.js";
 import type { Action, ContentPart, Message, StepResult } from "../types.js";
 import type { ValidatorFeedback } from "../../core/types.js";
+import {
+	createOpenAICachedSystemMessage,
+	createOpenAICachedUserContent,
+} from "../openai-prompt-cache.js";
 
 type MessageWithReasoningTokens = Message & {
 	reasoning_tokens?: string;
@@ -18,6 +22,7 @@ type MessageWithReasoningTokens = Message & {
 type SerializedMessageForDisk = {
 	role: Message["role"];
 	content: Message["content"];
+	providerOptions?: Message["providerOptions"];
 	reasoning_tokens: string;
 };
 
@@ -41,6 +46,9 @@ export function serializeMessagesForDisk(
 	return messages.map((message) => ({
 		role: message.role,
 		content: message.content,
+		...(message.providerOptions
+			? { providerOptions: message.providerOptions }
+			: {}),
 		reasoning_tokens:
 			typeof message.reasoning_tokens === "string"
 				? message.reasoning_tokens
@@ -228,6 +236,7 @@ export function buildStepMessages(params: {
 	history: Message[];
 	payload: Record<string, unknown>;
 	currentPageScreenshotDataUrl?: string;
+	openAIExplicitPromptCaching?: boolean;
 }): Message[] {
 	const payload = { ...params.payload };
 	delete payload.validRefs;
@@ -244,12 +253,17 @@ export function buildStepMessages(params: {
 		});
 	}
 
-	const currentMsg =
-		contentParts.length === 1
+	const currentMsg = params.openAIExplicitPromptCaching
+		? userMessage(
+				createOpenAICachedUserContent(payloadText, contentParts.slice(1)),
+			)
+		: contentParts.length === 1
 			? userMessage(payloadText)
 			: userMessage(contentParts);
 	return [
-		{ role: "system", content: params.systemPrompt },
+		params.openAIExplicitPromptCaching
+			? createOpenAICachedSystemMessage(params.systemPrompt)
+			: { role: "system", content: params.systemPrompt },
 		...params.history,
 		currentMsg,
 	];

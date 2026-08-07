@@ -18,6 +18,7 @@ import type {
 	StepTokenUsage,
 	TokenUsage,
 	OpenAIEncryptedContinuationInput,
+	OpenAIPromptCacheRequest,
 } from "../agents/types.js";
 import type {
 	RequestAuthDomainCandidates,
@@ -75,6 +76,7 @@ export interface ValidatorFeedback {
 export interface TokenUsageTotals {
 	input_tokens: number;
 	cached_input_tokens: number;
+	cache_write_tokens: number;
 	reasoning_tokens: number;
 	non_reasoning_output_tokens: number;
 	output_tokens: number;
@@ -105,7 +107,7 @@ export interface TokenUsageArtifactAttempt {
 }
 
 export interface TaskTokenUsageArtifact {
-	schemaVersion: 1;
+	schemaVersion: 1 | 2;
 	taskIndex: number;
 	task: string;
 	attempts: TokenUsageArtifactAttempt[];
@@ -271,6 +273,7 @@ export interface CreatePromptForStepInput {
 	validatorFeedback?: ValidatorFeedback;
 	modelOutputErrors?: string[];
 	openAIEncryptedResponses?: boolean;
+	openAIExplicitPromptCaching?: boolean;
 }
 
 export interface CreatePromptForStepResult {
@@ -299,6 +302,7 @@ export interface BrowseInput {
 	userTask?: string;
 	pageProjection?: string;
 	dataExtractionLLMOptions?: LLMOptions;
+	dataExtractionPromptCache?: OpenAIPromptCacheRequest;
 	recordModelInvocation?: (trace: StageModelInvocationTrace) => void;
 	stepNumber?: number;
 	allowFatalActionErrors?: boolean;
@@ -340,6 +344,8 @@ export interface ProcessModelStepOutputInput {
 	reasoningTokens?: string;
 	stepNumber?: number;
 	dataExtractionLLMOptions?: LLMOptions;
+	dataExtractionPromptCache?: OpenAIPromptCacheRequest;
+	verificationPromptCache?: OpenAIPromptCacheRequest;
 	recordModelInvocation?: (trace: StageModelInvocationTrace) => void;
 	sessionChecklist?: import("../agents/types.js").ChecklistItem[];
 	verificationPurpose?: "terminal_judge" | "completion_verifier";
@@ -466,6 +472,7 @@ export interface RunAgentGenerateStepInput {
 	stepKind?: "executor_step" | "max_step_finalization";
 	abortSignal?: AbortSignal;
 	providerContinuation?: OpenAIEncryptedContinuationInput;
+	openAIPromptCache?: OpenAIPromptCacheRequest;
 }
 
 export type RunAgentGenerateStep = (
@@ -529,6 +536,8 @@ export interface RunAgentInput {
 	artifactDirectories?: Partial<BrowserAgentArtifactDirectories>;
 	includeStepArtifactsInResult?: boolean;
 	generateStep?: RunAgentGenerateStep;
+	/** Stable routing shard used in the OpenAI prompt-cache key. */
+	promptCacheShard?: string;
 }
 
 export interface RunAgentStepTrace {
@@ -541,6 +550,7 @@ export interface RunAgentStepTrace {
 export interface RunAgentTokenTotals {
 	input_tokens: number;
 	cached_input_tokens: number;
+	cache_write_tokens: number;
 	output_tokens: number;
 	total_tokens: number;
 }
@@ -551,6 +561,7 @@ export interface RunAgentStepArtifact {
 	contextJson: Array<{
 		role: string;
 		content: unknown;
+		providerOptions?: import("../agents/types.js").MessageProviderOptions;
 		reasoning_tokens?: string;
 	}>;
 }

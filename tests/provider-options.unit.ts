@@ -47,7 +47,6 @@ describe("provider options", () => {
 			providerContinuation: {
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: [],
 				inputMode: "incremental",
 			},
@@ -55,11 +54,48 @@ describe("provider options", () => {
 
 		assert.deepInclude(options.openai, {
 			instructions: "CURRENT SYSTEM",
-			promptCacheKey: "trajectory-key",
 			store: false,
 			include: ["reasoning.encrypted_content"],
 		});
+		assert.notProperty(options.openai, "promptCacheKey");
 		assert.notProperty(options.openai, "previousResponseId");
+	});
+
+	it("forwards GPT-5.6 explicit cache options without reasoning continuation", () => {
+		const options = __buildProviderOptionsForTests({
+			model: "gpt-5.6-luna",
+			provider: "openai",
+			reasoningEffort: "none",
+			openAIPromptCache: {
+				promptCacheKey: "stable-worker-key",
+				promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			},
+		});
+
+		assert.deepInclude(options.openai, {
+			promptCacheKey: "stable-worker-key",
+			promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			store: false,
+		});
+		assert.notProperty(options.openai, "include");
+	});
+
+	it("disables implicit caching with explicit mode and no breakpoints", () => {
+		const options = __buildProviderOptionsForTests({
+			model: "gpt-5.6-luna",
+			provider: "openai",
+			reasoningEffort: "none",
+			openAIPromptCache: {
+				promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			},
+		});
+
+		assert.deepInclude(options.openai, {
+			promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			store: false,
+		});
+		assert.notProperty(options.openai, "promptCacheKey");
+		assert.notProperty(options.openai, "include");
 	});
 
 	it("preserves encrypted reasoning and phase metadata in continuation messages", () => {
@@ -94,7 +130,6 @@ describe("provider options", () => {
 			continuation: {
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: [{ role: "user", content: "first" }],
 				inputMode: "incremental",
 			},
@@ -124,7 +159,6 @@ describe("provider options", () => {
 			continuation: {
 				provider: "openai",
 				strategy: "current",
-				promptCacheKey: "trajectory-key",
 				reasoningStateByStep: [],
 			},
 			prompt: "ignored for reconstructed input",
@@ -173,7 +207,6 @@ describe("provider options", () => {
 			continuation: {
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: [],
 				inputMode: "incremental",
 			},
@@ -198,7 +231,6 @@ describe("provider options", () => {
 			continuation: {
 				provider: "openai",
 				strategy: "cumulative",
-				promptCacheKey: "trajectory-key",
 				messages: [],
 				inputMode: "incremental",
 			},
@@ -219,7 +251,6 @@ describe("provider options", () => {
 					continuation: {
 						provider: "openai",
 						strategy: "cumulative",
-						promptCacheKey: "trajectory-key",
 						messages: [],
 						inputMode: "full",
 					},
@@ -242,7 +273,6 @@ describe("provider options", () => {
 					continuation: {
 						provider: "openai",
 						strategy: "cumulative",
-						promptCacheKey: "trajectory-key",
 						messages: [],
 						inputMode: "full",
 					},
@@ -366,7 +396,7 @@ describe("provider options", () => {
 		assert.equal(disabled.vllm?.chat_template_kwargs.enable_thinking, false);
 		assert.equal(enabled.vllm?.chat_template_kwargs.enable_thinking, true);
 		assert.notProperty(disabled.vllm, "thinking_token_budget");
-		assert.equal(enabled.vllm?.thinking_token_budget, 8192);
+		assert.notProperty(enabled.vllm, "thinking_token_budget");
 	});
 
 	it("disables reasoning for vLLM GLM", () => {
@@ -392,7 +422,6 @@ describe("provider options", () => {
 				reasoningEffort,
 			});
 			assert.deepEqual(options.vllm, {
-				thinking_token_budget: 8192,
 				chat_template_kwargs: {
 					enable_thinking: true,
 					reasoning_effort: reasoningEffort,
@@ -409,7 +438,6 @@ describe("provider options", () => {
 				reasoningEffort,
 			});
 			assert.deepEqual(options.vllm, {
-				thinking_token_budget: 8192,
 				chat_template_kwargs: {
 					thinking: true,
 					reasoning_effort: reasoningEffort,
@@ -454,9 +482,9 @@ describe("provider token usage", () => {
 			__toTokenUsageForTests({
 				inputTokens: 20,
 				inputTokenDetails: {
-					noCacheTokens: 15,
+					noCacheTokens: 13,
 					cacheReadTokens: 5,
-					cacheWriteTokens: undefined,
+					cacheWriteTokens: 2,
 				},
 				outputTokens: 10,
 				outputTokenDetails: {
@@ -469,6 +497,7 @@ describe("provider token usage", () => {
 			{
 				input_tokens: 20,
 				cached_input_tokens: 5,
+				cache_write_tokens: 2,
 				reasoning_tokens: 3,
 				non_reasoning_output_tokens: 7,
 				output_tokens: 10,
@@ -497,6 +526,7 @@ describe("provider token usage", () => {
 			{
 				input_tokens: 20,
 				cached_input_tokens: 0,
+				cache_write_tokens: 0,
 				reasoning_tokens: undefined,
 				non_reasoning_output_tokens: undefined,
 				output_tokens: 10,

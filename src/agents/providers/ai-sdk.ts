@@ -3,7 +3,8 @@ import {
 	LanguageModelUsage,
 	type ModelMessage,
 	type ProviderMetadata,
-	ReasoningOutput,
+	type ReasoningFileOutput,
+	type ReasoningOutput,
 	streamText,
 	type StreamTextTransform,
 	type TextStreamPart,
@@ -19,6 +20,7 @@ import type {
 	LLMOptions,
 	OpenAIEncryptedContinuationInput,
 	OpenAIEncryptedContinuationOutput,
+	OpenAIPromptCacheRequest,
 	Provider,
 	TokenUsage,
 } from "../types.js";
@@ -87,6 +89,7 @@ export interface ProviderChatArgs {
 	providerContinuation?: OpenAIEncryptedContinuationInput;
 	/** Fully reconstructed native input used by current-mode encrypted replay. */
 	openAIInputMessages?: ModelMessage[];
+	openAIPromptCache?: OpenAIPromptCacheRequest;
 	abortSignal?: AbortSignal;
 	onOutputChunk?: (chunk: string) => void;
 	/** Final-text-only stop sequences. Reasoning deltas are never searched. */
@@ -318,13 +321,15 @@ function stripThinkBlocks(content: string): {
 	};
 }
 
-function normalizeReasoningToString(reasoning: ReasoningOutput[]): string {
+function normalizeReasoningToString(
+	reasoning: Array<ReasoningOutput | ReasoningFileOutput>,
+): string {
 	if (!reasoning || reasoning.length === 0) {
 		return "";
 	}
 
 	return reasoning
-		.map((part) => part.text)
+		.flatMap((part) => (part.type === "reasoning" ? [part.text] : []))
 		.join("\n")
 		.trim();
 }
@@ -341,21 +346,6 @@ async function collectStreamedText(
 	return chunks;
 }
 
-const ZERO_LANGUAGE_MODEL_USAGE: LanguageModelUsage = {
-	inputTokens: 0,
-	inputTokenDetails: {
-		noCacheTokens: 0,
-		cacheReadTokens: 0,
-		cacheWriteTokens: 0,
-	},
-	outputTokens: 0,
-	outputTokenDetails: {
-		textTokens: 0,
-		reasoningTokens: 0,
-	},
-	totalTokens: 0,
-};
-
 function createFinalOutputStopTransform<TOOLS extends ToolSet>(params: {
 	stopSequences: readonly string[];
 	onStop?: (sequence: string) => void;
@@ -368,7 +358,7 @@ function createFinalOutputStopTransform<TOOLS extends ToolSet>(params: {
 		...stopSequences.map((sequence) => sequence.length),
 	);
 
-	return ({ stopStream }) => {
+	return () => {
 		let pendingText = "";
 		let pendingTextId: string | undefined;
 		let pendingProviderMetadata: ProviderMetadata | undefined;
@@ -394,6 +384,9 @@ function createFinalOutputStopTransform<TOOLS extends ToolSet>(params: {
 		return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
 			transform(chunk, controller) {
 				if (stopped) {
+					if (chunk.type !== "text-delta") {
+						controller.enqueue(chunk);
+					}
 					return;
 				}
 				if (chunk.type !== "text-delta" || stopSequences.length === 0) {
@@ -435,30 +428,7 @@ function createFinalOutputStopTransform<TOOLS extends ToolSet>(params: {
 					enqueuePending(controller, retainedText);
 					pendingText = "";
 					stopped = true;
-					stopStream();
 					params.onStop?.(firstMatch.sequence);
-					controller.enqueue({
-						type: "text-end",
-						id: chunk.id,
-					} as TextStreamPart<TOOLS>);
-					controller.enqueue({
-						type: "finish-step",
-						finishReason: "stop",
-						rawFinishReason: "yaml-output-stop-sequence",
-						usage: ZERO_LANGUAGE_MODEL_USAGE,
-						response: {
-							id: "yaml-output-stop-sequence",
-							modelId: "unknown",
-							timestamp: new Date(),
-						},
-						providerMetadata: undefined,
-					} as TextStreamPart<TOOLS>);
-					controller.enqueue({
-						type: "finish",
-						finishReason: "stop",
-						rawFinishReason: "yaml-output-stop-sequence",
-						totalUsage: ZERO_LANGUAGE_MODEL_USAGE,
-					} as TextStreamPart<TOOLS>);
 					return;
 				}
 
@@ -497,9 +467,7 @@ function toTokenUsage(usage: LanguageModelUsage): TokenUsage {
 	const reasoningTokens =
 		typeof usage?.outputTokenDetails?.reasoningTokens === "number"
 			? usage.outputTokenDetails.reasoningTokens
-			: typeof usage?.reasoningTokens === "number"
-				? usage.reasoningTokens
-				: undefined;
+			: undefined;
 	const nonReasoningOutputTokens =
 		typeof usage?.outputTokenDetails?.textTokens === "number"
 			? usage.outputTokenDetails.textTokens
@@ -509,9 +477,11 @@ function toTokenUsage(usage: LanguageModelUsage): TokenUsage {
 	const cachedInputTokens =
 		typeof usage?.inputTokenDetails?.cacheReadTokens === "number"
 			? usage.inputTokenDetails.cacheReadTokens
-			: typeof usage?.cachedInputTokens === "number"
-				? usage.cachedInputTokens
-				: 0;
+			: 0;
+	const cacheWriteTokens =
+		typeof usage?.inputTokenDetails?.cacheWriteTokens === "number"
+			? usage.inputTokenDetails.cacheWriteTokens
+			: 0;
 	const totalTokens =
 		typeof usage?.totalTokens === "number"
 			? usage.totalTokens
@@ -520,6 +490,7 @@ function toTokenUsage(usage: LanguageModelUsage): TokenUsage {
 	return {
 		input_tokens: inputTokens,
 		cached_input_tokens: cachedInputTokens,
+		cache_write_tokens: cacheWriteTokens,
 		reasoning_tokens: reasoningTokens,
 		non_reasoning_output_tokens: nonReasoningOutputTokens,
 		output_tokens: totalOutputTokens,
@@ -538,6 +509,7 @@ function buildProviderOptions(params: {
 	openrouterProvider?: string;
 	instructions?: string;
 	providerContinuation?: OpenAIEncryptedContinuationInput;
+	openAIPromptCache?: OpenAIPromptCacheRequest;
 }) {
 	if (params.provider === "openai") {
 		const uses24HourPromptCacheRetention =
@@ -552,9 +524,21 @@ function buildProviderOptions(params: {
 					: {}),
 				...(params.providerContinuation
 					? {
-							promptCacheKey: params.providerContinuation.promptCacheKey,
 							store: false,
 							include: ["reasoning.encrypted_content"] as const,
+						}
+					: {}),
+				...(params.openAIPromptCache
+					? {
+							...(params.openAIPromptCache.promptCacheKey
+								? {
+										promptCacheKey:
+											params.openAIPromptCache.promptCacheKey,
+									}
+								: {}),
+							promptCacheOptions:
+								params.openAIPromptCache.promptCacheOptions,
+							store: false,
 						}
 					: {}),
 				...(uses24HourPromptCacheRetention
@@ -575,7 +559,8 @@ function buildProviderOptions(params: {
 			params.reasoningEffort !== "none";
 		return {
 			vllm: {
-				...(reasoningEnabled
+				...(reasoningEnabled &&
+				typeof featureFlags.maxThinkingTokenBudget === "number"
 					? {
 							thinking_token_budget: featureFlags.maxThinkingTokenBudget,
 						}
@@ -771,6 +756,7 @@ async function runProviderChatInternal(
 		openrouterProvider: args.options.openrouterProvider,
 		instructions: args.instructions,
 		providerContinuation: args.providerContinuation,
+		openAIPromptCache: args.openAIPromptCache,
 	});
 
 	if (args.onOutputChunk || args.onLifecycleEvent) {
@@ -779,16 +765,6 @@ async function runProviderChatInternal(
 		let matchedOutputStopSequence: string | undefined;
 		let outputStopEventEmitted = false;
 		const outputStopSequences = args.outputStopSequences ?? [];
-		const outputStopAbortController =
-			outputStopSequences.length > 0 ? new AbortController() : undefined;
-		const providerAbortSignal = outputStopAbortController
-			? args.abortSignal
-				? AbortSignal.any([
-						args.abortSignal,
-						outputStopAbortController.signal,
-					])
-				: outputStopAbortController.signal
-			: args.abortSignal;
 		const streamed = streamText({
 			model: model as any,
 			...(args.openAIInputMessages
@@ -801,7 +777,10 @@ async function runProviderChatInternal(
 							),
 						}
 					: { prompt: args.prompt }),
-			abortSignal: providerAbortSignal,
+			allowSystemInMessages: Boolean(
+				args.openAIInputMessages?.some((message) => message.role === "system"),
+			),
+			abortSignal: args.abortSignal,
 			maxOutputTokens: args.options.reserveOutputTokens,
 			temperature: isVLLMProvider ? 0.2 : undefined,
 			...(outputStopSequences.length > 0
@@ -810,12 +789,6 @@ async function runProviderChatInternal(
 							stopSequences: outputStopSequences,
 							onStop: (sequence) => {
 								matchedOutputStopSequence = sequence;
-								outputStopAbortController?.abort(
-									new DOMException(
-										"YAML output stop sequence reached.",
-										"AbortError",
-									),
-								);
 							},
 						}),
 					}
@@ -911,6 +884,9 @@ async function runProviderChatInternal(
 						),
 					}
 				: { prompt: args.prompt }),
+		allowSystemInMessages: Boolean(
+			args.openAIInputMessages?.some((message) => message.role === "system"),
+		),
 		abortSignal: args.abortSignal,
 		maxOutputTokens: args.options.reserveOutputTokens,
 		temperature: isVLLMProvider ? 0.2 : undefined,
@@ -969,6 +945,7 @@ export function __buildProviderOptionsForTests(params: {
 	openrouterProvider?: string;
 	instructions?: string;
 	providerContinuation?: OpenAIEncryptedContinuationInput;
+	openAIPromptCache?: OpenAIPromptCacheRequest;
 }) {
 	validateReasoningConfiguration({
 		provider: params.provider,

@@ -114,7 +114,7 @@ describe("index main", () => {
 			const artifact = JSON.parse(
 				fs.readFileSync(path.join(tokenUsageDir, "task-007.json"), "utf-8"),
 			);
-			assert.strictEqual(artifact.schemaVersion, 1);
+			assert.strictEqual(artifact.schemaVersion, 2);
 			assert.deepEqual(
 				artifact.attempts.map((attempt: TokenUsageArtifactAttempt) => ({
 					runIndex: attempt.runIndex,

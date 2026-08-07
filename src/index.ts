@@ -43,6 +43,7 @@ function sumArtifactAttemptTotals(
 		(totals, attempt) => {
 			totals.input_tokens += attempt.totals.input_tokens;
 			totals.cached_input_tokens += attempt.totals.cached_input_tokens;
+			totals.cache_write_tokens += attempt.totals.cache_write_tokens ?? 0;
 			totals.reasoning_tokens += attempt.totals.reasoning_tokens;
 			totals.non_reasoning_output_tokens +=
 				attempt.totals.non_reasoning_output_tokens;
@@ -54,6 +55,7 @@ function sumArtifactAttemptTotals(
 		{
 			input_tokens: 0,
 			cached_input_tokens: 0,
+			cache_write_tokens: 0,
 			reasoning_tokens: 0,
 			non_reasoning_output_tokens: 0,
 			output_tokens: 0,
@@ -78,7 +80,7 @@ export function saveTaskTokenUsageAttempt(params: {
 			fs.readFileSync(filePath, "utf-8"),
 		) as Partial<TaskTokenUsageArtifact>;
 		if (
-			existing.schemaVersion !== 1 ||
+			(existing.schemaVersion !== 1 && existing.schemaVersion !== 2) ||
 			existing.taskIndex !== params.taskNumber ||
 			!Array.isArray(existing.attempts)
 		) {
@@ -96,7 +98,7 @@ export function saveTaskTokenUsageAttempt(params: {
 	}
 	attempts.sort((left, right) => left.runIndex - right.runIndex);
 	const artifact: TaskTokenUsageArtifact = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		taskIndex: params.taskNumber,
 		task: params.task,
 		attempts,

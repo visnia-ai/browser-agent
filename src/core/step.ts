@@ -783,6 +783,8 @@ async function createPromptForStepImpl(
 				executorPromptOptions,
 				{
 					omitProjectionContext: false,
+					openAIExplicitPromptCaching:
+						input.openAIExplicitPromptCaching,
 				},
 			);
 			return history;
@@ -863,7 +865,11 @@ async function createPromptForStepImpl(
 				history,
 				payload: payloadState.payload,
 				buildStepMessages: (params) => {
-					const baseMessages = deps.buildStepMessages(params);
+					const baseMessages = deps.buildStepMessages({
+						...params,
+						openAIExplicitPromptCaching:
+							input.openAIExplicitPromptCaching,
+					});
 					if (!input.finalizationInstruction) {
 						return baseMessages;
 					}
@@ -1072,6 +1078,7 @@ export async function browse(
 				userTask: input.userTask,
 				pageProjection: projectionBeforeActions,
 				dataExtractionLLMOptions: input.dataExtractionLLMOptions,
+				dataExtractionPromptCache: input.dataExtractionPromptCache,
 				estimateTokenCount: deps.estimateTokenCount,
 				recordModelInvocation: input.recordModelInvocation,
 				downloadedFiles: input.promptDownloadedFiles,
@@ -1349,6 +1356,7 @@ export async function processStepModelOutput(
 					contextMode: input.validatorContext,
 					historyMessages: priorHistoryMessages,
 					llmOptions: deps.defaultSuccessVerifierLLMOptions,
+					openAIPromptCache: input.verificationPromptCache,
 					estimateTokenCount: deps.estimateTokenCount,
 					caller: "processStepModelOutput:verifySuccess",
 					onTrace: input.recordModelInvocation,
@@ -1397,6 +1405,7 @@ export async function processModelOutputAndBrowse(
 				? input.promptPayload.projection
 				: undefined,
 		dataExtractionLLMOptions: input.dataExtractionLLMOptions,
+		dataExtractionPromptCache: input.dataExtractionPromptCache,
 		recordModelInvocation: input.recordModelInvocation,
 		stepNumber: input.stepNumber,
 		allowFatalActionErrors: input.allowFatalActionErrors,
@@ -1438,6 +1447,7 @@ export async function processModelOutputAndBrowse(
 						input.stepsHistory,
 					),
 					llmOptions: deps.defaultSuccessVerifierLLMOptions,
+					openAIPromptCache: input.verificationPromptCache,
 					estimateTokenCount: deps.estimateTokenCount,
 					caller: "processModelOutputAndBrowse:verifyMemoryReturnResults",
 					onTrace: input.recordModelInvocation,
