@@ -139,6 +139,11 @@ export interface CoreDeps {
 	) => Promise<Browser>;
 	closeBrowser: (browser: Browser) => Promise<void>;
 	navigateBrowser: (browser: Browser, url: string) => Promise<void>;
+	downloadFileFromUrl: (
+		browser: Browser,
+		fileUrl: string,
+		options?: { title?: string; contentType?: string },
+	) => Promise<string>;
 	getCurrentURL: (browser: Browser) => Promise<string>;
 	getPageProjection: (
 		browser: Browser,
@@ -249,6 +254,7 @@ export interface PreprocessTaskResult {
 
 export interface StepHistoryEntry {
 	payload: Record<string, unknown>;
+	/** Accepted model output, preserved independently from normalized execution actions. */
 	assistant: unknown;
 	reasoningTokens?: string;
 }
@@ -325,6 +331,8 @@ export interface BrowseResult {
 
 export interface ProcessModelStepOutputInput {
 	rawStepOutput: unknown;
+	/** Exact accepted assistant text when available from the provider. */
+	rawAssistantOutputText?: string;
 	promptPayload: Record<string, unknown>;
 	stepsHistory: StepHistoryEntry[];
 	executorProvider?: Provider;

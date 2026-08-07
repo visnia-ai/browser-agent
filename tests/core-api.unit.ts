@@ -101,7 +101,7 @@ describe("core-api", () => {
 		}
 	});
 
-	it("step(create_prompt_for_step) ignores legacy plan fields", async () => {
+	it("step(create_prompt_for_step) strips legacy plan payloads but preserves model-emitted assistant fields", async () => {
 		const deps = createMockCoreDeps();
 		await createSession(deps, { port: 9222, headless: true });
 
@@ -130,7 +130,7 @@ describe("core-api", () => {
 			assert.notProperty(result.prompt.payload, "plan");
 			const serializedMessages = JSON.stringify(result.prompt.messages);
 			assert.notInclude(serializedMessages, "old plan");
-			assert.notInclude(serializedMessages, "previousStepPlanUpdate");
+			assert.include(serializedMessages, "previousStepPlanUpdate");
 		}
 	});
 
@@ -560,6 +560,72 @@ describe("core-api", () => {
 		assert.strictEqual(currentTargetId, "tab-1");
 	});
 
+	it("step(create_prompt_for_step) downloads a newly opened PDF without switching into its viewer", async () => {
+		const tabs = [
+			{
+				targetId: "tab-1",
+				title: "Search",
+				url: "https://example.com/search",
+			},
+			{
+				targetId: "tab-pdf",
+				title: "report.pdf",
+				url: "https://example.com/report.pdf",
+			},
+		];
+		let currentTargetId = "tab-1";
+		const downloadedUrls: string[] = [];
+		const switchedTargets: string[] = [];
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () =>
+				tabs.find((tab) => tab.targetId === currentTargetId)?.url ?? "",
+			getPageProjection: async () => 'a ref="1": Open report',
+			listTabs: async () => tabs,
+			getNewlyOpenedTabs: (previousTabs, currentTabs) => {
+				const previousTargetIds = new Set(
+					(previousTabs ?? []).map((tab) => tab.targetId),
+				);
+				return currentTabs.filter(
+					(tab) => !previousTargetIds.has(tab.targetId),
+				);
+			},
+			resolveCurrentTabIndex: async () => 0,
+			downloadFileFromUrl: async (_browser, url) => {
+				downloadedUrls.push(url);
+				return "/tmp/report.pdf";
+			},
+			switchTab: async (_browser, targetId) => {
+				switchedTargets.push(targetId);
+				currentTargetId = targetId;
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		const session = deps.registry.get(9222)!;
+		session.previousStepTabs = [tabs[0]];
+
+		const result = await step(deps, {
+			mode: "create_prompt_for_step",
+			port: 9222,
+			userTask: "read the report",
+			stepsHistory: [],
+		});
+
+		assert.strictEqual(result.mode, "create_prompt_for_step");
+		if (result.mode === "create_prompt_for_step") {
+			assert.strictEqual(
+				result.prompt.payload.currentURL,
+				"https://example.com/search",
+			);
+			assert.include(
+				result.prompt.payload.interactionErrors,
+				"Downloaded newly opened PDF; stayed on source tab.",
+			);
+		}
+		assert.deepEqual(downloadedUrls, ["https://example.com/report.pdf"]);
+		assert.deepEqual(switchedTargets, []);
+		assert.strictEqual(currentTargetId, "tab-1");
+	});
+
 	it("step(create_prompt_for_step) retries a blank semantic projection before continuing", async () => {
 		let domCalls = 0;
 		const deps = createMockCoreDeps({
@@ -755,6 +821,96 @@ describe("core-api", () => {
 			assert.strictEqual(result.context.projection, 'div ref="2": results');
 		}
 		assert.strictEqual(currentTargetId, "tab-2");
+	});
+
+	it("step(browse) saves a newly opened PDF and keeps source context", async () => {
+		const downloadDir = fs.mkdtempSync(
+			path.join(os.tmpdir(), "browser-agent-pdf-tab-download-"),
+		);
+		const tabs = [
+			{
+				targetId: "tab-1",
+				title: "Search",
+				url: "https://example.com/search",
+			},
+			{
+				targetId: "tab-pdf",
+				title: "report.pdf",
+				url: "https://example.com/report.pdf",
+			},
+		];
+		let currentTargetId = "tab-1";
+		const switchedTargets: string[] = [];
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () =>
+				tabs.find((tab) => tab.targetId === currentTargetId)?.url ?? "",
+			getPageProjection: async () => 'a ref="1": Open report',
+			listTabs: async () => tabs,
+			getNewlyOpenedTabs: (previousTabs, currentTabs) => {
+				const previousTargetIds = new Set(
+					(previousTabs ?? []).map((tab) => tab.targetId),
+				);
+				return currentTabs.filter(
+					(tab) => !previousTargetIds.has(tab.targetId),
+				);
+			},
+			resolveCurrentTabIndex: async () => 0,
+			downloadFileFromUrl: async () => {
+				const destination = path.join(downloadDir, "report.pdf");
+				fs.writeFileSync(destination, "%PDF-1.7");
+				return destination;
+			},
+			switchTab: async (_browser, targetId) => {
+				switchedTargets.push(targetId);
+				currentTargetId = targetId;
+			},
+			executeActions: async () => ({
+				pendingMemoryRead: false,
+				interactionErrors: [],
+			}),
+		});
+		await createSession(deps, {
+			port: 9222,
+			headless: true,
+			downloadDir,
+		});
+		const session = deps.registry.get(9222)!;
+		session.previousStepTabs = [tabs[0]];
+		session.browser.currentTargetId = currentTargetId;
+		session.browser.downloadDir = downloadDir;
+		session.downloadedFileSignatures = new Map();
+		session.downloadedNewFilePaths = new Set();
+
+		try {
+			const result = await step(deps, {
+				mode: "browse",
+				port: 9222,
+				generatedActions: [{ click: "1" }],
+			});
+
+			assert.strictEqual(result.mode, "browse");
+			if (result.mode === "browse") {
+				assert.strictEqual(
+					result.context.current_url,
+					"https://example.com/search",
+				);
+				assert.strictEqual(
+					result.context.projection,
+					'a ref="1": Open report',
+				);
+				assert.deepEqual(result.context.downloaded_files, [
+					"[NEW] ./report.pdf",
+				]);
+				assert.include(
+					result.execution.interaction_errors,
+					"Downloaded newly opened PDF; stayed on source tab.",
+				);
+			}
+			assert.deepEqual(switchedTargets, []);
+			assert.strictEqual(currentTargetId, "tab-1");
+		} finally {
+			fs.rmSync(downloadDir, { recursive: true, force: true });
+		}
 	});
 
 	it("step(browse) ignores blank download tabs and restores source tab context", async () => {
@@ -1092,35 +1248,28 @@ describe("core-api", () => {
 		if (result.mode === "process_model_step_output") {
 			assert.strictEqual(result.step.done, false);
 			assert.strictEqual(result.step.actions.length, 1);
-			for (const field of [
-				"previousStepStatus",
-				"previousStepOutcome",
-				"currentStateObservation",
-				"nextActionRationale",
-			]) {
-				assert.notProperty(result.step, field);
-			}
+			assert.deepInclude(result.step, {
+				previousStepStatus: "progressed",
+				previousStepOutcome: "Opened the form.",
+				currentStateObservation: "The form is visible.",
+				nextActionRationale: "Fill the form.",
+			});
 		}
 		assert.strictEqual(stepsHistory.length, 1);
 		assert.deepEqual(stepsHistory[0].payload, {
 			currentURL: "https://example.com",
 		});
-		assert.notProperty(
-			stepsHistory[0].assistant as Record<string, unknown>,
-			"thinking",
-		);
-		assert.deepEqual(
-			(stepsHistory[0].assistant as Record<string, unknown>).tools,
-			[{ click: "1" }],
-		);
-		assert.notProperty(
-			stepsHistory[0].assistant as Record<string, unknown>,
-			"done",
-		);
-		assert.notProperty(
-			stepsHistory[0].assistant as Record<string, unknown>,
-			"result",
-		);
+		assert.isString(stepsHistory[0].assistant);
+		const assistant = yaml.load(String(stepsHistory[0].assistant)) as Record<
+			string,
+			unknown
+		>;
+		assert.strictEqual(assistant.thinking, "plan");
+		assert.deepEqual(assistant.tools, [{ click: "1" }]);
+		assert.strictEqual(assistant.done, false);
+		assert.deepEqual(assistant.result, { foo: "bar" });
+		assert.strictEqual(assistant.previousStepStatus, "progressed");
+		assert.strictEqual(assistant.previousStepOutcome, "Opened the form.");
 	});
 
 	it("rejects a malformed action list before mutating checklist or history", async () => {
@@ -1187,15 +1336,15 @@ describe("core-api", () => {
 				currentStateObservation: "The form is visible.",
 				nextActionRationale: "Fill the form.",
 			});
-			assert.deepInclude(
-				result.history_entry.assistant as Record<string, unknown>,
-				{
-					previousStepStatus: "progressed",
-					previousStepOutcome: "Opened the form.",
-					currentStateObservation: "The form is visible.",
-					nextActionRationale: "Fill the form.",
-				},
-			);
+			const historyAssistant = yaml.load(
+				String(result.history_entry.assistant),
+			) as Record<string, unknown>;
+			assert.deepInclude(historyAssistant, {
+				previousStepStatus: "progressed",
+				previousStepOutcome: "Opened the form.",
+				currentStateObservation: "The form is visible.",
+				nextActionRationale: "Fill the form.",
+			});
 		}
 	});
 
@@ -1226,14 +1375,10 @@ describe("core-api", () => {
 
 		assert.lengthOf(stepsHistory, 1);
 		assert.strictEqual(stepsHistory[0].reasoningTokens, "Persist this trace.");
-		assert.notProperty(
-			stepsHistory[0].assistant as Record<string, unknown>,
-			"previousStepStatus",
-		);
-		assert.notProperty(
-			stepsHistory[0].assistant as Record<string, unknown>,
-			"done",
-		);
+		assert.deepEqual(yaml.load(String(stepsHistory[0].assistant)), {
+			actions: [],
+			done: false,
+		});
 	});
 
 	it("step(process_model_step_output) retains reasoning with cumulative context", async () => {
@@ -1319,10 +1464,12 @@ describe("core-api", () => {
 		assert.isFalse(result.successful);
 		assert.isUndefined(result.step.result);
 		assert.isDefined(result.browse);
-		const assistant = stepsHistory[0]?.assistant as Record<string, unknown>;
-		assert.deepEqual(assistant.tools, []);
-		assert.notProperty(assistant, "done");
-		assert.notProperty(assistant, "result");
+		const assistant = yaml.load(
+			String(stepsHistory[0]?.assistant),
+		) as Record<string, unknown>;
+		assert.strictEqual(assistant.thinking, "Done");
+		assert.strictEqual(assistant.done, true);
+		assert.strictEqual(assistant.result, "Success");
 	});
 
 	it("processModelOutputAndBrowse preserves verifier-fail state after return_results", async () => {
@@ -1429,7 +1576,7 @@ describe("core-api", () => {
 		);
 		assert.strictEqual(capturedHistory?.[1]?.role, "assistant");
 		assert.include(String(capturedHistory?.[1]?.content ?? ""), "tools:");
-		assert.notInclude(String(capturedHistory?.[1]?.content ?? ""), "thinking:");
+		assert.include(String(capturedHistory?.[1]?.content ?? ""), "thinking:");
 		assert.strictEqual(capturedHistory?.[2]?.role, "user");
 		assert.strictEqual(capturedHistory?.[3]?.role, "assistant");
 		assert.include(
@@ -1438,7 +1585,7 @@ describe("core-api", () => {
 		);
 	});
 
-	it("processModelOutputAndBrowse always omits thinking from verifier history", async () => {
+	it("processModelOutputAndBrowse preserves thinking in verifier history", async () => {
 		let capturedHistory: Array<{ role: string; content: unknown }> | null =
 			null;
 		const deps = createMockCoreDeps({
@@ -1489,7 +1636,7 @@ describe("core-api", () => {
 		});
 
 		assert.strictEqual(capturedHistory?.[1]?.role, "assistant");
-		assert.notInclude(String(capturedHistory?.[1]?.content ?? ""), "thinking:");
+		assert.include(String(capturedHistory?.[1]?.content ?? ""), "thinking:");
 	});
 
 	it("processModelOutputAndBrowse browses when the model step is not done", async () => {
@@ -1982,15 +2129,21 @@ describe("core-api", () => {
 		]);
 		assert.isTrue(result.steps.at(-1)?.model.done);
 		for (const historyEntry of result.stepsHistory) {
-			const assistant = historyEntry.assistant as Record<string, unknown>;
-			assert.notProperty(assistant, "done");
+			const assistant = yaml.load(
+				String(historyEntry.assistant),
+			) as Record<string, unknown>;
+			assert.property(assistant, "thinking");
+			assert.property(assistant, "actions");
+			assert.strictEqual(assistant.done, false);
 			assert.notProperty(assistant, "result");
 		}
 		for (const loopEntry of result.mainLoopEntries) {
 			const assistant = yaml.load(
 				String(loopEntry.messages.at(-1)?.content ?? ""),
 			) as Record<string, unknown>;
-			assert.notProperty(assistant, "done");
+			assert.property(assistant, "thinking");
+			assert.property(assistant, "actions");
+			assert.strictEqual(assistant.done, false);
 			assert.notProperty(assistant, "result");
 		}
 	});
@@ -2569,7 +2722,7 @@ describe("core-api", () => {
 		const finalAssistant = yaml.load(
 			String(result.mainLoopEntries[1]?.messages.at(-1)?.content ?? ""),
 		) as Record<string, unknown>;
-		assert.notProperty(finalAssistant, "done");
+		assert.strictEqual(finalAssistant.done, false);
 		assert.notProperty(finalAssistant, "result");
 	});
 
@@ -3291,6 +3444,16 @@ describe("core-api", () => {
 
 	it("runAgent saves the exact step input messages passed to the model", async () => {
 		const deps = createMockCoreDeps();
+		featureFlags.includeReasoningTokensInPreviousSteps = true;
+		const exactFirstAssistant = [
+			"<yaml>",
+			'previousStepStatus: "progressed"',
+			'previousStepOutcome: "Entered the departure details."',
+			'currentStateObservation: "The search form is populated."',
+			'nextActionRationale: "Submit the search to load results."',
+			"actions: []",
+			"done: false",
+		].join("\n");
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
 		let capturedStepTwoMessages: Array<{
@@ -3350,6 +3513,7 @@ describe("core-api", () => {
 								total_tokens: 11,
 							},
 							reasoning_tokens: "Inspect the flight form.",
+							raw_response: exactFirstAssistant,
 						};
 					}
 					return {
@@ -3386,6 +3550,7 @@ describe("core-api", () => {
 				savedContext.at(-2)?.reasoning_tokens,
 				"Inspect the flight form.",
 			);
+			assert.strictEqual(savedContext.at(-2)?.content, exactFirstAssistant);
 			const serializedContext = savedContext
 				.map((message) => String(message.content ?? ""))
 				.join("\n");
@@ -3395,7 +3560,7 @@ describe("core-api", () => {
 				"currentStateObservation",
 				"nextActionRationale",
 			]) {
-				assert.notInclude(serializedContext, field);
+				assert.include(serializedContext, field);
 			}
 		} finally {
 			setConfigFeatureFlags({
@@ -3407,6 +3572,7 @@ describe("core-api", () => {
 	});
 
 	it("runAgent includes reasoning as a previous assistant message field", async () => {
+		featureFlags.includeReasoningTokensInPreviousSteps = true;
 		let capturedStepTwoMessages: Message[] | null = null;
 		const deps = createMockCoreDeps({
 			executeActions: async ({ actions }) => ({

@@ -240,6 +240,10 @@ describe("router chatYAML diagnostics", () => {
 		);
 
 		assert.strictEqual(result.data.value, "response-secret-value");
+		assert.strictEqual(
+			result.raw_response,
+			'value: "response-secret-value"',
+		);
 		assert.isNumber(result.usage.time_to_first_token_ms);
 		const events = logs.filter((entry) => entry.includes("[LLM][chatYAML]"));
 		const eventIndex = (event: string) =>

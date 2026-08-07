@@ -666,7 +666,7 @@ describe("action-normalization long_press/read_file", () => {
 		);
 	});
 
-	it("accepts typed and shorthand read_file actions", () => {
+	it("accepts typed internal and scalar shorthand read_file actions", () => {
 		assert.deepStrictEqual(
 			normalizeShorthandActionEntry({
 				type: "read_file",
@@ -676,9 +676,17 @@ describe("action-normalization long_press/read_file", () => {
 		);
 		assert.deepStrictEqual(
 			normalizeShorthandActionEntry({
-				read_file: { path: "./notes.txt" },
+				read_file: "./notes.txt",
 			}),
 			{ type: "read_file", path: "./notes.txt" },
 		);
+	});
+
+	it("rejects the obsolete nested read_file shorthand", () => {
+		const result = normalizeActionListWithDiagnostics([
+			{ read_file: { path: "./notes.txt" } },
+		]);
+		assert.strictEqual(result.status, "rejected");
+		assert.include(result.diagnostics[0] ?? "", "path scalar");
 	});
 });

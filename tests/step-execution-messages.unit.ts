@@ -106,6 +106,15 @@ describe("step-execution-messages", () => {
 		);
 	});
 
+	it("serializes read_file as its scalar model-facing wire form", () => {
+		assert.deepEqual(
+			serializeActionsForPrompt([
+				{ type: "read_file", path: "./downloads/source.pdf" },
+			]),
+			[{ read_file: "./downloads/source.pdf" }],
+		);
+	});
+
 	it("serializes whole-context extraction as a bare tool", () => {
 		const original = configFeatureFlags.extractDataWholeContext;
 		try {
@@ -406,7 +415,7 @@ describe("step-execution-messages", () => {
 				interactionErrors: [],
 				currentPageScreenshotIncludedAsImagePart: true,
 			},
-			step: {
+			assistant: {
 				thinking: "",
 				actions: [],
 				done: false,
@@ -434,7 +443,7 @@ describe("step-execution-messages", () => {
 			string,
 			unknown
 		>;
-		assert.notProperty(assistant, "done");
+		assert.strictEqual(assistant.done, false);
 		assert.notProperty(assistant, "result");
 	});
 

@@ -1000,6 +1000,7 @@ export async function chatYAML<T>(
 						data: parsed as T,
 						usage,
 						reasoning_tokens,
+						raw_response: content,
 						...(candidateContinuation
 							? { providerContinuation: candidateContinuation }
 							: {}),
@@ -1046,6 +1047,7 @@ export async function chatYAML<T>(
 									data: repairedParsed as T,
 									usage,
 									reasoning_tokens,
+									raw_response: content,
 									...(candidateContinuation
 										? {
 												providerContinuation: candidateContinuation,
@@ -1103,6 +1105,7 @@ export async function chatYAML<T>(
 									data: mergedParsed,
 									usage,
 									reasoning_tokens,
+									raw_response: content,
 									...(candidateContinuation
 										? {
 												providerContinuation: candidateContinuation,

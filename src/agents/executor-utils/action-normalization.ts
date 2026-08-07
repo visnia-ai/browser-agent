@@ -487,8 +487,9 @@ export function normalizeShorthandActionEntry(entry: unknown): Action | null {
 	if (Object.prototype.hasOwnProperty.call(obj, "memory_read")) {
 		return { type: "memory_read" };
 	}
-	if (isRecord(obj.read_file)) {
-		return normalizeReadFileRecord(obj.read_file);
+	if (typeof obj.read_file === "string") {
+		const filePath = toTrimmedString(obj.read_file);
+		return filePath ? { type: "read_file", path: filePath } : null;
 	}
 	if (Object.prototype.hasOwnProperty.call(obj, "return_results")) {
 		return normalizeReturnResultsAction(obj.return_results);
@@ -584,7 +585,7 @@ function describeMalformedAction(index: number, entry: unknown): string {
 		entry.type === "read_file" ||
 		Object.prototype.hasOwnProperty.call(entry, "read_file")
 	) {
-		return `${prefix}: read_file requires a non-empty workspace-relative path`;
+		return `${prefix}: read_file requires a non-empty workspace-relative path scalar, for example read_file: "./downloads/file.pdf"`;
 	}
 	if (
 		entry.type === "return_results" ||

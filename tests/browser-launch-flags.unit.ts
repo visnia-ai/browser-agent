@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
 	buildChromeLaunchFlags,
+	configurePdfDownloadPreference,
 	resolveChromeExecutablePath,
 } from "../src/browser/browser.js";
 
@@ -46,6 +47,35 @@ describe("buildChromeLaunchFlags", () => {
 
 		assert.equal(flags.includes("--use-mock-keychain"), true);
 		assert.equal(flags.includes("--password-store=basic"), true);
+	});
+});
+
+describe("configurePdfDownloadPreference", () => {
+	it("preserves profile preferences and makes PDFs download externally", () => {
+		const userDataDir = fs.mkdtempSync(
+			path.join(os.tmpdir(), "chrome-pdf-preference-"),
+		);
+		const profileDir = path.join(userDataDir, "Default");
+		const preferencesPath = path.join(profileDir, "Preferences");
+		fs.mkdirSync(profileDir, { recursive: true });
+		fs.writeFileSync(
+			preferencesPath,
+			JSON.stringify({ homepage: "https://example.com" }),
+		);
+
+		try {
+			configurePdfDownloadPreference(userDataDir);
+			const preferences = JSON.parse(
+				fs.readFileSync(preferencesPath, "utf8"),
+			);
+			assert.equal(preferences.homepage, "https://example.com");
+			assert.equal(
+				preferences.plugins.always_open_pdf_externally,
+				true,
+			);
+		} finally {
+			fs.rmSync(userDataDir, { recursive: true, force: true });
+		}
 	});
 });
 

@@ -10,7 +10,7 @@ import {
 import { logActionBoundary } from "../agents/executor-utils/action-boundary-logging.js";
 import {
 	buildMaxStepFinalizationMessages,
-	formatStepForPrompt,
+	serializeModelOutputForHistory,
 } from "../agents/executor-utils/step-execution.js";
 import {
 	buildDownloadedFilesPayload,
@@ -37,6 +37,7 @@ import type {
 import { SessionNotFoundError } from "./session.js";
 import type { BrowserSession } from "./session-registry.js";
 import type { Tab } from "../browser/types.js";
+import { extractPdfUrlFromViewerUrl } from "../browser/download-current-pdf.js";
 import {
 	ModelStepActionContractError,
 	processModelStepOutput,
@@ -59,6 +60,8 @@ const EMPTY_PROJECTION_RETRY_DELAY_MS = 3_000;
 const EMPTY_PROJECTION_MAX_RETRIES = 2;
 const BLANK_DOWNLOAD_TAB_CONTEXT_NOTE =
 	"Ignored blank download tab; stayed on source tab.";
+const PDF_DOWNLOAD_TAB_CONTEXT_NOTE =
+	"Downloaded newly opened PDF; stayed on source tab.";
 
 function getSessionOrThrow(deps: CoreDeps, port: number): BrowserSession {
 	const session = deps.registry.get(port);
@@ -161,8 +164,62 @@ function isBlankDownloadArtifactTab(tab: Tab): boolean {
 	);
 }
 
+function getPdfUrlForTab(tab: Tab): string | null {
+	const extracted = extractPdfUrlFromViewerUrl(tab.url);
+	if (extracted) {
+		return extracted;
+	}
+	const normalizedTitle = tab.title.trim().toLowerCase();
+	const normalizedUrl = tab.url.trim();
+	if (
+		normalizedTitle.endsWith(".pdf") &&
+		/^(https?:|blob:|data:)/i.test(normalizedUrl)
+	) {
+		return normalizedUrl;
+	}
+	return null;
+}
+
+function isPdfViewerTab(tab: Tab): boolean {
+	return getPdfUrlForTab(tab) !== null;
+}
+
 function firstMeaningfulNewTab(tabs: Tab[]): Tab | undefined {
-	return tabs.find((tab) => !isBlankDownloadArtifactTab(tab));
+	return tabs.find(
+		(tab) => !isBlankDownloadArtifactTab(tab) && !isPdfViewerTab(tab),
+	);
+}
+
+async function downloadNewPdfTabs(input: {
+	deps: CoreDeps;
+	session: BrowserSession;
+	tabs: Tab[];
+	contextMessages: string[];
+}): Promise<number> {
+	const seenUrls = new Set<string>();
+	let downloadCount = 0;
+	for (const tab of input.tabs) {
+		const fileUrl = getPdfUrlForTab(tab);
+		if (!fileUrl || seenUrls.has(fileUrl)) {
+			continue;
+		}
+		seenUrls.add(fileUrl);
+		try {
+			await input.deps.downloadFileFromUrl(input.session.browser, fileUrl, {
+				title: tab.title,
+				contentType: "application/pdf",
+			});
+			downloadCount += 1;
+		} catch (error) {
+			input.contextMessages.push(
+				`context(pdf_download): ${toErrorMessage(error)}; stayed on source tab`,
+			);
+		}
+	}
+	if (downloadCount > 0) {
+		input.contextMessages.push(PDF_DOWNLOAD_TAB_CONTEXT_NOTE);
+	}
+	return downloadCount;
 }
 
 async function restoreSourceTabAfterBlankDownloadTab(input: {
@@ -492,6 +549,12 @@ async function createPromptForStepImpl(
 		session.previousStepTabs,
 		openTabs,
 	);
+	await downloadNewPdfTabs({
+		deps,
+		session,
+		tabs: newlyOpenedTabs,
+		contextMessages: promptInteractionErrors,
+	});
 	let autoTabSwitchNote: string | undefined;
 	if ((input.autoSwitchToNewTab ?? true) && newlyOpenedTabs.length > 0) {
 		await timeStateExtractionPhase(
@@ -1071,6 +1134,12 @@ export async function browse(
 		session.previousStepTabs,
 		nextOpenTabs,
 	);
+	await downloadNewPdfTabs({
+		deps,
+		session,
+		tabs: newlyOpenedTabs,
+		contextMessages: additionalInteractionErrors,
+	});
 	let skippedBlankDownloadTab = false;
 	if ((input.autoSwitchToNewTab ?? true) && newlyOpenedTabs.length > 0) {
 		const firstNewTab = firstMeaningfulNewTab(newlyOpenedTabs);
@@ -1234,7 +1303,11 @@ export async function processStepModelOutput(
 		step.done = false;
 		delete step.result;
 	}
-	const assistant = formatStepForPrompt(step);
+	const assistant =
+		typeof input.rawAssistantOutputText === "string" &&
+		input.rawAssistantOutputText.length > 0
+			? input.rawAssistantOutputText
+			: serializeModelOutputForHistory(input.rawStepOutput);
 	const priorHistoryMessages = buildHistoryMessagesFromFullStepHistory(
 		input.stepsHistory,
 	);

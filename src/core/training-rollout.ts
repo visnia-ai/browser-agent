@@ -111,6 +111,7 @@ export async function runTrainingRollout(
 				data: result.data,
 				usage: result.usage,
 				reasoning_tokens: result.reasoning_tokens,
+				raw_response: result.rawModelOutputText,
 				providerContinuation: result.providerContinuation,
 			};
 		},

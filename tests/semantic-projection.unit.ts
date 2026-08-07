@@ -17,6 +17,124 @@ function makeBrowser(nodes: unknown[]): Browser {
 }
 
 describe("semantic projection", () => {
+	it("bypasses full AX extraction only for large native plain-text documents", async () => {
+		let fullAXTreeCalls = 0;
+		const browser = {
+			Runtime: {
+				evaluate: async () => ({
+					result: {
+						value: {
+							contentType: "text/plain",
+							nativePlainTextShape: true,
+							characterCount: 3_864_805,
+							preview: "a\naa\naaa\naah\n",
+						},
+					},
+				}),
+			},
+			Accessibility: {
+				getFullAXTree: async () => {
+					fullAXTreeCalls += 1;
+					return { nodes: [] };
+				},
+			},
+		} as unknown as Browser;
+
+		const projection = await getSemanticProjection(browser);
+
+		assert.equal(fullAXTreeCalls, 0);
+		assert.equal(
+			projection,
+			[
+				"projection semantic-v1 refs=0",
+				'document name="Large plain-text resource" value="3864805 characters"',
+				'  text name="a aa aaa aah"',
+				'  text name="[remaining plain text omitted from semantic projection]"',
+			].join("\n"),
+		);
+		assert.deepEqual(getSemanticRefTargets(browser), []);
+	});
+
+	it("retains full AX extraction for large HTML and ambiguous document probes", async () => {
+		for (const probeValue of [
+			{
+				contentType: "text/html",
+				nativePlainTextShape: true,
+				characterCount: 3_864_805,
+			},
+			{
+				contentType: "text/plain",
+				nativePlainTextShape: false,
+				characterCount: 3_864_805,
+			},
+			{ contentType: "" },
+		]) {
+			let fullAXTreeCalls = 0;
+			const browser = {
+				Runtime: {
+					evaluate: async () => ({ result: { value: probeValue } }),
+				},
+				Accessibility: {
+					getFullAXTree: async () => {
+						fullAXTreeCalls += 1;
+						return {
+							nodes: [
+								{
+									nodeId: "1",
+									backendDOMNodeId: 1,
+									role: {
+										type: "role",
+										value: "RootWebArea",
+									},
+									name: {
+										type: "computedString",
+										value: "Rich source",
+									},
+								},
+							],
+						};
+					},
+				},
+			} as unknown as Browser;
+
+			const projection = await getSemanticProjection(browser);
+
+			assert.equal(fullAXTreeCalls, 1);
+			assert.include(
+				projection,
+				'document ref="r1" name="Rich source"',
+			);
+		}
+	});
+
+	it("retains full AX extraction for small native plain-text documents", async () => {
+		let fullAXTreeCalls = 0;
+		const browser = {
+			Runtime: {
+				evaluate: async () => ({
+					result: {
+						value: {
+							contentType: "text/plain",
+							nativePlainTextShape: true,
+							characterCount: 10_000,
+							preview: "short document",
+						},
+					},
+				}),
+			},
+			Accessibility: {
+				getFullAXTree: async () => {
+					fullAXTreeCalls += 1;
+					return { nodes: [] };
+				},
+			},
+		} as unknown as Browser;
+
+		await getSemanticProjection(browser);
+
+		assert.equal(fullAXTreeCalls, 1);
+	});
+
 	it("is stable across identical snapshots and removes duplicated control text", async () => {
 		const browser = {
 			Accessibility: {

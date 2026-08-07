@@ -80,7 +80,7 @@ describe("history prompt safety", () => {
 		}
 	});
 
-	it("canonicalizes history assistant messages for strings, arbitrary objects, and step-like records", () => {
+	it("preserves accepted model assistant outputs without action normalization", () => {
 		const messages = buildHistoryMessagesFromFullStepHistory([
 			{
 				payload: {
@@ -170,30 +170,31 @@ describe("history prompt safety", () => {
 		assert.strictEqual(messages[5].role, "assistant");
 		assert.include(String(messages[5].content), "- array assistant");
 		assert.strictEqual(messages[7].role, "assistant");
-		assert.notInclude(String(messages[7].content), "Updated");
-		assert.notInclude(String(messages[7].content), "ok: true");
-		assert.notInclude(String(messages[7].content), "thinking:");
+		assert.include(String(messages[7].content), "thinking: Continue");
+		assert.include(String(messages[7].content), "tools:");
+		assert.include(String(messages[7].content), "Updated");
+		assert.include(String(messages[7].content), "ok: true");
+		assert.include(String(messages[7].content), "done: false");
 		assert.strictEqual(messages[9].role, "assistant");
 		assert.include(String(messages[9].content), "click:");
 		assert.notInclude(String(messages[9].content), "type: click");
 		assert.strictEqual(messages[11].role, "assistant");
-		assert.include(String(messages[11].content), "click:");
-		assert.notInclude(String(messages[11].content), "type: click");
-		assert.notInclude(String(messages[11].content), "done:");
+		assert.include(String(messages[11].content), "actions:");
+		assert.include(String(messages[11].content), "type: click");
+		assert.include(String(messages[11].content), "done: not-a-boolean");
 		assert.strictEqual(messages[13].role, "assistant");
-		assert.notInclude(String(messages[13].content), "Only result");
+		assert.include(String(messages[13].content), "Only result");
 		assert.strictEqual(messages[15].role, "assistant");
-		assert.notInclude(String(messages[15].content), "Only update");
+		assert.include(String(messages[15].content), "Only update");
 		assert.strictEqual(messages[17].role, "assistant");
-		assert.notInclude(String(messages[17].content), "Finished");
-		assert.include(String(messages[17].content), "click:");
-		assert.notInclude(String(messages[17].content), "type: click");
-		assert.notInclude(String(messages[17].content), "thinking:");
-		assert.notInclude(String(messages[17].content), "done:");
-		assert.notInclude(String(messages[17].content), "result:");
+		assert.include(String(messages[17].content), "Finished");
+		assert.include(String(messages[17].content), "type: click");
+		assert.include(String(messages[17].content), "thinking: Done");
+		assert.include(String(messages[17].content), "done: true");
+		assert.include(String(messages[17].content), "result: Finished");
 	});
 
-	it("omits action-context fields from canonicalized assistant messages by default", () => {
+	it("preserves model-emitted action-context fields regardless of execution flags", () => {
 		const messages = buildHistoryMessagesFromFullStepHistory([
 			{
 				payload: {
@@ -217,15 +218,15 @@ describe("history prompt safety", () => {
 			"currentStateObservation",
 			"nextActionRationale",
 		]) {
-			assert.notInclude(String(messages[1].content), field);
+			assert.include(String(messages[1].content), field);
 		}
-		assert.include(String(messages[1].content), "switch_tab: 1");
+		assert.include(String(messages[1].content), "type: switch_tab");
 		assert.notInclude(String(messages[1].content), "thinking:");
-		assert.notInclude(String(messages[1].content), "done:");
+		assert.include(String(messages[1].content), "done: false");
 		assert.notInclude(String(messages[1].content), "result:");
 	});
 
-	it("omits legacy thinking fields from canonicalized assistant messages", () => {
+	it("preserves every model-emitted field when action context is enabled", () => {
 		const originalActionContextFields =
 			featureFlags.executorActionContextFields;
 		featureFlags.executorActionContextFields = true;
@@ -248,7 +249,7 @@ describe("history prompt safety", () => {
 				},
 			]);
 			assert.strictEqual(messages[1].role, "assistant");
-			assert.notInclude(String(messages[1].content), "thinking:");
+			assert.include(String(messages[1].content), "thinking: Done");
 			assert.include(
 				String(messages[1].content),
 				"previousStepStatus: progressed",
@@ -265,10 +266,9 @@ describe("history prompt safety", () => {
 				String(messages[1].content),
 				"nextActionRationale: Read the result page.",
 			);
-			assert.include(String(messages[1].content), "click:");
-			assert.notInclude(String(messages[1].content), "type: click");
-			assert.notInclude(String(messages[1].content), "done:");
-			assert.notInclude(String(messages[1].content), "result:");
+			assert.include(String(messages[1].content), "type: click");
+			assert.include(String(messages[1].content), "done: true");
+			assert.include(String(messages[1].content), "result: Finished");
 		} finally {
 			featureFlags.executorActionContextFields = originalActionContextFields;
 		}
@@ -311,16 +311,16 @@ describe("history prompt safety", () => {
 					);
 					assert.notInclude(assistantContent, "<think>");
 					assert.notInclude(assistantContent, "Inspect page:");
-					assert.notInclude(assistantContent, "previousStepStatus");
-					assert.notInclude(assistantContent, "nextActionRationale");
-					assert.include(assistantContent, "click: '2'");
-					assert.notInclude(assistantContent, "done:");
+					assert.include(assistantContent, "previousStepStatus");
+					assert.include(assistantContent, "nextActionRationale");
+					assert.include(assistantContent, "type: click");
+					assert.include(assistantContent, "done: false");
 					assert.notInclude(assistantContent, "result:");
 
 					const completionPrompt = toCompletionPrompt(messages);
 					assert.include(completionPrompt, "reasoning_tokens: |-\n");
 					assert.include(completionPrompt, "  Inspect page:");
-					assert.notInclude(completionPrompt, "previousStepStatus:");
+					assert.include(completionPrompt, "previousStepStatus:");
 				}
 			}
 		} finally {

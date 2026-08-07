@@ -50,6 +50,14 @@ done: false`,
 			result.data.tools[2].text,
 			"Dear Recipient,\n\nBest regards",
 		);
+		assert.include(
+			result.raw_response ?? "",
+			"text: Cheapest Round-Trip Flight:",
+		);
+		assert.notInclude(
+			result.raw_response ?? "",
+			'text: "Cheapest Round-Trip Flight:',
+		);
 	});
 
 	it("repairs unquoted action-context summary fields without affecting canonical fields", async () => {

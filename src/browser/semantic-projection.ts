@@ -98,6 +98,9 @@ const TEXT_ROLES = new Set([
 
 const OMITTED_ROLES = new Set(["inlinetextbox"]);
 
+const LARGE_PLAIN_TEXT_MIN_CHARACTERS = 250_000;
+const LARGE_PLAIN_TEXT_PREVIEW_CHARACTERS = 600;
+
 const CANONICAL_CONTEXT_ROLES = new Set([
 	"alert",
 	"cell",
@@ -206,6 +209,83 @@ function projectionRef(backendNodeId: number): string {
 
 function escapeValue(value: string): string {
 	return JSON.stringify(value);
+}
+
+interface LargePlainTextDocument {
+	characterCount: number;
+	preview: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+async function inspectLargePlainTextDocument(
+	browser: Browser,
+): Promise<LargePlainTextDocument | undefined> {
+	if (typeof browser.Runtime?.evaluate !== "function") return undefined;
+	try {
+		const { result } = await browser.Runtime.evaluate({
+			expression: `(() => {
+				const contentType = String(document.contentType || "")
+					.split(";", 1)[0]
+					.trim()
+					.toLowerCase();
+				if (contentType !== "text/plain") return { contentType };
+				const body = document.body;
+				const soleBodyElement = body?.childElementCount === 1
+					? body.firstElementChild
+					: null;
+				const nativePlainTextShape =
+					soleBodyElement?.tagName === "PRE" &&
+					document.scripts.length === 0;
+				if (!nativePlainTextShape) {
+					return { contentType, nativePlainTextShape: false };
+				}
+				const text = soleBodyElement.textContent || "";
+				return {
+					contentType,
+					nativePlainTextShape: true,
+					characterCount: text.length,
+					preview: text.slice(0, ${LARGE_PLAIN_TEXT_PREVIEW_CHARACTERS}),
+				};
+			})()`,
+			returnByValue: true,
+		});
+		const value = result.value;
+		if (
+			!isRecord(value) ||
+			value.contentType !== "text/plain" ||
+			value.nativePlainTextShape !== true ||
+			typeof value.characterCount !== "number" ||
+			!Number.isFinite(value.characterCount) ||
+			value.characterCount < LARGE_PLAIN_TEXT_MIN_CHARACTERS
+		) {
+			return undefined;
+		}
+		return {
+			characterCount: Math.trunc(value.characterCount),
+			preview: typeof value.preview === "string" ? value.preview : "",
+		};
+	} catch {
+		// Missing or ambiguous MIME/DOM metadata must retain normal AX extraction.
+		return undefined;
+	}
+}
+
+function serializeLargePlainTextProjection(
+	document: LargePlainTextDocument,
+): string {
+	const preview = normalizedText(
+		document.preview,
+		LARGE_PLAIN_TEXT_PREVIEW_CHARACTERS,
+	);
+	return [
+		"projection semantic-v1 refs=0",
+		`document name="Large plain-text resource" value="${document.characterCount} characters"`,
+		...(preview ? [`  text name=${escapeValue(preview)}`] : []),
+		'  text name="[remaining plain text omitted from semantic projection]"',
+	].join("\n");
 }
 
 function decodeProjectionField(rawValue: string | undefined): string {
@@ -579,6 +659,12 @@ export async function getSemanticProjection(
 	browser: Browser,
 	options: SemanticProjectionOptions = {},
 ): Promise<string> {
+	const largePlainTextDocument =
+		await inspectLargePlainTextDocument(browser);
+	if (largePlainTextDocument) {
+		replaceSemanticRefSnapshot(browser, []);
+		return serializeLargePlainTextProjection(largePlainTextDocument);
+	}
 	const response = await browser.Accessibility.getFullAXTree();
 	const nodes = new Map<string, ProjectionNode>();
 	for (const rawNode of response.nodes) {

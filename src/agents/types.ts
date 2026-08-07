@@ -90,6 +90,8 @@ export interface ChatJSONResult<T> {
 	data: T;
 	usage: TokenUsage;
 	reasoning_tokens: string;
+	/** Exact provider text accepted by the YAML parser, before action normalization. */
+	raw_response?: string;
 	providerContinuation?: OpenAIEncryptedContinuationOutput;
 }
 

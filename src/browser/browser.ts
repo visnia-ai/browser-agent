@@ -11,7 +11,10 @@ import type {
 	BrowserViewportMetrics,
 } from "./types.js";
 import { enableBrowserClientDomains } from "./client-setup.js";
-import { downloadCurrentFile } from "./download-current-pdf.js";
+import {
+	downloadCurrentFile,
+	downloadFileFromUrl,
+} from "./download-current-pdf.js";
 import { withLocalCdpHost } from "./local-cdp.js";
 import { installPrintInterception } from "./print-interception.js";
 import {
@@ -38,6 +41,8 @@ export {
 	ensureCheckboxChecked,
 	readIdentifierInputByRef,
 } from "./interaction/auth.js";
+
+export const NAVIGATE_LOAD_EVENT_TIMEOUT_MS = 30_000;
 export {
 	captureScreenshotWithBidBorders,
 	downsampleScreenshotByFactor,
@@ -161,6 +166,36 @@ export async function configureDownloadBehavior(
 	}
 }
 
+export function configurePdfDownloadPreference(userDataDir: string): void {
+	const profileDir = path.join(userDataDir, "Default");
+	const preferencesPath = path.join(profileDir, "Preferences");
+	let preferences: Record<string, unknown> = {};
+	if (fs.existsSync(preferencesPath)) {
+		const parsed = JSON.parse(fs.readFileSync(preferencesPath, "utf8"));
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			throw new Error(`Invalid Chrome preferences: ${preferencesPath}`);
+		}
+		preferences = parsed as Record<string, unknown>;
+	}
+	const plugins =
+		preferences.plugins &&
+		typeof preferences.plugins === "object" &&
+		!Array.isArray(preferences.plugins)
+			? (preferences.plugins as Record<string, unknown>)
+			: {};
+	preferences.plugins = {
+		...plugins,
+		always_open_pdf_externally: true,
+	};
+
+	fs.mkdirSync(profileDir, { recursive: true });
+	const temporarySuffix = crypto.randomBytes(4).toString("hex");
+	const temporaryPath =
+		`${preferencesPath}.browser-agent-${process.pid}-${temporarySuffix}`;
+	fs.writeFileSync(temporaryPath, JSON.stringify(preferences), "utf8");
+	fs.renameSync(temporaryPath, preferencesPath);
+}
+
 export function buildChromeLaunchFlags(input: {
 	headless: boolean;
 	proxy?: { host: string; port: number };
@@ -240,6 +275,7 @@ export async function launch(
 					: `session-${sessionId}`,
 			);
 	fs.mkdirSync(userDataDir, { recursive: true });
+	configurePdfDownloadPreference(userDataDir);
 
 	const chromeFlags = buildChromeLaunchFlags({
 		headless,
@@ -690,16 +726,18 @@ export async function navigate(b: Browser, url: string): Promise<void> {
 	const result = await b.Page.navigate({ url });
 	const isDownload = (result as { isDownload?: boolean }).isDownload;
 	if (shouldAwaitPageLoadAfterNavigate({ url, isDownload })) {
-		const LOAD_EVENT_TIMEOUT_MS = 15_000;
 		await Promise.race([
 			b.Page.loadEventFired(),
 			new Promise<"timeout">((resolve) =>
-				setTimeout(() => resolve("timeout"), LOAD_EVENT_TIMEOUT_MS),
+				setTimeout(
+					() => resolve("timeout"),
+					NAVIGATE_LOAD_EVENT_TIMEOUT_MS,
+				),
 			),
 		]).then(async (loadResult) => {
 			if (loadResult !== "timeout") return;
 			console.warn(
-				`[browser] navigate loadEventFired timeout after ${LOAD_EVENT_TIMEOUT_MS}ms for ${url}; continuing`,
+				`[browser] navigate loadEventFired timeout after ${NAVIGATE_LOAD_EVENT_TIMEOUT_MS}ms for ${url}; continuing`,
 			);
 			try {
 				const { result: readyStateResult } = await b.Runtime.evaluate({
@@ -721,7 +759,7 @@ export async function navigate(b: Browser, url: string): Promise<void> {
 	await sleep(1500); // let JS settle
 }
 
-export { downloadCurrentFile };
+export { downloadCurrentFile, downloadFileFromUrl };
 export {
 	consumePrintRequestsAndSavePdfs,
 	installPrintInterception,

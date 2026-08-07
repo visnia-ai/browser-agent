@@ -508,7 +508,7 @@ export function serializeActionsForPrompt(
 			case "memory_read":
 				return "memory_read";
 			case "read_file":
-				return { read_file: { path: action.path } };
+				return { read_file: action.path };
 			case "return_results":
 				return action.results
 					? { return_results: action.results }
@@ -523,6 +523,14 @@ export function serializeActionsForPrompt(
 				return { agent_takeover: { request: action.request } };
 		}
 	});
+}
+
+/**
+ * Preserve the accepted assistant response for model-visible history without
+ * rewriting its tool representation to the browser's normalized Action form.
+ */
+export function serializeModelOutputForHistory(output: unknown): string {
+	return typeof output === "string" ? output : yaml.dump(output);
 }
 
 export function formatStepForPrompt(step: StepResult): Record<string, unknown> {
@@ -547,7 +555,7 @@ export function formatStepForPrompt(step: StepResult): Record<string, unknown> {
 export function appendHistoryWithStrippedPayload(params: {
 	history: Message[];
 	payload: Record<string, unknown>;
-	step: StepResult;
+	assistant: unknown;
 }): void {
 	const strippedPayload = stripPayloadForHistory({
 		payload: params.payload,
@@ -555,6 +563,6 @@ export function appendHistoryWithStrippedPayload(params: {
 	params.history.push(userMessage(yaml.dump(strippedPayload)));
 	params.history.push({
 		role: "assistant",
-		content: yaml.dump(formatStepForPrompt(params.step)),
+		content: serializeModelOutputForHistory(params.assistant),
 	});
 }

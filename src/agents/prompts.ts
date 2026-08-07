@@ -267,7 +267,7 @@ ${actionContextRules}- Quote all text fields (${textLikeScalarFields}) with doub
   - click: ref scalar; type: {ref, text, enter?}
   - long_press: {ref, durationMs?}; scroll: {ref, deltaX, deltaY}; dropdown_select: {ref, value}
   - switch_tab: index; wait: milliseconds; navigate: URL
-  - upload_files: {ref, paths}; paste_file: {ref, path}; read_file: {path}
+  - upload_files: {ref, paths}; paste_file: {ref, path}; read_file: "./workspace/path" scalar
   - memory_write: text; memory_clear: "memory", "memory_result", or "all"
   - download_current_file, memory_read: bare tool name
 ${getExtractDataShorthandInstruction()}
