@@ -12,7 +12,12 @@ export {
 	type ReasoningModelCapability,
 } from "../llm-capabilities.js";
 
-const VALIDATED_PROVIDERS = new Set<Provider>(["openai", "together", "vllm"]);
+const VALIDATED_PROVIDERS = new Set<Provider>([
+	"openai",
+	"codex",
+	"together",
+	"vllm",
+]);
 
 function matchesModel(
 	capability: ReasoningModelCapability,

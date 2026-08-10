@@ -250,12 +250,16 @@ export async function runRpcStdio(params: {
 	errorStream?: NodeJS.WritableStream;
 	mainFn?: typeof main;
 	resolveChromePath?: (executablePath?: string) => string;
+	prepareRun?: (
+		config: Config,
+	) => Promise<void | (() => void | Promise<void>)>;
 }): Promise<boolean> {
 	const input = params.input ?? process.stdin;
 	const output = params.output ?? process.stdout;
 	const errorStream = params.errorStream ?? process.stderr;
 	const mainFn = params.mainFn ?? main;
 	const restoreConsole = redirectConsoleToStderr(errorStream);
+	let cleanupPreparedRun: void | (() => void | Promise<void>) = undefined;
 
 	try {
 		const request = await waitForRunRequest(input, output);
@@ -313,6 +317,20 @@ export async function runRpcStdio(params: {
 			});
 			return false;
 		}
+		if (params.prepareRun) {
+			try {
+				cleanupPreparedRun = await params.prepareRun(config);
+			} catch (error) {
+				sendError(
+					output,
+					request.id,
+					-32001,
+					error instanceof Error ? error.message : String(error),
+					{ code: "CODEX_AUTH_FAILED" },
+				);
+				return false;
+			}
+		}
 
 		writeMessage(output, {
 			jsonrpc: "2.0",
@@ -359,6 +377,7 @@ export async function runRpcStdio(params: {
 		sendNotification(output, "browser-agent/all_tasks_completed", {});
 		return true;
 	} finally {
+		await cleanupPreparedRun?.();
 		restoreConsole();
 	}
 }

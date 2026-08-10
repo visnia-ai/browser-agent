@@ -16,6 +16,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
 import type {
 	LLMOptions,
 	OpenAIEncryptedContinuationInput,
@@ -33,12 +34,30 @@ import { featureFlags } from "../../featureFlags.js";
 
 const TOGETHER_DEFAULT_BASE_URL = "https://api.together.xyz/v1";
 const OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+export const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
+
+export interface CodexCredentials {
+	accessToken: string;
+	accountId: string;
+	version: string;
+}
+
+export interface CodexProviderRuntime {
+	getCredentials(): Promise<CodexCredentials>;
+	refreshCredentials(): Promise<CodexCredentials | void>;
+	close?(): Promise<void>;
+}
 
 export const SUPPORTED_MODEL_PROVIDERS = [
 	{
 		id: "openai",
 		adapter: "openai",
 		requiresApiKey: true,
+	},
+	{
+		id: "codex",
+		adapter: "codex",
+		requiresApiKey: false,
 	},
 	{
 		id: "vllm",
@@ -126,6 +145,9 @@ export class OpenAIEncryptedContinuationError extends Error {
 }
 
 let openaiClient: OpenAI | null = null;
+let codexProviderRuntime: CodexProviderRuntime | null = null;
+let codexRefreshPromise: Promise<CodexCredentials> | null = null;
+const codexSessionId = randomUUID();
 let providerChatOverride:
 	| ((args: ProviderChatArgs) => Promise<ProviderChatResult>)
 	| null = null;
@@ -154,6 +176,9 @@ function readEnvString(name: string): string | undefined {
 }
 
 function resolveEnvApiKey(provider: Provider): string | undefined {
+	if (provider === "codex") {
+		return undefined;
+	}
 	if (provider === "openai") {
 		return readEnvString("OPENAI_API_KEY");
 	}
@@ -212,8 +237,19 @@ export function resolveProviderRuntimeConfig(
 		);
 	}
 	const providerDefinition = getProviderDefinition(options.provider);
+	if (options.provider === "codex" && options.apiKey !== undefined) {
+		throw new Error(
+			"Provider 'codex' authenticates through the Codex CLI and does not allow apiKey.",
+		);
+	}
+	if (options.provider === "codex" && options.endpointUrl !== undefined) {
+		throw new Error(
+			"Provider 'codex' uses a fixed endpoint and does not allow endpointUrl.",
+		);
+	}
 	const apiKey = resolveApiKey(options);
-	const endpointUrl = resolveEndpointUrl(options);
+	const endpointUrl =
+		options.provider === "codex" ? CODEX_BASE_URL : resolveEndpointUrl(options);
 
 	if (providerDefinition.requiresApiKey && !apiKey) {
 		throw new Error(
@@ -234,10 +270,128 @@ export function resolveProviderRuntimeConfig(
 	};
 }
 
+export function setCodexProviderRuntime(
+	runtime: CodexProviderRuntime | null,
+): void {
+	codexProviderRuntime = runtime;
+	codexRefreshPromise = null;
+}
+
+function requireCodexProviderRuntime(): CodexProviderRuntime {
+	if (!codexProviderRuntime) {
+		throw new Error(
+			"Codex provider authentication has not been initialized. Run Codex authentication preflight before making requests.",
+		);
+	}
+	return codexProviderRuntime;
+}
+
+function validateCodexCredentials(
+	credentials: CodexCredentials,
+): CodexCredentials {
+	for (const [field, value] of Object.entries(credentials)) {
+		if (typeof value !== "string" || !value.trim() || /[\r\n]/.test(value)) {
+			throw new Error(`Codex authentication returned an invalid ${field}.`);
+		}
+	}
+	return credentials;
+}
+
+async function getCodexCredentials(
+	runtime: CodexProviderRuntime,
+): Promise<CodexCredentials> {
+	return validateCodexCredentials(await runtime.getCredentials());
+}
+
+async function refreshCodexCredentials(
+	runtime: CodexProviderRuntime,
+	failedAccessToken: string,
+): Promise<CodexCredentials> {
+	const current = await getCodexCredentials(runtime);
+	if (current.accessToken !== failedAccessToken) {
+		return current;
+	}
+	if (!codexRefreshPromise) {
+		codexRefreshPromise = (async () => {
+			await runtime.refreshCredentials();
+			return await getCodexCredentials(runtime);
+		})().finally(() => {
+			codexRefreshPromise = null;
+		});
+	}
+	return await codexRefreshPromise;
+}
+
+type CodexFetch = (
+	input: string | URL | Request,
+	init?: RequestInit,
+) => Promise<Response>;
+
+function withCodexHeaders(params: {
+	input: string | URL | Request;
+	init?: RequestInit;
+	credentials: CodexCredentials;
+	requestId: string;
+}): RequestInit {
+	const headers = new Headers(
+		params.input instanceof Request ? params.input.headers : undefined,
+	);
+	new Headers(params.init?.headers).forEach((value, key) => {
+		headers.set(key, value);
+	});
+	headers.set("Authorization", `Bearer ${params.credentials.accessToken}`);
+	headers.set("ChatGPT-Account-ID", params.credentials.accountId);
+	headers.set("originator", "codex_cli_rs");
+	headers.set("version", params.credentials.version);
+	headers.set("User-Agent", `codex_cli_rs/${params.credentials.version}`);
+	headers.set("session_id", codexSessionId);
+	headers.set("x-client-request-id", params.requestId);
+	headers.set("OpenAI-Beta", "responses=experimental");
+	return { ...params.init, headers };
+}
+
+function createCodexFetch(fetchImplementation: CodexFetch): CodexFetch {
+	return async (input, init) => {
+		const runtime = requireCodexProviderRuntime();
+		const requestId = randomUUID();
+		let credentials = await getCodexCredentials(runtime);
+		let response = await fetchImplementation(
+			input,
+			withCodexHeaders({ input, init, credentials, requestId }),
+		);
+		if (response.status !== 401) {
+			return response;
+		}
+		credentials = await refreshCodexCredentials(
+			runtime,
+			credentials.accessToken,
+		);
+		response = await fetchImplementation(
+			input,
+			withCodexHeaders({ input, init, credentials, requestId }),
+		);
+		return response;
+	};
+}
+
+export function __createCodexFetchForTests(
+	fetchImplementation: CodexFetch,
+): CodexFetch {
+	return createCodexFetch(fetchImplementation);
+}
+
 function buildLanguageModel(options: {
 	model: string;
 	runtimeConfig: ProviderRuntimeConfig;
 }) {
+	if (options.runtimeConfig.adapter === "codex") {
+		return createOpenAI({
+			name: "codex",
+			baseURL: CODEX_BASE_URL,
+			apiKey: "codex-oauth",
+			fetch: createCodexFetch((input, init) => fetch(input, init)),
+		})(options.model);
+	}
 	if (options.runtimeConfig.adapter === "openrouter") {
 		return createOpenRouter({
 			apiKey: options.runtimeConfig.apiKey!,
@@ -543,6 +697,19 @@ function buildProviderOptions(params: {
 					: {}),
 				...(uses24HourPromptCacheRetention
 					? { promptCacheRetention: "24h" as const }
+					: {}),
+			},
+		};
+	}
+	if (params.provider === "codex") {
+		return {
+			openai: {
+				include_usage: true,
+				reasoningSummary: "detailed",
+				reasoningEffort: params.reasoningEffort,
+				store: false,
+				...(params.instructions !== undefined
+					? { instructions: params.instructions }
 					: {}),
 			},
 		};

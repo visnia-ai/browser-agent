@@ -9,6 +9,36 @@ import {
 } from "../src/agents/providers/ai-sdk.js";
 
 describe("provider options", () => {
+	it("uses non-stored Responses reasoning options for Codex", () => {
+		const options = __buildProviderOptionsForTests({
+			model: "gpt-5.6-luna",
+			provider: "codex",
+			reasoningEffort: "high",
+			instructions: "SYSTEM",
+			providerContinuation: {
+				provider: "openai",
+				strategy: "cumulative",
+				messages: [],
+				inputMode: "full",
+			},
+			openAIPromptCache: {
+				promptCacheKey: "must-not-be-sent",
+				promptCacheOptions: { mode: "explicit", ttl: "30m" },
+			},
+		});
+
+		assert.deepEqual(options.openai, {
+			include_usage: true,
+			reasoningSummary: "detailed",
+			reasoningEffort: "high",
+			store: false,
+			instructions: "SYSTEM",
+		});
+		assert.notProperty(options.openai, "include");
+		assert.notProperty(options.openai, "promptCacheKey");
+		assert.notProperty(options.openai, "promptCacheOptions");
+	});
+
 	it("passes the exact OpenAI reasoning effort", () => {
 		const options = __buildProviderOptionsForTests({
 			model: "gpt-5.5",

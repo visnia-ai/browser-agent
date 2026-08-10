@@ -75,6 +75,26 @@ test("forwards the OpenRouter provider constraint", async () => {
 	}
 });
 
+test("forwards Codex without credential or endpoint overrides", async () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "ts-codex-config-"));
+	try {
+		const files = await createRuntimeFiles(
+			resolveOptions({
+				provider: "codex",
+				model: "gpt-5.6-luna",
+				downloadDirectory: path.join(root, "downloads"),
+			}),
+			[{ task: "go" }],
+		);
+		const config = JSON.parse(fs.readFileSync(files.configPath, "utf8"));
+		assert.equal(config.stage_llms.runAgent.provider, "codex");
+		assert.equal(config.stage_llms.runAgent.endpoint_url, undefined);
+		await files.cleanup();
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("generates the GLM 5.2 benchmark baseline profile", async () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "ts-glm52-config-"));
 	try {

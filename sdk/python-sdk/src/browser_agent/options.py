@@ -12,13 +12,14 @@ from .models import (
     ReasoningEffort,
 )
 
-PROVIDER_ENV: dict[Provider, str] = {
+PROVIDER_ENV: dict[Provider, str | None] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "google": "GOOGLE_API_KEY",
     "together": "TOGETHER_API_KEY",
     "vllm": "VLLM_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
+    "codex": None,
 }
 OPENROUTER_REASONING_EFFORTS = (
     "none", "minimal", "low", "medium", "high", "xhigh",
@@ -34,6 +35,12 @@ CAPABILITIES = [
       for model in OPENAI),
     *((
         "openai", model, False,
+        ("none", "minimal", "low", "medium", "high", "xhigh", "max"), "low",
+    ) for model in GPT_5_6),
+    *(("codex", model, False, ("none", "minimal", "low", "medium", "high"), "low")
+      for model in OPENAI),
+    *((
+        "codex", model, False,
         ("none", "minimal", "low", "medium", "high", "xhigh", "max"), "low",
     ) for model in GPT_5_6),
     ("together", "zai-org/GLM-5.2", False, ("none", "high", "max"), "high"),
@@ -54,7 +61,7 @@ class ResolvedOptions:
     model: str
     reasoning_effort: ReasoningEffort
     api_key: str | None
-    api_key_environment: str
+    api_key_environment: str | None
     endpoint_url: str | None
     openrouter_provider: str | None
     max_model_len: int
@@ -83,7 +90,7 @@ def reasoning(provider: Provider, model: str, effort: ReasoningEffort | None):
          (item[1].lower() in model.lower() if item[2] else item[1] == model)),
         None,
     )
-    if capability is None and provider in ("openai", "together", "vllm"):
+    if capability is None and provider in ("openai", "codex", "together", "vllm"):
         invalid(f"Unknown model '{model}' for '{provider}'.")
     resolved = effort or (capability[4] if capability else None)
     if resolved is None:
@@ -103,6 +110,10 @@ def resolve_options(**values) -> ResolvedOptions:
     if not isinstance(downloads, str) or not downloads.strip():
         invalid("download_directory must be a non-empty string.")
     endpoint = values["endpoint_url"]
+    if provider == "codex" and values["api_key"] is not None:
+        invalid("api_key cannot be used with Codex.")
+    if provider == "codex" and endpoint is not None:
+        invalid("endpoint_url cannot be used with Codex.")
     if endpoint:
         parsed = urlparse(endpoint)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -117,8 +128,9 @@ def resolve_options(**values) -> ResolvedOptions:
             invalid("openrouter_provider can only be used with OpenRouter.")
         openrouter_provider = openrouter_provider.strip()
     environment = PROVIDER_ENV[provider]
-    api_key = (values["api_key"] or "").strip() or os.environ.get(environment)
-    if provider != "vllm" and not api_key:
+    api_key = ((values["api_key"] or "").strip() or os.environ.get(environment)
+               if environment else None)
+    if provider not in ("vllm", "codex") and not api_key:
         invalid(f"Missing API key for provider '{provider}'.")
     retry = values["retry_count"]
     if isinstance(retry, bool) or not isinstance(retry, int) or retry < 0:
@@ -170,7 +182,7 @@ def normalize_tasks(value: BrowserAgentTask | Sequence[BrowserAgentTask]):
     ]
 def child_environment(options: ResolvedOptions) -> dict[str, str]:
     environment = {key: value for key, value in os.environ.items()
-                   if key not in PROVIDER_ENV.values()}
-    if options.api_key:
+                   if key not in {name for name in PROVIDER_ENV.values() if name}}
+    if options.api_key and options.api_key_environment:
         environment[options.api_key_environment] = options.api_key
     return environment

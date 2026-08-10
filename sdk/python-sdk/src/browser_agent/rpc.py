@@ -94,7 +94,9 @@ class RpcState:
         if isinstance(error, dict):
             data = error.get("data")
             code = data.get("code") if isinstance(data, dict) else None
-            code = code if code in ("CONFIG_INVALID", "CHROME_NOT_FOUND") else "PROTOCOL_ERROR"
+            code = code if code in (
+                "CONFIG_INVALID", "CHROME_NOT_FOUND", "CODEX_AUTH_FAILED"
+            ) else "PROTOCOL_ERROR"
             raise BrowserAgentError(
                 code,
                 redact(str(error.get("message", "CLI rejected the run.")),

@@ -8,13 +8,14 @@ import type {
 	ReasoningEffort,
 } from "./types.js";
 
-const PROVIDER_ENV: Record<Provider, string> = {
+const PROVIDER_ENV: Record<Provider, string | undefined> = {
 	openai: "OPENAI_API_KEY",
 	anthropic: "ANTHROPIC_API_KEY",
 	google: "GOOGLE_API_KEY",
 	together: "TOGETHER_API_KEY",
 	vllm: "VLLM_API_KEY",
 	openrouter: "OPENROUTER_API_KEY",
+	codex: undefined,
 };
 const OPENROUTER_REASONING_EFFORTS: readonly ReasoningEffort[] = [
 	"none",
@@ -52,6 +53,20 @@ const CAPABILITIES: Capability[] = [
 		["none", "minimal", "low", "medium", "high", "xhigh", "max"],
 		"low",
 	]),
+	...OPENAI.map((model): Capability => [
+		"codex",
+		model,
+		false,
+		["none", "minimal", "low", "medium", "high"],
+		"low",
+	]),
+	...GPT_5_6.map((model): Capability => [
+		"codex",
+		model,
+		false,
+		["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+		"low",
+	]),
 	["together", "zai-org/GLM-5.2", false, ["none", "high", "max"], "high"],
 	[
 		"together",
@@ -82,7 +97,7 @@ export interface ResolvedOptions extends Omit<
 	apiKey?: string;
 	maxModelLen: number;
 	reserveOutputTokens: number;
-	apiKeyEnvironment: string;
+	apiKeyEnvironment?: string;
 }
 const invalid = (message: string): never => {
 	throw new BrowserAgentError("CONFIG_INVALID", message);
@@ -114,7 +129,7 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 	);
 	if (
 		!capability &&
-		["openai", "together", "vllm"].includes(options.provider)
+		["openai", "codex", "together", "vllm"].includes(options.provider)
 	)
 		invalid(`Unknown model '${model}' for '${options.provider}'.`);
 	const effort =
@@ -128,6 +143,10 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 		invalid(`Unsupported reasoningEffort '${effort}' for OpenRouter.`);
 	if (capability && !capability[3].includes(effort))
 		invalid(`Unsupported reasoningEffort '${effort}' for this model.`);
+	if (options.provider === "codex" && options.apiKey !== undefined)
+		invalid("apiKey cannot be used with Codex.");
+	if (options.provider === "codex" && options.endpointUrl !== undefined)
+		invalid("endpointUrl cannot be used with Codex.");
 	if (options.endpointUrl) {
 		try {
 			if (
@@ -155,8 +174,11 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 		invalid("openrouterProvider can only be used with OpenRouter.");
 	const apiKeyEnvironment = PROVIDER_ENV[options.provider];
 	const apiKey =
-		options.apiKey?.trim() || process.env[apiKeyEnvironment]?.trim();
-	if (options.provider !== "vllm" && !apiKey)
+		options.apiKey?.trim() ||
+		(apiKeyEnvironment
+			? process.env[apiKeyEnvironment]?.trim()
+			: undefined);
+	if (!["vllm", "codex"].includes(options.provider) && !apiKey)
 		invalid(`Missing API key for provider '${options.provider}'.`);
 	const retryCount = options.retryCount ?? 2;
 	if (!Number.isInteger(retryCount) || retryCount < 0)
@@ -242,7 +264,9 @@ export function normalizeTasks(
 
 export function childEnvironment(options: ResolvedOptions): NodeJS.ProcessEnv {
 	const environment = { ...process.env };
-	for (const name of Object.values(PROVIDER_ENV)) delete environment[name];
-	if (options.apiKey) environment[options.apiKeyEnvironment] = options.apiKey;
+	for (const name of Object.values(PROVIDER_ENV))
+		if (name) delete environment[name];
+	if (options.apiKey && options.apiKeyEnvironment)
+		environment[options.apiKeyEnvironment] = options.apiKey;
 	return environment;
 }

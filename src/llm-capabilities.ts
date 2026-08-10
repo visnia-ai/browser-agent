@@ -1,5 +1,6 @@
 export const SUPPORTED_PROVIDERS = [
 	"openai",
+	"codex",
 	"vllm",
 	"together",
 	"anthropic",
@@ -80,8 +81,22 @@ export const REASONING_MODEL_CAPABILITIES = [
 		reasoningEfforts: OPENAI_REASONING_EFFORTS,
 		defaultReasoningEffort: "low" as const,
 	})),
+	...["gpt-5.4", "gpt-5.4-mini", "gpt-5.5"].map((model) => ({
+		provider: "codex" as const,
+		model,
+		match: "exact" as const,
+		reasoningEfforts: OPENAI_REASONING_EFFORTS,
+		defaultReasoningEffort: "low" as const,
+	})),
 	...["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"].map((model) => ({
 		provider: "openai" as const,
+		model,
+		match: "exact" as const,
+		reasoningEfforts: GPT_5_6_REASONING_EFFORTS,
+		defaultReasoningEffort: "low" as const,
+	})),
+	...["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"].map((model) => ({
+		provider: "codex" as const,
 		model,
 		match: "exact" as const,
 		reasoningEfforts: GPT_5_6_REASONING_EFFORTS,

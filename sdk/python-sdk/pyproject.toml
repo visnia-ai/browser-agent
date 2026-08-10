@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "browser-agent-python-sdk"
-version = "1.0.11"
+version = "1.0.12"
 description = "Python SDK for Browser Agent"
 readme = "README.md"
 license = "MIT"

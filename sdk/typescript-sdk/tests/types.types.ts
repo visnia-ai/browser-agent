@@ -23,6 +23,11 @@ const options: BrowserAgentOptions = {
 	downloadDirectory: ".",
 };
 const agent = new BrowserAgent(options);
+const codex = new BrowserAgent({
+	provider: "codex",
+	model: "gpt-5.4",
+	downloadDirectory: ".",
+});
 const run: BrowserAgentRun = agent.run({ task: "test" });
 const code: BrowserAgentErrorCode = new BrowserAgentError("CANCELLED", "test")
 	.code;
@@ -31,6 +36,7 @@ agent.run({ task: "test" }, { timeoutMs: 1 });
 // @ts-expect-error The dependency seam is intentionally absent from the public API.
 new BrowserAgent(options, {});
 void run;
+void codex;
 void code;
 type PublicTypes = [
 	BrowserAgentCredential,

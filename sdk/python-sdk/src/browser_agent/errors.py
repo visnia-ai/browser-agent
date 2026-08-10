@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 BrowserAgentErrorCode = Literal[
-    "CLI_NOT_FOUND", "CLI_VERSION_INCOMPATIBLE", "CHROME_NOT_FOUND", "CONFIG_INVALID",
+    "CLI_NOT_FOUND", "CLI_VERSION_INCOMPATIBLE", "CHROME_NOT_FOUND", "CODEX_AUTH_FAILED",
+    "CONFIG_INVALID",
     "PROCESS_START_FAILED", "PROCESS_EXITED", "PROTOCOL_ERROR", "CANCELLED",
 ]
 @dataclass(frozen=True, slots=True)

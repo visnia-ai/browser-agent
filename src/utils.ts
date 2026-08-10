@@ -36,6 +36,8 @@ import type {
 type ReasoningEffort = NonNullable<LLMOptions["reasoningEffort"]>;
 
 export interface CLIArgs {
+	codexLogin?: boolean;
+	codexLoginCheck?: boolean;
 	config?: string;
 	encryptValue?: string;
 	generateKey?: boolean;
@@ -708,9 +710,16 @@ function resolveStageLLMOptions(
 						override?.reserveOutputTokens ?? defaultLLM?.reserveOutputTokens,
 				}
 			: {}),
-		endpointUrl: override?.endpointUrl ?? defaultLLM?.endpointUrl,
+		endpointUrl:
+			override?.endpointUrl ??
+			(provider === "codex" ? undefined : defaultLLM?.endpointUrl),
 		...(openrouterProvider !== undefined ? { openrouterProvider } : {}),
 	};
+	if (provider === "codex" && resolved.endpointUrl !== undefined) {
+		failConfig(
+			`Invalid endpoint_url for stage '${stage}' in config: ${fullPath}. Provider 'codex' uses a fixed endpoint and does not allow endpoint_url.`,
+		);
+	}
 	try {
 		validateReasoningConfiguration(resolved);
 	} catch (error) {
@@ -867,6 +876,14 @@ export function loadConfig(configPath: string): Config {
 			fullPath,
 			"default",
 		);
+		if (
+			provider === "codex" &&
+			defaultEndpointSettings.endpointUrl !== undefined
+		) {
+			failConfig(
+				`Invalid default endpoint_url in config: ${fullPath}. Provider 'codex' uses a fixed endpoint and does not allow endpoint_url.`,
+			);
+		}
 		const defaultMaxModelLen = parseOptionalPositiveInteger(
 			pickFirstDefined(llmSource, ["max_model_len", "maxModelLen"]),
 			fullPath,
@@ -963,14 +980,17 @@ export function loadConfig(configPath: string): Config {
 			stageOverridesSource,
 			raw,
 			fullPath,
-			{
-				...DEFAULT_DATA_EXTRACTION_LLM,
-				...((defaultLLM?.provider === undefined ||
-					defaultLLM.provider === DEFAULT_DATA_EXTRACTION_LLM.provider) &&
-				defaultLLM?.reasoningEffort !== undefined
-					? { reasoningEffort: defaultLLM.reasoningEffort }
-					: {}),
-			},
+			defaultLLM?.provider === "codex"
+				? defaultLLM
+				: {
+						...DEFAULT_DATA_EXTRACTION_LLM,
+						...((defaultLLM?.provider === undefined ||
+							defaultLLM.provider ===
+								DEFAULT_DATA_EXTRACTION_LLM.provider) &&
+						defaultLLM?.reasoningEffort !== undefined
+							? { reasoningEffort: defaultLLM.reasoningEffort }
+							: {}),
+					},
 		),
 		verifySuccess: resolveStageLLMOptions(
 			"verifySuccess",
@@ -1493,6 +1513,21 @@ export function loadConfig(configPath: string): Config {
 
 export function parseArgs(argv: string[]): CLIArgs {
 	const args = argv.slice(2);
+	if (args[0] === "codex-login") {
+		if (args.length > 2 || (args.length === 2 && args[1] !== "--check")) {
+			throw new Error(
+				"The codex-login command only accepts the optional --check flag.",
+			);
+		}
+		return {
+			codexLogin: true,
+			codexLoginCheck: args[1] === "--check",
+			help: false,
+			rpc: false,
+			version: false,
+			versionJson: false,
+		};
+	}
 	if (args[0] === "generate-key") {
 		if (args.length !== 1) {
 			throw new Error("The generate-key command does not accept arguments.");
