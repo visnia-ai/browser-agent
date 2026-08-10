@@ -5,6 +5,10 @@ import { getExecutorSystem } from "../src/agents/prompts.js";
 import { configFeatureFlags } from "../src/config-feature-flags.js";
 import { featureFlags } from "../src/featureFlags.js";
 import {
+	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+} from "../src/agents/executor-context-policy.js";
+import {
 	AUTH_TAKEOVER_FORM_SYSTEM,
 	AUTH_TAKEOVER_RESULT_SYSTEM,
 } from "../src/auth/prompt.js";
@@ -94,13 +98,12 @@ describe("executor prompt user_takeover tool", () => {
 	});
 
 	it("gates the executor thinking field with an internal feature flag", () => {
-		const originalActionContextFields =
-			featureFlags.executorActionContextFields;
 		const originalExecutorThinkingField = featureFlags.executorThinkingField;
-		featureFlags.executorActionContextFields = true;
 		try {
 			featureFlags.executorThinkingField = false;
-			const promptWithoutThinking = getExecutorSystem();
+			const promptWithoutThinking = getExecutorSystem({
+				executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+			});
 			assert.notInclude(promptWithoutThinking, `thinking: |-`);
 			assert.include(
 				promptWithoutThinking,
@@ -108,7 +111,9 @@ describe("executor prompt user_takeover tool", () => {
 			);
 
 			featureFlags.executorThinkingField = true;
-			const promptWithThinking = getExecutorSystem();
+			const promptWithThinking = getExecutorSystem({
+				executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+			});
 			assert.include(
 				promptWithThinking,
 				`thinking: |-
@@ -129,17 +134,14 @@ describe("executor prompt user_takeover tool", () => {
 				`PUT ANY THINKING OR REASONING IN THE "thinking" FIELD OF THE YAML.`,
 			);
 		} finally {
-			featureFlags.executorActionContextFields = originalActionContextFields;
 			featureFlags.executorThinkingField = originalExecutorThinkingField;
 		}
 	});
 
 	it("shows one concrete YAML response example bounded by tags", () => {
-		const originalActionContextFields =
-			featureFlags.executorActionContextFields;
-		featureFlags.executorActionContextFields = false;
-		try {
-			const prompt = getExecutorSystem();
+		const prompt = getExecutorSystem({
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 			const exampleMatch = prompt.match(
 				/Example response:\n<yaml>\n([\s\S]*?)\n<\/yaml>/,
 			);
@@ -182,17 +184,12 @@ describe("executor prompt user_takeover tool", () => {
 			assert.strictEqual(prompt.split("Example response:").length - 1, 1);
 			assert.notInclude(prompt, "### Misc Instructions");
 			assert.notInclude(prompt, "regenerate_plan");
-		} finally {
-			featureFlags.executorActionContextFields = originalActionContextFields;
-		}
 	});
 
 	it("includes action-context schema alongside omitted thinking", () => {
-		const originalActionContextFields =
-			featureFlags.executorActionContextFields;
-		featureFlags.executorActionContextFields = true;
-		try {
-			const prompt = getExecutorSystem();
+		const prompt = getExecutorSystem({
+			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 			assert.include(
 				prompt,
 				`Each key (checklistUpdate, previousStepStatus, previousStepOutcome, currentStateObservation, nextActionRationale, tools) must appear once in that order.`,
@@ -214,9 +211,6 @@ describe("executor prompt user_takeover tool", () => {
 				`nextActionRationale: |-
   Enter the requested query.`,
 			);
-		} finally {
-			featureFlags.executorActionContextFields = originalActionContextFields;
-		}
 	});
 
 	it("defines dedicated auth takeover form and result prompts", () => {

@@ -1037,7 +1037,7 @@ export function loadConfig(configPath: string): Config {
 	] as const) {
 		if (featureFlagsSource[legacyKey] !== undefined) {
 			failConfig(
-				`${configPathLabel} has been removed; executor action-context fields are controlled by the internal featureFlags.executorActionContextFields flag.`,
+				`${configPathLabel} has been removed; executor action-context fields are derived from the executor model identity.`,
 			);
 		}
 	}

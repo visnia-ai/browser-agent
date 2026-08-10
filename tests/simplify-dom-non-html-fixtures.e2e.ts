@@ -24,7 +24,7 @@ interface NonHtmlCase {
 	nonFallbackHints: string[];
 }
 
-const NON_HTML_CASES: NonHtmlCase[] = [
+const NON_PDF_CASES: NonHtmlCase[] = [
 	{
 		name: "json",
 		fileName: "test_data.json",
@@ -40,14 +40,6 @@ const NON_HTML_CASES: NonHtmlCase[] = [
 		expectedDownloadable: "false",
 		expectedDetailField: "preview",
 		nonFallbackHints: ["data1", "2020"],
-	},
-	{
-		name: "pdf",
-		fileName: "test.pdf",
-		contentType: "application/pdf",
-		expectedDownloadable: "true",
-		expectedDetailField: "metadata",
-		nonFallbackHints: ["pdf", "embed", "object"],
 	},
 	{
 		name: "image",
@@ -75,17 +67,54 @@ const NON_HTML_CASES: NonHtmlCase[] = [
 	},
 ];
 
+const PDF_CASE: NonHtmlCase = {
+	name: "pdf",
+	fileName: "test.pdf",
+	contentType: "application/pdf",
+	expectedDownloadable: "true",
+	expectedDetailField: "metadata",
+	nonFallbackHints: ["pdf", "embed", "object"],
+};
+
+const NON_HTML_CASES = [...NON_PDF_CASES, PDF_CASE];
+
 function includesAny(text: string, needles: string[]): boolean {
 	const haystack = text.toLowerCase();
 	return needles.some((needle) => haystack.includes(needle.toLowerCase()));
 }
 
-async function fastNavigate(b: Browser, url: string): Promise<void> {
-	await b.Page.navigate({ url });
+async function fastNavigate(
+	b: Browser,
+	url: string,
+): Promise<{ isDownload: boolean }> {
+	const result = await b.Page.navigate({ url });
+	const isDownload =
+		(result as { isDownload?: boolean }).isDownload === true;
+	if (isDownload) return { isDownload: true };
 	await Promise.race([
 		b.Page.loadEventFired(),
 		new Promise<void>((resolve) => setTimeout(resolve, 1200)),
 	]);
+	return { isDownload: false };
+}
+
+async function waitForDownloadedFixture(
+	downloadsDir: string,
+	fileName: string,
+	timeoutMs = 5_000,
+): Promise<string | undefined> {
+	const expectedPath = path.join(downloadsDir, fileName);
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (
+			fs.existsSync(expectedPath) &&
+			!fs.existsSync(`${expectedPath}.crdownload`)
+		) {
+			return expectedPath;
+		}
+		await new Promise<void>((resolve) => setTimeout(resolve, 50));
+	}
+	return undefined;
 }
 
 function readFixture(fileName: string): Buffer {
@@ -151,30 +180,63 @@ async function stopServer(server: Server): Promise<void> {
 describe("simplify-dom non-html fixtures e2e", function () {
 	this.timeout(30_000);
 
-	it("captures non-empty fallback snapshots for non-html files", async () => {
+	it("captures non-empty fallback snapshots and validates external downloads", async () => {
 		fs.mkdirSync(DEBUG_OUTPUT_DIR, { recursive: true });
 		const { server, baseUrl } = await startFixtureServer();
 		let browser: Browser | null = null;
 		const failures: string[] = [];
 
 		try {
+			const runId = Date.now();
 			const chromeUserDataDir = path.join(
 				process.cwd(),
 				"tmp",
 				"chrome-user-data",
-				`non-html-fixtures-${Date.now()}`,
+				`non-html-fixtures-${runId}`,
+			);
+			const downloadsDir = path.join(
+				process.cwd(),
+				"tmp",
+				"downloads",
+				`non-html-fixtures-${runId}`,
 			);
 			browser = await launch(
 				undefined,
 				true,
 				undefined,
-				undefined,
+				downloadsDir,
 				chromeUserDataDir,
 			);
 
 			for (const fixture of NON_HTML_CASES) {
 				const url = `${baseUrl}/${fixture.fileName}`;
-				await fastNavigate(browser, url);
+				const navigation = await fastNavigate(browser, url);
+				if (navigation.isDownload) {
+					const downloadedFixture = await waitForDownloadedFixture(
+						downloadsDir,
+						fixture.fileName,
+					);
+					if (!downloadedFixture) {
+						failures.push(
+							`Expected ${fixture.fileName} to appear in ${downloadsDir}. URL: ${url}`,
+						);
+					} else if (
+						!fs
+							.readFileSync(downloadedFixture)
+							.equals(readFixture(fixture.fileName))
+					) {
+						failures.push(
+							`Downloaded bytes did not match ${fixture.fileName}. Path: ${downloadedFixture}`,
+						);
+					}
+					continue;
+				}
+				if (fixture === PDF_CASE) {
+					failures.push(
+						`Expected PDF navigation to be reported as an external download. URL: ${url}`,
+					);
+					continue;
+				}
 
 				const simplified = await getSimplifiedDOM(browser);
 				const outputFile = path.join(

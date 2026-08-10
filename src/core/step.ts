@@ -47,6 +47,7 @@ import { attemptAutomatedAuthTakeover } from "../auth/runtime.js";
 import { verifyTaskSuccess as defaultVerifyTaskSuccess } from "../agents/success-verifier.js";
 import { shouldLogTimingDuration } from "../timing-logs.js";
 import { shouldIncludeExecutorReasoningHistory } from "../agents/prompts.js";
+import { OPENAI_EXECUTOR_CONTEXT_POLICY } from "../agents/executor-context-policy.js";
 import { resolveProjectionHistoryContext } from "./projection-history.js";
 import {
 	applyChecklistUpdate,
@@ -418,8 +419,11 @@ async function createPromptForStepImpl(
 	input: CreatePromptForStepInput,
 ): Promise<CreatePromptForStepResult> {
 	const session = getSessionOrThrow(deps, input.port);
+	const executorContextPolicy =
+		input.executorContextPolicy ?? OPENAI_EXECUTOR_CONTEXT_POLICY;
 	const executorPromptOptions = {
 		provider: input.llmOptions?.provider,
+		executorContextPolicy,
 		semanticProjectionHistory: shouldUseCumulativeProjectionHistory(
 			configFeatureFlags,
 		)
@@ -1283,12 +1287,17 @@ export async function processStepModelOutput(
 	deps: CoreDeps,
 	input: ProcessModelStepOutputInput,
 ): Promise<ProcessModelStepOutputResult> {
+	const executorContextPolicy =
+		input.executorContextPolicy ?? OPENAI_EXECUTOR_CONTEXT_POLICY;
 	const downloadedFiles = Array.isArray(input.promptPayload.downloadedFiles)
 		? input.promptPayload.downloadedFiles.filter(
 				(entry): entry is string => typeof entry === "string",
 			)
 		: [];
-	const processedStep = processModelStepOutput(input.rawStepOutput);
+	const processedStep = processModelStepOutput(
+		input.rawStepOutput,
+		executorContextPolicy,
+	);
 	if (processedStep.actionContractStatus === "rejected") {
 		throw new ModelStepActionContractError(
 			processedStep.normalizationDiagnostics,
@@ -1317,6 +1326,7 @@ export async function processStepModelOutput(
 			: serializeModelOutputForHistory(input.rawStepOutput);
 	const priorHistoryMessages = buildHistoryMessagesFromFullStepHistory(
 		input.stepsHistory,
+		{ executorContextPolicy },
 	);
 	const historyEntry: StepHistoryEntry = {
 		payload: stripPayloadForHistory({
@@ -1331,7 +1341,8 @@ export async function processStepModelOutput(
 			stepsHistory: input.stepsHistory,
 		}),
 		assistant,
-		...(shouldIncludeExecutorReasoningHistory() && input.reasoningTokens?.trim()
+		...(shouldIncludeExecutorReasoningHistory(executorContextPolicy) &&
+			input.reasoningTokens?.trim()
 			? { reasoningTokens: input.reasoningTokens.trim() }
 			: {}),
 	};
@@ -1445,6 +1456,7 @@ export async function processModelOutputAndBrowse(
 					contextMode: input.validatorContext,
 					historyMessages: buildHistoryMessagesFromFullStepHistory(
 						input.stepsHistory,
+						{ executorContextPolicy: input.executorContextPolicy },
 					),
 					llmOptions: deps.defaultSuccessVerifierLLMOptions,
 					openAIPromptCache: input.verificationPromptCache,

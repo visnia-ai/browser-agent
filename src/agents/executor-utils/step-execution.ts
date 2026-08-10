@@ -1,14 +1,19 @@
 import * as fs from "fs";
 import * as path from "path";
 import yaml from "js-yaml";
-import { featureFlags } from "../../featureFlags.js";
 import { configFeatureFlags } from "../../config-feature-flags.js";
 import { getHTML } from "../../browser/browser.js";
 import type { Browser } from "../../browser/types.js";
 import { userMessage } from "../providers/router.js";
 import { stripPayloadForHistory } from "./history-payload.js";
 import { normalizeMemoryContentForRead } from "./memory-file.js";
-import type { Action, ContentPart, Message, StepResult } from "../types.js";
+import type {
+	Action,
+	ContentPart,
+	ExecutorContextPolicy,
+	Message,
+	StepResult,
+} from "../types.js";
 import type { ValidatorFeedback } from "../../core/types.js";
 import {
 	createOpenAICachedSystemMessage,
@@ -405,15 +410,19 @@ export function logStepModelResponse(params: {
 	stepNumber: number;
 	step: StepResult;
 	totalTokens: number;
+	executorContextPolicy: Readonly<ExecutorContextPolicy>;
 }): void {
 	console.log(
 		`\n\n  [step ${params.stepNumber}] tools=${params.step.actions.length} | tokens=${params.totalTokens}`,
 	);
-	logStepActionContext(params.step);
+	logStepActionContext(params.step, params.executorContextPolicy);
 }
 
-export function logStepActionContext(step: StepResult): void {
-	if (!featureFlags.executorActionContextFields) {
+export function logStepActionContext(
+	step: StepResult,
+	executorContextPolicy: Readonly<ExecutorContextPolicy>,
+): void {
+	if (!executorContextPolicy.executorActionContextFields) {
 		return;
 	}
 	if (step.previousStepStatus !== "none") {
@@ -547,7 +556,10 @@ export function serializeModelOutputForHistory(output: unknown): string {
 	return typeof output === "string" ? output : yaml.dump(output);
 }
 
-export function formatStepForPrompt(step: StepResult): Record<string, unknown> {
+export function formatStepForPrompt(
+	step: StepResult,
+	executorContextPolicy: Readonly<ExecutorContextPolicy>,
+): Record<string, unknown> {
 	const formatted: Record<string, unknown> = {};
 	if (
 		configFeatureFlags.taskChecklist &&
@@ -556,7 +568,7 @@ export function formatStepForPrompt(step: StepResult): Record<string, unknown> {
 	) {
 		formatted.checklistUpdate = step.checklistUpdate;
 	}
-	if (featureFlags.executorActionContextFields) {
+	if (executorContextPolicy.executorActionContextFields) {
 		formatted.previousStepStatus = step.previousStepStatus ?? "none";
 		formatted.previousStepOutcome = step.previousStepOutcome ?? "";
 		formatted.currentStateObservation = step.currentStateObservation ?? "";

@@ -823,7 +823,7 @@ tasks:
 
 		assert.include(
 			errorOutput,
-			"feature_flags.executor_action_context_fields has been removed; executor action-context fields are controlled by the internal featureFlags.executorActionContextFields flag.",
+			"feature_flags.executor_action_context_fields has been removed; executor action-context fields are derived from the executor model identity.",
 		);
 	});
 

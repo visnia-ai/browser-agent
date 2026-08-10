@@ -1,70 +1,46 @@
 import { assert } from "chai";
-import { afterEach, describe, it } from "mocha";
+import { describe, it } from "mocha";
+import {
+	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+} from "../src/agents/executor-context-policy.js";
 import { getExecutorSystem } from "../src/agents/prompts.js";
 import { featureFlags } from "../src/featureFlags.js";
 
 describe("executor reasoning prompts", () => {
-	const originalReasoningHistory =
-		featureFlags.includeReasoningTokensInPreviousSteps;
-	const originalActionContextFields = featureFlags.executorActionContextFields;
+	it("uses the OpenAI reasoning-history policy without action context", () => {
+		const prompt = getExecutorSystem({
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 
-	afterEach(() => {
-		featureFlags.includeReasoningTokensInPreviousSteps =
-			originalReasoningHistory;
-		featureFlags.executorActionContextFields = originalActionContextFields;
-	});
-
-	it("uses the Luna benchmark reasoning and action-context defaults for every provider", () => {
-		assert.isTrue(featureFlags.includeReasoningTokensInPreviousSteps);
-		assert.isFalse(featureFlags.executorActionContextFields);
+		assert.include(prompt, "reasoning_tokens field");
+		assert.include(prompt, "do not copy reasoning_tokens");
+		assert.notInclude(prompt, "previousStepStatus");
+		assert.notInclude(prompt, "nextActionRationale");
 		assert.isUndefined(featureFlags.maxThinkingTokenBudget);
 		assert.deepEqual(featureFlags.yamlOutputStopSequences, []);
-
-		for (const provider of ["openai", "openrouter", "together", "vllm"] as const) {
-			const prompt = getExecutorSystem({ provider });
-			assert.include(prompt, "reasoning_tokens field");
-			assert.notInclude(prompt, "previousStepStatus");
-			assert.notInclude(prompt, "nextActionRationale");
-		}
 	});
 
-	it("gates action-context fields for every executor provider", () => {
-		featureFlags.executorActionContextFields = false;
-		for (const prompt of [
-			getExecutorSystem({ provider: "vllm" }),
-			getExecutorSystem({ provider: "openai" }),
-			getExecutorSystem(),
-		]) {
-			for (const field of [
-				"previousStepStatus",
-				"previousStepOutcome",
-				"currentStateObservation",
-				"nextActionRationale",
-			]) {
-				assert.notInclude(prompt, field);
-			}
-		}
+	it("uses the non-OpenAI action-context policy without reasoning history", () => {
+		const prompt = getExecutorSystem({
+			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 
-		featureFlags.executorActionContextFields = true;
-		for (const prompt of [
-			getExecutorSystem({ provider: "vllm" }),
-			getExecutorSystem({ provider: "openai" }),
-			getExecutorSystem(),
+		assert.notInclude(prompt, "reasoning_tokens field");
+		for (const field of [
+			"previousStepStatus",
+			"previousStepOutcome",
+			"currentStateObservation",
+			"nextActionRationale",
 		]) {
-			for (const field of [
-				"previousStepStatus",
-				"previousStepOutcome",
-				"currentStateObservation",
-				"nextActionRationale",
-			]) {
-				assert.include(prompt, field);
-			}
+			assert.include(prompt, field);
 		}
 	});
 
 	it("keeps provider-side effort independent from executor prompt instructions", () => {
-		featureFlags.executorActionContextFields = false;
-		const runAgentPrompt = getExecutorSystem();
+		const runAgentPrompt = getExecutorSystem({
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 
 		assert.notInclude(runAgentPrompt, "previousStepStatus");
 		assert.notInclude(
@@ -73,18 +49,10 @@ describe("executor reasoning prompts", () => {
 		);
 	});
 
-	it("warns that previous reasoning tokens are fallible and not response fields", () => {
-		featureFlags.includeReasoningTokensInPreviousSteps = true;
-		const enabledPrompt = getExecutorSystem();
-		assert.include(enabledPrompt, "reasoning_tokens field");
-		assert.include(enabledPrompt, "do not copy reasoning_tokens");
-
-		featureFlags.includeReasoningTokensInPreviousSteps = false;
-		assert.notInclude(getExecutorSystem(), "reasoning_tokens field");
-	});
-
 	it("uses only current semantic ref instructions", () => {
-		const prompt = getExecutorSystem();
+		const prompt = getExecutorSystem({
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 
 		assert.include(
 			prompt,
@@ -93,7 +61,9 @@ describe("executor reasoning prompts", () => {
 	});
 
 	it("keeps the fixed executor contract below the benchmark prompt budget", () => {
-		const prompt = getExecutorSystem();
+		const prompt = getExecutorSystem({
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
 
 		assert.isAtMost(prompt.length, 12_500);
 		for (const contract of [

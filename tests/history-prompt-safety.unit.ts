@@ -1,7 +1,10 @@
 import { assert } from "chai";
 import { describe, it } from "mocha";
 import { stripPayloadForHistory } from "../src/agents/executor-utils/history-payload.js";
-import { featureFlags } from "../src/featureFlags.js";
+import {
+	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+} from "../src/agents/executor-context-policy.js";
 import { configFeatureFlags } from "../src/config-feature-flags.js";
 import { buildHistoryMessagesFromFullStepHistory } from "../src/core/history-adapter.js";
 import { toCompletionPrompt } from "../src/agents/providers/message-serialization.js";
@@ -227,11 +230,8 @@ describe("history prompt safety", () => {
 	});
 
 	it("preserves every model-emitted field when action context is enabled", () => {
-		const originalActionContextFields =
-			featureFlags.executorActionContextFields;
-		featureFlags.executorActionContextFields = true;
-		try {
-			const messages = buildHistoryMessagesFromFullStepHistory([
+		const messages = buildHistoryMessagesFromFullStepHistory(
+			[
 				{
 					payload: {
 						currentURL: "https://example.com/final",
@@ -247,7 +247,9 @@ describe("history prompt safety", () => {
 						result: "Finished",
 					},
 				},
-			]);
+			],
+			{ executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY },
+		);
 			assert.strictEqual(messages[1].role, "assistant");
 			assert.include(String(messages[1].content), "thinking: Done");
 			assert.include(
@@ -269,16 +271,11 @@ describe("history prompt safety", () => {
 			assert.include(String(messages[1].content), "type: click");
 			assert.include(String(messages[1].content), "done: true");
 			assert.include(String(messages[1].content), "result: Finished");
-		} finally {
-			featureFlags.executorActionContextFields = originalActionContextFields;
-		}
 	});
 
 	it("includes reasoning tokens as assistant message fields when enabled", () => {
 		const originalCumulativeProjectionHistory =
 			configFeatureFlags.semanticProjectionHistory;
-		const originalReasoningHistory =
-			featureFlags.includeReasoningTokensInPreviousSteps;
 		const stepsHistory = [
 			{
 				payload: { currentURL: "https://example.com/results" },
@@ -295,14 +292,12 @@ describe("history prompt safety", () => {
 		];
 
 		try {
-			featureFlags.includeReasoningTokensInPreviousSteps = true;
 			for (const projectionHistory of ["current", "cumulative"] as const) {
 				configFeatureFlags.semanticProjectionHistory = projectionHistory;
-				for (const provider of ["vllm", "openai"] as const) {
-					const messages = buildHistoryMessagesFromFullStepHistory(
-						stepsHistory,
-						{ provider },
-					);
+				const messages = buildHistoryMessagesFromFullStepHistory(
+					stepsHistory,
+					{ executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY },
+				);
 					const assistant = messages[1];
 					const assistantContent = String(assistant.content);
 					assert.strictEqual(
@@ -321,40 +316,31 @@ describe("history prompt safety", () => {
 					assert.include(completionPrompt, "reasoning_tokens: |-\n");
 					assert.include(completionPrompt, "  Inspect page:");
 					assert.include(completionPrompt, "previousStepStatus:");
-				}
 			}
 		} finally {
 			configFeatureFlags.semanticProjectionHistory =
 				originalCumulativeProjectionHistory;
-			featureFlags.includeReasoningTokensInPreviousSteps =
-				originalReasoningHistory;
 		}
 	});
 
 	it("omits reasoning tokens when disabled or empty", () => {
-		const originalReasoningHistory =
-			featureFlags.includeReasoningTokensInPreviousSteps;
 		const historyEntry = {
 			payload: { currentURL: "https://example.com" },
 			assistant: { actions: [], done: false },
 			reasoningTokens: "reasoning trace",
 		};
 
-		try {
-			featureFlags.includeReasoningTokensInPreviousSteps = false;
-			const disabled = buildHistoryMessagesFromFullStepHistory([historyEntry]);
+		const disabled = buildHistoryMessagesFromFullStepHistory(
+			[historyEntry],
+			{ executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY },
+		);
 			assert.notProperty(disabled[1], "reasoning_tokens");
 			assert.notInclude(toCompletionPrompt(disabled), "reasoning_tokens:");
 
-			featureFlags.includeReasoningTokensInPreviousSteps = true;
 			const empty = buildHistoryMessagesFromFullStepHistory([
 				{ ...historyEntry, reasoningTokens: "  \n " },
-			]);
+			], { executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY });
 			assert.notProperty(empty[1], "reasoning_tokens");
 			assert.notInclude(toCompletionPrompt(empty), "reasoning_tokens:");
-		} finally {
-			featureFlags.includeReasoningTokensInPreviousSteps =
-				originalReasoningHistory;
-		}
 	});
 });

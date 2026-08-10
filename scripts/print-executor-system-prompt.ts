@@ -1,4 +1,5 @@
 import { getExecutorSystem } from "../src/agents/prompts.js";
+import { resolveExecutorContextPolicy } from "../src/agents/executor-context-policy.js";
 import { setConfigFeatureFlags } from "../src/config-feature-flags.js";
 import { estimateTokenCount } from "../src/agents/executor-utils/step-context.js";
 import { loadConfig } from "../src/utils.js";
@@ -17,6 +18,9 @@ setConfigFeatureFlags(config.featureFlags);
 
 const prompt = getExecutorSystem({
 	provider: config.stageLLMs.runAgent.provider,
+	executorContextPolicy: resolveExecutorContextPolicy(
+		config.stageLLMs.runAgent,
+	),
 });
 
 console.log(prompt);

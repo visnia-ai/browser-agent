@@ -11,6 +11,10 @@ import type { Message } from "../src/agents/types.js";
 import { configFeatureFlags } from "../src/config-feature-flags.js";
 import { buildHistoryMessagesFromFullStepHistory } from "../src/core/history-adapter.js";
 import { supportsOpenAIExplicitPromptCaching } from "../src/llm-capabilities.js";
+import {
+	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+} from "../src/agents/executor-context-policy.js";
 
 function tokenPrefixThroughMarker(
 	messages: Message[],
@@ -76,7 +80,7 @@ describe("OpenAI explicit prompt caching", () => {
 			model: "gpt-5.6-luna",
 			shard: "worker-3",
 			featureFlags: { ...configFeatureFlags },
-			executorActionContextFields: true,
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
 		};
 		const first = buildOpenAIPromptCacheRequest(base);
 		const second = buildOpenAIPromptCacheRequest({
@@ -104,6 +108,13 @@ describe("OpenAI explicit prompt caching", () => {
 					preStepScreenshotInLatestUserPrompt:
 						!configFeatureFlags.preStepScreenshotInLatestUserPrompt,
 				},
+			}).promptCacheKey,
+		);
+		assert.notEqual(
+			first.promptCacheKey,
+			buildOpenAIPromptCacheRequest({
+				...base,
+				executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
 			}).promptCacheKey,
 		);
 	});

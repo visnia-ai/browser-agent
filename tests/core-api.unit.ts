@@ -12,7 +12,10 @@ import {
 	setConfigFeatureFlags,
 } from "../src/config-feature-flags.js";
 import { CONTEXT_DIR, STEPS_DIR } from "../src/browser/constants.js";
-import { featureFlags } from "../src/featureFlags.js";
+import {
+	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+} from "../src/agents/executor-context-policy.js";
 import { resetStepsDir, setRuntimeOptions } from "../src/runtime-options.js";
 import {
 	closeSession,
@@ -40,18 +43,12 @@ function deferred<T = void>(): {
 describe("core-api", () => {
 	const originalCumulativeProjectionHistory =
 		configFeatureFlags.semanticProjectionHistory;
-	const originalReasoningHistory =
-		featureFlags.includeReasoningTokensInPreviousSteps;
-	const originalActionContextFields = featureFlags.executorActionContextFields;
 	const originalExtractDataWholeContext =
 		configFeatureFlags.extractDataWholeContext;
 
 	afterEach(() => {
 		configFeatureFlags.semanticProjectionHistory =
 			originalCumulativeProjectionHistory;
-		featureFlags.includeReasoningTokensInPreviousSteps =
-			originalReasoningHistory;
-		featureFlags.executorActionContextFields = originalActionContextFields;
 		configFeatureFlags.extractDataWholeContext =
 			originalExtractDataWholeContext;
 		__setProviderOverrideForTests("vllm", null);
@@ -1307,7 +1304,6 @@ describe("core-api", () => {
 	});
 
 	it("step(process_model_step_output) restores action context when enabled", async () => {
-		featureFlags.executorActionContextFields = true;
 		const result = await step(createMockCoreDeps(), {
 			mode: "process_model_step_output",
 			rawStepOutput: {
@@ -1320,6 +1316,7 @@ describe("core-api", () => {
 			},
 			promptPayload: { currentURL: "https://example.com" },
 			stepsHistory: [],
+			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
 		});
 
 		assert.strictEqual(result.mode, "process_model_step_output");
@@ -1344,7 +1341,6 @@ describe("core-api", () => {
 
 	it("step(process_model_step_output) retains reasoning with current context", async () => {
 		configFeatureFlags.semanticProjectionHistory = "current";
-		featureFlags.includeReasoningTokensInPreviousSteps = true;
 		const stepsHistory: Array<{
 			payload: Record<string, unknown>;
 			assistant: unknown;
@@ -1362,7 +1358,7 @@ describe("core-api", () => {
 				currentURL: "https://example.com",
 			},
 			stepsHistory,
-			executorProvider: "openai",
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
 			openAIEncryptedResponses: false,
 			reasoningTokens: "  Persist this trace.  ",
 		});
@@ -1377,7 +1373,6 @@ describe("core-api", () => {
 
 	it("step(process_model_step_output) retains reasoning with cumulative context", async () => {
 		configFeatureFlags.semanticProjectionHistory = "cumulative";
-		featureFlags.includeReasoningTokensInPreviousSteps = true;
 		const stepsHistory: Array<{
 			payload: Record<string, unknown>;
 			assistant: unknown;
@@ -1397,7 +1392,7 @@ describe("core-api", () => {
 				projection: "<main>current</main>",
 			},
 			stepsHistory,
-			executorProvider: "openai",
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
 			reasoningTokens: "Keep this reasoning in assistant history.",
 		});
 
@@ -1409,7 +1404,6 @@ describe("core-api", () => {
 	});
 
 	it("step(process_model_step_output) omits reasoning when disabled", async () => {
-		featureFlags.includeReasoningTokensInPreviousSteps = false;
 		const stepsHistory: Array<{
 			payload: Record<string, unknown>;
 			assistant: unknown;
@@ -1424,6 +1418,7 @@ describe("core-api", () => {
 				currentURL: "https://example.com",
 			},
 			stepsHistory,
+			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
 			reasoningTokens: "Do not retain this trace.",
 		});
 
@@ -3438,7 +3433,6 @@ describe("core-api", () => {
 
 	it("runAgent saves the exact step input messages passed to the model", async () => {
 		const deps = createMockCoreDeps();
-		featureFlags.includeReasoningTokensInPreviousSteps = true;
 		const exactFirstAssistant = [
 			"<yaml>",
 			'previousStepStatus: "progressed"',
@@ -3566,7 +3560,6 @@ describe("core-api", () => {
 	});
 
 	it("runAgent includes reasoning as a previous assistant message field", async () => {
-		featureFlags.includeReasoningTokensInPreviousSteps = true;
 		let capturedStepTwoMessages: Message[] | null = null;
 		const deps = createMockCoreDeps({
 			executeActions: async ({ actions }) => ({
@@ -3588,7 +3581,7 @@ describe("core-api", () => {
 			stageLLMs: {
 				findTargetURL: { provider: "openai", model: "gpt-test" },
 				createChecklist: { provider: "openai", model: "gpt-test" },
-				runAgent: { provider: "vllm", model: "qwen-test" },
+				runAgent: { provider: "openrouter", model: "openai/gpt-test" },
 				dataExtraction: { provider: "openai", model: "gpt-test" },
 				verifySuccess: { provider: "openai", model: "gpt-test" },
 			},
@@ -3645,7 +3638,6 @@ describe("core-api", () => {
 	});
 
 	it("runAgent logs action-context fields before action execution lines", async () => {
-		featureFlags.executorActionContextFields = true;
 		const logs: string[] = [];
 		const originalConsoleLog = console.log;
 		console.log = (...args: unknown[]) => {
@@ -3679,7 +3671,7 @@ describe("core-api", () => {
 				stageLLMs: {
 					findTargetURL: { provider: "openai", model: "gpt-test" },
 					createChecklist: { provider: "openai", model: "gpt-test" },
-					runAgent: { provider: "openai", model: "gpt-test" },
+					runAgent: { provider: "openrouter", model: "z-ai/glm-test" },
 					verifySuccess: { provider: "openai", model: "gpt-test" },
 				},
 				dataExtraction: { provider: "openai", model: "gpt-test" },
