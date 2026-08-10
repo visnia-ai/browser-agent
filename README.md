@@ -16,14 +16,14 @@ A powerful & efficient browser agent that automates any task on the web.
 - [Credentials](#credentials)
 - [License](#license)
 
-
-
 ## Requirements
 
 - Node.js (v20 or later) and npm
 - Google Chrome or a compatible Chromium installation
 - An API key for the configured model provider, except when using vLLM or Codex. Supported providers include OpenAI, OpenRouter, Anthropic, Google, Together, Codex, and vLLM-compatible endpoints.
 - For `codex`, the [Codex CLI](https://github.com/openai/codex) installed on `PATH` (`npm install -g @openai/codex`). Browser Agent uses its ChatGPT OAuth session instead of an API key.
+
+
 
 ## Benchmarks
 
@@ -53,9 +53,12 @@ A powerful & efficient browser agent that automates any task on the web.
   </tbody>
 </table>
 
+
+
+
 ## Install & Use
 
-Install the CLI globally with npm. This does not require cloning the repository; the installer downloads and verifies the matching binary for your platform.
+Install the CLI globally with npm. 
 
 ```sh
 npm install -g @visnia/browser-agent-sdk
@@ -70,13 +73,13 @@ Set the environment variables for your selected model provider:
 
 | Provider   | Environment variables |
 | ---------- | --------------------- |
-| OpenAI     | `OPENAI_API_KEY`      |
-| Anthropic  | `ANTHROPIC_API_KEY`   |
-| Google     | `GOOGLE_API_KEY`      |
-| Together   | `TOGETHER_API_KEY`    |
-| OpenRouter | `OPENROUTER_API_KEY`  |
-| Codex      | Codex CLI OAuth login |
-| vLLM       | `VLLM_BASE_URL`       |
+| openai     | `OPENAI_API_KEY`      |
+| anthropic  | `ANTHROPIC_API_KEY`   |
+| google     | `GOOGLE_API_KEY`      |
+| together   | `TOGETHER_API_KEY`    |
+| openrouter | `OPENROUTER_API_KEY`  |
+| codex      | Codex CLI OAuth login |
+| vllm       | `VLLM_BASE_URL`       |
 
 
 Create a configuration file:
@@ -107,23 +110,6 @@ tasks:
   - task: "Find the first five articles on the OpenAI blog."
     url: "https://openai.com/news/"
 ```
-
-Browser Agent checks the Codex CLI login before starting the run. If login is
-required, it prints an OAuth URL in the terminal; open it in a browser and
-complete the flow, then the localhost callback resumes the run automatically.
-Existing Codex credentials under `CODEX_HOME` (or `~/.codex`) are reused.
-Orchestrators that will start several Browser Agent processes can run
-`browser-agent codex-login` once first. The command performs authentication
-without starting Chrome or a browser task.
-Use `browser-agent codex-login --check` for a non-interactive status probe; it
-prints `{"loggedIn":true}` or `{"loggedIn":false}` as JSON and never starts
-OAuth.
-
-The Codex provider sends requests to
-`https://chatgpt.com/backend-api/codex/responses`. This is a private, unstable
-ChatGPT backend contract and may change without notice.
-
-
 
 ## Recommended model
 

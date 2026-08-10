@@ -90,7 +90,7 @@ function createCredentialReader(
 function initializeResponse() {
 	return {
 		userAgent:
-			"browser-agent/0.144.5 (Ubuntu 22.4.0; x86_64) dumb (browser-agent; 1.0.11)",
+			"browser-agent/0.144.5 (Ubuntu 22.4.0; x86_64) dumb (browser-agent; 1.0.12)",
 		codexHome: "/ignored",
 		platformFamily: "unix",
 		platformOs: "linux",
