@@ -32,7 +32,7 @@ A powerful & efficient browser agent that automates any task on the web.
     <tr>
       <th rowspan="2">Metric</th>
       <th colspan="4">BrowserUse Bench</th>
-      <th colspan="2">WebApp Bench</th>
+      <th colspan="2">BrowseWebApp Bench</th>
     </tr>
     <tr>
       <th>Ours</th>
@@ -44,10 +44,12 @@ A powerful & efficient browser agent that automates any task on the web.
     </tr>
   </thead>
   <tbody>
-    <tr><th>Success</th><td><em>88%</em></td><td>78%</td><td>31%</td><td>78%</td><td><em>76%</em></td><td>64%</td></tr>
-    <tr><th>Duration (seconds)</th><td><em>32,694</em></td><td>47,970</td><td>6,787</td><td>24,505</td><td><em>15,653</em></td><td>32,036</td></tr>
-    <tr><th>Cost</th><td><em>$5.37</em></td><td>$8.34</td><td>-</td><td>$6.31</td><td><em>$3.73</em></td><td>$7.45</td></tr>
-    <tr><th>Successful tasks / $</th><td><em>16.40</em></td><td>9.35</td><td>-</td><td>12.37</td><td><em>18.77</em></td><td>8.86</td></tr>
+    <tr><th>Model</th><td>gpt-5.6-luna</td><td>gpt-5.6-luna</td><td>gpt-5.6-luna</td><td>bu-v4-luna</td><td>gpt-5.6-luna</td><td>gpt-5.6-luna</td></tr>
+    <tr><th>Reasoning effort</th><td>xhigh</td><td>xhigh</td><td>xhigh</td><td>-</td><td>high</td><td>high</td></tr>
+    <tr><th>Success</th><td><strong>88%</strong></td><td>78%</td><td>31%</td><td>78%</td><td><strong>76%</strong></td><td>64%</td></tr>
+    <tr><th>Duration (seconds)</th><td>32,694</td><td>47,970</td><td><strong>6,787</strong></td><td>24,505</td><td><strong>15,653</strong></td><td>32,036</td></tr>
+    <tr><th>Cost</th><td><strong>$5.37</strong></td><td>$8.34</td><td>-</td><td>$6.31</td><td><strong>$3.73</strong></td><td>$7.45</td></tr>
+    <tr><th>Successful tasks / $</th><td><strong>16.40</strong></td><td>9.35</td><td>-</td><td>12.37</td><td><strong>18.77</strong></td><td>8.86</td></tr>
   </tbody>
 </table>
 
