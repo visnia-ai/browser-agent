@@ -24,7 +24,29 @@ A powerful & efficient browser agent that automates any task on the web.
 - Google Chrome or a compatible Chromium installation
 - An API key for the configured model provider. Supported providers include OpenAI, OpenRouter, Anthropic, Google, Together, and vLLM-compatible endpoints.
 
+## Benchmarks
 
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Metric</th>
+      <th colspan="2">BrowserUse Bench</th>
+      <th colspan="2">WebApp Bench</th>
+    </tr>
+    <tr>
+      <th>Ours</th>
+      <th>Browser-code</th>
+      <th>Ours</th>
+      <th>Browser-code</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><th>Success</th><td><em>88%</em></td><td>78%</td><td><em>76%</em></td><td>64%</td></tr>
+    <tr><th>Duration (seconds)</th><td><em>32,694</em></td><td>47,970</td><td><em>15,653</em></td><td>32,036</td></tr>
+    <tr><th>Cost</th><td><em>$5.37</em></td><td>$8.34</td><td></td><td></td></tr>
+    <tr><th>Successful tasks / $</th><td><em>16.40</em></td><td>9.35</td><td></td><td></td></tr>
+  </tbody>
+</table>
 
 ## Install & Use
 
