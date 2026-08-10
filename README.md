@@ -44,6 +44,7 @@ A powerful & efficient browser agent that automates any task on the web.
     </tr>
   </thead>
   <tbody>
+    <tr><th>Open source</th><td>Yes</td><td>Yes</td><td>Yes</td><td>No</td><td>Yes</td><td>Yes</td></tr>
     <tr><th>Model</th><td>gpt-5.6-luna</td><td>gpt-5.6-luna</td><td>gpt-5.6-luna</td><td>bu-v4-luna</td><td>gpt-5.6-luna</td><td>gpt-5.6-luna</td></tr>
     <tr><th>Reasoning effort</th><td>xhigh</td><td>xhigh</td><td>xhigh</td><td>-</td><td>high</td><td>high</td></tr>
     <tr><th>Success</th><td><strong>88%</strong></td><td>78%</td><td>31%</td><td>78%</td><td><strong>76%</strong></td><td>64%</td></tr>
