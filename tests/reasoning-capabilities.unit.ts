@@ -74,17 +74,22 @@ describe("reasoning model capabilities", () => {
 	});
 
 	it("supports xhigh and max reasoning for every GPT-5.6 variant", () => {
-		for (const model of ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]) {
-			const capability = getReasoningModelCapability("openai", model);
-			assert.includeMembers(capability?.reasoningEfforts ?? [], ["xhigh", "max"]);
-			for (const reasoningEffort of ["xhigh", "max"] as const) {
-				assert.doesNotThrow(() =>
-					validateReasoningConfiguration({
-						provider: "openai",
-						model,
-						reasoningEffort,
-					}),
-				);
+		for (const provider of ["openai", "codex"] as const) {
+			for (const model of ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]) {
+				const capability = getReasoningModelCapability(provider, model);
+				assert.includeMembers(capability?.reasoningEfforts ?? [], [
+					"xhigh",
+					"max",
+				]);
+				for (const reasoningEffort of ["xhigh", "max"] as const) {
+					assert.doesNotThrow(() =>
+						validateReasoningConfiguration({
+							provider,
+							model,
+							reasoningEffort,
+						}),
+					);
+				}
 			}
 		}
 	});
@@ -123,7 +128,7 @@ describe("reasoning model capabilities", () => {
 	});
 
 	it("rejects unknown models for validated providers", () => {
-		for (const provider of ["openai", "together", "vllm"] as const) {
+		for (const provider of ["openai", "codex", "together", "vllm"] as const) {
 			assert.throws(
 				() =>
 					validateReasoningConfiguration({

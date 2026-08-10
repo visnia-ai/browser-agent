@@ -68,8 +68,67 @@ tasks:
 
 		assert.include(
 			error,
-			"Use one of: openai, vllm, together, anthropic, google, openrouter.",
+			"Use one of: openai, codex, vllm, together, anthropic, google, openrouter.",
 		);
+	});
+
+	it("parses Codex with OpenAI-equivalent reasoning defaults", () => {
+		const configPath = writeTempConfig(
+			`
+provider: codex
+model: gpt-5.6-luna
+concurrency: 1
+tasks:
+  - "test task"
+`,
+			false,
+		);
+
+		const config = loadConfig(configPath);
+		assert.equal(config.stageLLMs.runAgent.provider, "codex");
+		assert.equal(config.stageLLMs.runAgent.reasoningEffort, "low");
+		assert.isUndefined(config.stageLLMs.runAgent.endpointUrl);
+		assert.equal(config.stageLLMs.dataExtraction.provider, "codex");
+		assert.equal(config.stageLLMs.dataExtraction.model, "gpt-5.6-luna");
+	});
+
+	it("rejects endpoint overrides for Codex", () => {
+		const error = captureLoadConfigFailure(
+			`
+provider: codex
+model: gpt-5.6-luna
+endpoint_url: https://proxy.test/v1
+concurrency: 1
+tasks:
+  - "test task"
+`,
+			false,
+		);
+
+		assert.include(error, "Provider 'codex' uses a fixed endpoint");
+	});
+
+	it("supports a Codex stage without inheriting another provider's endpoint", () => {
+		const configPath = writeTempConfig(
+			`
+provider: openai
+model: gpt-5.4
+endpoint_url: https://openai-proxy.test/v1
+stage_llms:
+  run_agent:
+    provider: codex
+    model: gpt-5.6-luna
+concurrency: 1
+tasks:
+  - "test task"
+`,
+			false,
+		);
+
+		const config = loadConfig(configPath);
+		assert.equal(config.stageLLMs.createChecklist.endpointUrl, "https://openai-proxy.test/v1");
+		assert.equal(config.stageLLMs.runAgent.provider, "codex");
+		assert.isUndefined(config.stageLLMs.runAgent.endpointUrl);
 	});
 
 	it("parses and inherits an OpenRouter provider constraint", () => {
@@ -1528,6 +1587,32 @@ tasks:
 		assert.throws(
 			() => parseArgs(["node", "src/cli.ts", "encrypt", "first", "second"]),
 			/expects exactly one value/,
+		);
+	});
+
+	it("parses the Codex login command", () => {
+		assert.deepEqual(parseArgs(["node", "src/cli.ts", "codex-login"]), {
+			codexLogin: true,
+			codexLoginCheck: false,
+			help: false,
+			rpc: false,
+			version: false,
+			versionJson: false,
+		});
+		assert.throws(
+			() => parseArgs(["node", "src/cli.ts", "codex-login", "extra"]),
+			/only accepts the optional --check flag/,
+		);
+		assert.deepEqual(
+			parseArgs(["node", "src/cli.ts", "codex-login", "--check"]),
+			{
+				codexLogin: true,
+				codexLoginCheck: true,
+				help: false,
+				rpc: false,
+				version: false,
+				versionJson: false,
+			},
 		);
 	});
 

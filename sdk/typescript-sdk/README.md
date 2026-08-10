@@ -5,7 +5,8 @@ A powerful & efficient browser agent that automates any task on the web.
 ## Getting started
 
 Requires Node.js 20 or newer, Chrome or a compatible Chromium installation,
-and a provider API key unless using `vllm`.
+and a provider API key unless using `vllm` or `codex`. Codex additionally
+requires the [Codex CLI](https://github.com/openai/codex) on `PATH`.
 
 ```sh
 npm install @visnia/browser-agent-sdk
@@ -57,8 +58,8 @@ interface BrowserAgentOptions {
 | `model`                   | Required                      | Non-empty provider model identifier.                                             |
 | `downloadDirectory`       | Required                      | Download directory; relative paths resolve from the current working directory.   |
 | `reasoningEffort`         | Model-dependent               | Required when the SDK has no built-in capability information for the model.      |
-| `apiKey`                  | Provider environment variable | API key for the model provider; whitespace-only values are ignored.              |
-| `endpointUrl`             | —                             | Absolute HTTP(S) endpoint; required for `vllm`.                                  |
+| `apiKey`                  | Provider environment variable | API key for the model provider; forbidden for `codex`.                            |
+| `endpointUrl`             | —                             | Absolute HTTP(S) endpoint; required for `vllm` and forbidden for `codex`.         |
 | `openrouterProvider`      | —                             | OpenRouter inference provider to require, with fallbacks disabled.               |
 | `maxModelLen`             | `48000`                       | Positive model context limit used by prompt budgeting across every LLM stage.    |
 | `reserveOutputTokens`     | `4000`                        | Positive output-token allowance reserved inside the model context limit.         |
@@ -81,6 +82,7 @@ type Provider =
 	| "together"
 	| "anthropic"
 	| "google"
+	| "codex"
 	| "openrouter";
 
 type ReasoningEffort =
@@ -98,6 +100,8 @@ type ReasoningEffort =
 | ---------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------- | --------- |
 | OpenAI `gpt-5.4`, `gpt-5.4-mini`, or `gpt-5.5`                                                | `OPENAI_API_KEY`        | `none`, `minimal`, `low`, `medium`, `high`          | `low`     |
 | OpenAI `gpt-5.6-luna`, `gpt-5.6-terra`, or `gpt-5.6-sol`                                      | `OPENAI_API_KEY`        | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `low`     |
+| Codex `gpt-5.4`, `gpt-5.4-mini`, or `gpt-5.5`                                                | Codex CLI OAuth         | `none`, `minimal`, `low`, `medium`, `high`          | `low`     |
+| Codex `gpt-5.6-luna`, `gpt-5.6-terra`, or `gpt-5.6-sol`                                      | Codex CLI OAuth         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `low`     |
 | Together `zai-org/GLM-5.2`                                                                     | `TOGETHER_API_KEY`      | `none`, `high`, `max`                               | `high`    |
 | vLLM model containing `qwen`                                                                   | Optional `VLLM_API_KEY` | `none`, `enabled`                                   | `enabled` |
 | vLLM model containing `glm`                                                                    | Optional `VLLM_API_KEY` | `none`, `high`, `max`                               | `high`    |
@@ -105,7 +109,26 @@ type ReasoningEffort =
 | Google models                                                                                  | `GOOGLE_API_KEY`        | Any `ReasoningEffort`                               | Required  |
 | OpenRouter models                                                                              | `OPENROUTER_API_KEY`    | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` | Required  |
 
-`vllm` additionally requires `endpointUrl`.
+`vllm` additionally requires `endpointUrl`. Codex rejects `apiKey` and
+`endpointUrl`; it always uses the Codex CLI login and fixed ChatGPT backend.
+
+Install the Codex CLI with `npm install -g @openai/codex`, then configure the
+agent without an API key:
+
+```ts
+const agent = new BrowserAgent({
+	provider: "codex",
+	model: "gpt-5.6-luna",
+	reasoningEffort: "xhigh",
+	downloadDirectory: "./downloads",
+});
+```
+
+If the user is not logged in, the SDK forwards the CLI's OAuth URL through the
+existing `onLog` stderr events. Open the URL and complete login; the callback
+resumes the run. `PATH` and `CODEX_HOME` are preserved for the child process.
+Codex requests use `https://chatgpt.com/backend-api/codex/responses`, a private,
+unstable backend contract that may change without notice.
 
 The SDK applies the selected model, endpoint, reasoning effort, and prompt budget
 to every execution stage. Target-URL discovery uses `none` reasoning. The default

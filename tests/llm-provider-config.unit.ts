@@ -111,4 +111,43 @@ describe("llm provider runtime config", () => {
 			"openrouterProvider can only be used with provider 'openrouter'",
 		);
 	});
+
+	it("uses the fixed Codex endpoint without an API key", () => {
+		assert.deepEqual(
+			resolveProviderRuntimeConfig({
+				provider: "codex",
+				model: "gpt-5.6-luna",
+				reasoningEffort: "low",
+			}),
+			{
+				provider: "codex",
+				adapter: "codex",
+				apiKey: undefined,
+				endpointUrl: "https://chatgpt.com/backend-api/codex",
+			},
+		);
+	});
+
+	it("rejects API keys and endpoint overrides for Codex", () => {
+		assert.throws(
+			() =>
+				resolveProviderRuntimeConfig({
+					provider: "codex",
+					model: "gpt-5.6-luna",
+					reasoningEffort: "low",
+					apiKey: "must-not-be-used",
+				}),
+			"does not allow apiKey",
+		);
+		assert.throws(
+			() =>
+				resolveProviderRuntimeConfig({
+					provider: "codex",
+					model: "gpt-5.6-luna",
+					reasoningEffort: "low",
+					endpointUrl: "https://proxy.test/v1",
+				}),
+			"does not allow endpointUrl",
+		);
+	});
 });

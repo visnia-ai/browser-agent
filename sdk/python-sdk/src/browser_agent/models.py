@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal, TypeAlias
 
 Provider: TypeAlias = Literal[
-    "openai", "vllm", "together", "anthropic", "google", "openrouter"
+    "openai", "vllm", "together", "anthropic", "google", "codex", "openrouter"
 ]
 ReasoningEffort: TypeAlias = Literal[
     "none", "minimal", "low", "medium", "high", "xhigh", "max", "enabled"

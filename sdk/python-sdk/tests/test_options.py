@@ -65,6 +65,19 @@ class OptionTests(unittest.TestCase):
             ).api_key
         )
         with patch.dict(
+            os.environ,
+            {"PATH": "/test/bin", "CODEX_HOME": "/test/codex-home"},
+        ):
+            codex = valid(
+                provider="codex", model="gpt-5.6-luna", api_key=None
+            )
+            self.assertEqual(codex.reasoning_effort, "low")
+            self.assertIsNone(codex.api_key)
+            self.assertIsNone(codex.api_key_environment)
+            environment = child_environment(codex)
+            self.assertEqual(environment["PATH"], "/test/bin")
+            self.assertEqual(environment["CODEX_HOME"], "/test/codex-home")
+        with patch.dict(
             os.environ, {"OPENROUTER_API_KEY": "openrouter-environment-key"}
         ):
             openrouter = valid(
@@ -92,6 +105,20 @@ class OptionTests(unittest.TestCase):
             {"endpoint_url": "bad"},
             {"endpoint_url": "ftp://example.com"},
             {"provider": "vllm", "model": "qwen", "endpoint_url": None},
+            {"provider": "codex", "model": "gpt-5.4", "api_key": "key"},
+            {"provider": "codex", "model": "gpt-5.4", "api_key": ""},
+            {
+                "provider": "codex",
+                "model": "gpt-5.4",
+                "api_key": None,
+                "endpoint_url": "https://example.com",
+            },
+            {
+                "provider": "codex",
+                "model": "gpt-5.4",
+                "api_key": None,
+                "endpoint_url": "",
+            },
             {
                 "provider": "openrouter",
                 "model": "vendor/model",

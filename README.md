@@ -22,7 +22,8 @@ A powerful & efficient browser agent that automates any task on the web.
 
 - Node.js (v20 or later) and npm
 - Google Chrome or a compatible Chromium installation
-- An API key for the configured model provider. Supported providers include OpenAI, OpenRouter, Anthropic, Google, Together, and vLLM-compatible endpoints.
+- An API key for the configured model provider, except when using vLLM or Codex. Supported providers include OpenAI, OpenRouter, Anthropic, Google, Together, Codex, and vLLM-compatible endpoints.
+- For `codex`, the [Codex CLI](https://github.com/openai/codex) installed on `PATH` (`npm install -g @openai/codex`). Browser Agent uses its ChatGPT OAuth session instead of an API key.
 
 ## Benchmarks
 
@@ -30,21 +31,23 @@ A powerful & efficient browser agent that automates any task on the web.
   <thead>
     <tr>
       <th rowspan="2">Metric</th>
-      <th colspan="2">BrowserUse Bench</th>
+      <th colspan="4">BrowserUse Bench</th>
       <th colspan="2">WebApp Bench</th>
     </tr>
     <tr>
       <th>Ours</th>
       <th>Browser-code</th>
+      <th><a href="https://github.com/browser-use/benchmark/blob/main/official_results/BrowserUse_0.13.7_browser_BrowserUseCloud_model_gpt-5.6-luna.json">Browser Use</a></th>
+      <th><a href="https://github.com/browser-use/benchmark/blob/main/official_results/BrowserUseCloudAPI_v4_browser_integrated_model_bu-v4-luna.json">Browser Cloud v4</a></th>
       <th>Ours</th>
       <th>Browser-code</th>
     </tr>
   </thead>
   <tbody>
-    <tr><th>Success</th><td><em>88%</em></td><td>78%</td><td><em>76%</em></td><td>64%</td></tr>
-    <tr><th>Duration (seconds)</th><td><em>32,694</em></td><td>47,970</td><td><em>15,653</em></td><td>32,036</td></tr>
-    <tr><th>Cost</th><td><em>$5.37</em></td><td>$8.34</td><td></td><td></td></tr>
-    <tr><th>Successful tasks / $</th><td><em>16.40</em></td><td>9.35</td><td></td><td></td></tr>
+    <tr><th>Success</th><td><em>88%</em></td><td>78%</td><td>31%</td><td>78%</td><td><em>76%</em></td><td>64%</td></tr>
+    <tr><th>Duration (seconds)</th><td><em>32,694</em></td><td>47,970</td><td>6,787</td><td>24,505</td><td><em>15,653</em></td><td>32,036</td></tr>
+    <tr><th>Cost</th><td><em>$5.37</em></td><td>$8.34</td><td>-</td><td>$6.31</td><td><em>$3.73</em></td><td>$7.45</td></tr>
+    <tr><th>Successful tasks / $</th><td><em>16.40</em></td><td>9.35</td><td>-</td><td>12.37</td><td><em>18.77</em></td><td>8.86</td></tr>
   </tbody>
 </table>
 
@@ -70,6 +73,7 @@ Set the environment variables for your selected model provider:
 | Google     | `GOOGLE_API_KEY`      |
 | Together   | `TOGETHER_API_KEY`    |
 | OpenRouter | `OPENROUTER_API_KEY`  |
+| Codex      | Codex CLI OAuth login |
 | vLLM       | `VLLM_BASE_URL`       |
 
 
@@ -89,6 +93,33 @@ Set the required provider variables shown above, then run:
 ```sh
 browser-agent path/to/config.yaml
 ```
+
+To use your ChatGPT account through Codex, install the Codex CLI and select the
+`codex` provider. No API key or endpoint override is accepted:
+
+```yaml
+provider: codex
+model: gpt-5.6-luna
+reasoning_effort: xhigh
+tasks:
+  - task: "Find the first five articles on the OpenAI blog."
+    url: "https://openai.com/news/"
+```
+
+Browser Agent checks the Codex CLI login before starting the run. If login is
+required, it prints an OAuth URL in the terminal; open it in a browser and
+complete the flow, then the localhost callback resumes the run automatically.
+Existing Codex credentials under `CODEX_HOME` (or `~/.codex`) are reused.
+Orchestrators that will start several Browser Agent processes can run
+`browser-agent codex-login` once first. The command performs authentication
+without starting Chrome or a browser task.
+Use `browser-agent codex-login --check` for a non-interactive status probe; it
+prints `{"loggedIn":true}` or `{"loggedIn":false}` as JSON and never starts
+OAuth.
+
+The Codex provider sends requests to
+`https://chatgpt.com/backend-api/codex/responses`. This is a private, unstable
+ChatGPT backend contract and may change without notice.
 
 
 
@@ -116,7 +147,7 @@ reasoning_effort: xhigh
 
 Browser Agent provides TypeScript and Python SDKs for running browser automation tasks. Both SDKs install the matching CLI from the GitHub Release, verify its checksum, stream progress events, and return a final result.
 
-Set the selected provider's API-key environment variable, such as `OPENAI_API_KEY` or `OPENROUTER_API_KEY`, or pass the API key directly when creating the agent.
+Set the selected provider's API-key environment variable, such as `OPENAI_API_KEY` or `OPENROUTER_API_KEY`, or pass the API key directly when creating the agent. Codex instead uses the installed Codex CLI and its terminal OAuth flow.
 
 ### TypeScript
 

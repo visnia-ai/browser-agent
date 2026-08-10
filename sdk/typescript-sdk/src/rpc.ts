@@ -120,6 +120,7 @@ export class RpcState {
 			const allowed: BrowserAgentErrorCode[] = [
 				"CONFIG_INVALID",
 				"CHROME_NOT_FOUND",
+				"CODEX_AUTH_FAILED",
 			];
 			throw new BrowserAgentError(
 				allowed.includes(code as BrowserAgentErrorCode)

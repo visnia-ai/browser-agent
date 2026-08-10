@@ -22,6 +22,7 @@ class AgentTests(unittest.TestCase):
             "BrowserAgentTaskRunResult", "BrowserAgentValidatorResult", "ErrorEvent",
             "Provider", "ReasoningEffort", "RunCompletedEvent", "RunStartedEvent",
             "TaskResultEvent", "UserTakeoverCategory", "UserTakeoverEvent",
+            "check_codex_login", "ensure_codex_login",
         })
         parameters = inspect.signature(BrowserAgent).parameters
         self.assertEqual(list(parameters), [

@@ -76,6 +76,26 @@ class ConfigTests(unittest.TestCase):
             )
             files.cleanup()
 
+    def test_forwards_codex_without_overrides(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="py-codex-config-") as root:
+            files = create_runtime_files(
+                valid(
+                    provider="codex",
+                    model="gpt-5.6-luna",
+                    api_key=None,
+                    download_directory=str(Path(root) / "downloads"),
+                ),
+                [BrowserAgentTask("go")],
+            )
+            config = json.loads(Path(files.config_path).read_text())
+            self.assertEqual(
+                config["stage_llms"]["runAgent"]["provider"], "codex"
+            )
+            self.assertNotIn(
+                "endpoint_url", config["stage_llms"]["runAgent"]
+            )
+            files.cleanup()
+
     def test_generates_glm52_benchmark_baseline_profile(self) -> None:
         with tempfile.TemporaryDirectory(prefix="py-glm52-config-") as root:
             files = create_runtime_files(

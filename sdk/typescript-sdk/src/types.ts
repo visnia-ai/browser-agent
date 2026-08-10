@@ -5,6 +5,7 @@ export type Provider =
 	| "together"
 	| "anthropic"
 	| "google"
+	| "codex"
 	| "openrouter";
 export type ReasoningEffort =
 	| "none"

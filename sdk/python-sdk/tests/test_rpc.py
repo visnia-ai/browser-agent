@@ -89,6 +89,7 @@ class ResultTests(unittest.TestCase):
         for code, expected in [
             ("CONFIG_INVALID", "CONFIG_INVALID"),
             ("CHROME_NOT_FOUND", "CHROME_NOT_FOUND"),
+            ("CODEX_AUTH_FAILED", "CODEX_AUTH_FAILED"),
             ("UNKNOWN", "PROTOCOL_ERROR"),
             (None, "PROTOCOL_ERROR"),
         ]:

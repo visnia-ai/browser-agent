@@ -1,3 +1,4 @@
+from .auth import check_codex_login, ensure_codex_login
 from .errors import BrowserAgentError, BrowserAgentErrorCode
 from .events import (
     BrowserAgentEvent, ErrorEvent, RunCompletedEvent, RunStartedEvent,
@@ -11,7 +12,7 @@ from .models import (
 from .run import BrowserAgent, BrowserAgentRun
 
 __all__ = """
-BrowserAgent BrowserAgentCredential BrowserAgentError BrowserAgentErrorCode BrowserAgentEvent BrowserAgentLogEntry
+BrowserAgent BrowserAgentCredential BrowserAgentError BrowserAgentErrorCode BrowserAgentEvent BrowserAgentLogEntry check_codex_login ensure_codex_login
 BrowserAgentResult BrowserAgentRun BrowserAgentTask BrowserAgentTaskResult
 BrowserAgentTaskRunResult BrowserAgentValidatorResult ErrorEvent Provider ReasoningEffort
 RunCompletedEvent RunStartedEvent TaskResultEvent UserTakeoverCategory UserTakeoverEvent

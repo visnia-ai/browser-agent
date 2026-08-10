@@ -78,6 +78,28 @@ test("resolves provider capabilities, paths, environment, and overrides", () => 
 		}).reasoningEffort,
 		"low",
 	);
+	const previousPath = process.env.PATH;
+	const previousCodexHome = process.env.CODEX_HOME;
+	process.env.PATH = "/test/bin";
+	process.env.CODEX_HOME = "/test/codex-home";
+	try {
+		const codex = resolveOptions({
+			provider: "codex",
+			model: "gpt-5.6-luna",
+			downloadDirectory: "downloads",
+		});
+		assert.equal(codex.reasoningEffort, "low");
+		assert.equal(codex.apiKey, undefined);
+		assert.equal(codex.apiKeyEnvironment, undefined);
+		const environment = childEnvironment(codex);
+		assert.equal(environment.PATH, "/test/bin");
+		assert.equal(environment.CODEX_HOME, "/test/codex-home");
+	} finally {
+		if (previousPath === undefined) delete process.env.PATH;
+		else process.env.PATH = previousPath;
+		if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+		else process.env.CODEX_HOME = previousCodexHome;
+	}
 	assert.equal(
 		resolveOptions({
 			...base,
@@ -204,6 +226,30 @@ test("rejects every invalid option shape", () => {
 		{ ...base, endpointUrl: "ftp://example.com" },
 		{ ...base, endpointUrl: "bad" },
 		{ ...base, provider: "vllm", model: "qwen" },
+		{
+			provider: "codex",
+			model: "gpt-5.4",
+			downloadDirectory: "downloads",
+			apiKey: "key",
+		},
+		{
+			provider: "codex",
+			model: "gpt-5.4",
+			downloadDirectory: "downloads",
+			apiKey: "",
+		},
+		{
+			provider: "codex",
+			model: "gpt-5.4",
+			downloadDirectory: "downloads",
+			endpointUrl: "https://example.com",
+		},
+		{
+			provider: "codex",
+			model: "gpt-5.4",
+			downloadDirectory: "downloads",
+			endpointUrl: "",
+		},
 		{
 			...base,
 			provider: "anthropic",

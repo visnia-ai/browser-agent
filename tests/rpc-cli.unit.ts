@@ -368,4 +368,69 @@ describe("RPC CLI", () => {
 			},
 		]);
 	});
+
+	it("prepares provider authentication before accepting the run and cleans it up", async () => {
+		const output = captureStream();
+		let prepared = false;
+		let cleanedUp = false;
+		const succeeded = await runRpcStdio({
+			argv: ["node", "src/cli.ts", "pipeline", "--rpc"],
+			configPath: "pipeline",
+			loadConfig: rpcConfig,
+			input: Readable.from([
+				'{"jsonrpc":"2.0","id":12,"method":"browser-agent/run"}\n',
+			]),
+			output: output.stream,
+			errorStream: captureStream().stream,
+			resolveChromePath: () => "/fake/chrome",
+			prepareRun: async () => {
+				assert.strictEqual(output.read(), "");
+				prepared = true;
+				return () => {
+					cleanedUp = true;
+				};
+			},
+			mainFn: (async () => {
+				assert.isTrue(prepared);
+			}) as typeof main,
+		});
+
+		assert.isTrue(succeeded);
+		assert.isTrue(cleanedUp);
+		assert.strictEqual(parseMessages(output.read())[0]?.result.accepted, true);
+	});
+
+	it("returns a pre-acceptance error when provider authentication fails", async () => {
+		const output = captureStream();
+		const succeeded = await runRpcStdio({
+			argv: ["node", "src/cli.ts", "pipeline", "--rpc"],
+			configPath: "pipeline",
+			loadConfig: rpcConfig,
+			input: Readable.from([
+				'{"jsonrpc":"2.0","id":13,"method":"browser-agent/run"}\n',
+			]),
+			output: output.stream,
+			errorStream: captureStream().stream,
+			resolveChromePath: () => "/fake/chrome",
+			prepareRun: async () => {
+				throw new Error("Codex login failed.");
+			},
+			mainFn: (async () => {
+				assert.fail("main should not run");
+			}) as typeof main,
+		});
+
+		assert.isFalse(succeeded);
+		assert.deepEqual(parseMessages(output.read()), [
+			{
+				jsonrpc: "2.0",
+				id: 13,
+				error: {
+					code: -32001,
+					message: "Codex login failed.",
+					data: { code: "CODEX_AUTH_FAILED" },
+				},
+			},
+		]);
+	});
 });

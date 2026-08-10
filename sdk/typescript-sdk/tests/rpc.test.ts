@@ -123,6 +123,7 @@ test("maps rejection codes and redacts infrastructure errors", () => {
 	for (const [code, expected] of [
 		["CONFIG_INVALID", "CONFIG_INVALID"],
 		["CHROME_NOT_FOUND", "CHROME_NOT_FOUND"],
+		["CODEX_AUTH_FAILED", "CODEX_AUTH_FAILED"],
 		["UNKNOWN", "PROTOCOL_ERROR"],
 		[undefined, "PROTOCOL_ERROR"],
 	] as const) {

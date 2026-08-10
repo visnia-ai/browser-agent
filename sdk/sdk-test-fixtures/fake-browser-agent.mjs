@@ -32,6 +32,24 @@ if (process.argv.includes("--sdk-self-test-json")) {
 	process.exit(0);
 }
 
+if (process.argv.includes("codex-login")) {
+	if (process.env.SDK_FAKE_AUTH_COUNT) {
+		fs.appendFileSync(process.env.SDK_FAKE_AUTH_COUNT, "1\n");
+	}
+	const checking = process.argv.includes("--check");
+	if (checking && mode !== "auth-wait" && mode !== "auth-fail") {
+		process.stdout.write(
+			`${JSON.stringify({ loggedIn: mode !== "auth-logged-out" })}\n`,
+		);
+	}
+	if (!checking) process.stderr.write("Codex login preflight\n");
+	if (mode === "auth-fail") process.exit(2);
+	if (mode !== "auth-wait") process.exit(0);
+	process.on("SIGTERM", () => process.exit(0));
+	setInterval(() => undefined, 1_000);
+	await new Promise(() => undefined);
+}
+
 const configPath = process.argv.find(
 	(argument) =>
 		argument !== process.argv[0] &&
