@@ -2,13 +2,58 @@
 
 A powerful & efficient browser agent that automates any task on the web.
 
----
+To install, run:
+```sh
+npm install -g @visnia/browser-agent-sdk
+```
+
+## Providers
+
+Set the environment variables for your selected model provider:
+
+| Provider   | Environment variables |
+| ---------- | --------------------- |
+| openai     | `OPENAI_API_KEY`      |
+| anthropic  | `ANTHROPIC_API_KEY`   |
+| google     | `GOOGLE_API_KEY`      |
+| together   | `TOGETHER_API_KEY`    |
+| openrouter | `OPENROUTER_API_KEY`  |
+| codex      | Codex CLI OAuth login |
+| vllm       | `VLLM_BASE_URL`       |
+
+Create a configuration file:
+
+```yaml
+provider: openai
+model: gpt-5.6-sol
+reasoning_effort: medium
+tasks:
+  - task: "Find the first five articles on the OpenAI blog."
+    url: "https://openai.com/news/"
+```
+
+Set the required provider variables shown above, then run:
+
+```sh
+browser-agent path/to/config.yaml
+```
+
+To use your ChatGPT account through Codex, install the Codex CLI and select the
+`codex` provider. No API key or endpoint override is accepted:
+
+```yaml
+provider: codex
+model: gpt-5.6-luna
+reasoning_effort: xhigh
+tasks:
+  - task: "Find the first five articles on the OpenAI blog."
+    url: "https://openai.com/news/"
+```
 
 ## Table of contents
 
 - [Requirements](#requirements)
-- [Install & Use](#install--use)
-  - [Providers](#providers)
+- [Providers](#providers)
 - [Recommended model](#recommended-model)
 - [SDKs](#sdks)
   - [TypeScript](#typescript)
@@ -52,64 +97,6 @@ A powerful & efficient browser agent that automates any task on the web.
     <tr><th>Successful tasks / $</th><td><strong>16.40</strong></td><td>9.35</td><td>-</td><td>12.37</td><td><strong>18.77</strong></td><td>8.86</td></tr>
   </tbody>
 </table>
-
-
-
-
-## Install & Use
-
-Install the CLI globally with npm. 
-
-```sh
-npm install -g @visnia/browser-agent-sdk
-```
-
-
-
-### Providers
-
-Set the environment variables for your selected model provider:
-
-
-| Provider   | Environment variables |
-| ---------- | --------------------- |
-| openai     | `OPENAI_API_KEY`      |
-| anthropic  | `ANTHROPIC_API_KEY`   |
-| google     | `GOOGLE_API_KEY`      |
-| together   | `TOGETHER_API_KEY`    |
-| openrouter | `OPENROUTER_API_KEY`  |
-| codex      | Codex CLI OAuth login |
-| vllm       | `VLLM_BASE_URL`       |
-
-
-Create a configuration file:
-
-```yaml
-provider: openai
-model: gpt-5.6-sol
-reasoning_effort: medium
-tasks:
-  - task: "Find the first five articles on the OpenAI blog."
-    url: "https://openai.com/news/"
-```
-
-Set the required provider variables shown above, then run:
-
-```sh
-browser-agent path/to/config.yaml
-```
-
-To use your ChatGPT account through Codex, install the Codex CLI and select the
-`codex` provider. No API key or endpoint override is accepted:
-
-```yaml
-provider: codex
-model: gpt-5.6-luna
-reasoning_effort: xhigh
-tasks:
-  - task: "Find the first five articles on the OpenAI blog."
-    url: "https://openai.com/news/"
-```
 
 ## Recommended model
 
