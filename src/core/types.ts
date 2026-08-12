@@ -8,6 +8,7 @@ import type {
 	ChatJSONResult,
 	ExtractionStepUsage,
 	ExecuteActionsResult,
+	ExecutorContextPolicy,
 	LLMOptions,
 	MainLoopStepEntry,
 	Message,
@@ -45,6 +46,8 @@ import type { UserTakeoverCategory } from "../user-action-types.js";
 import type { switchTab } from "../browser/interaction/tabs.js";
 import type { waitForAllOpenTabsToSettle } from "../browser/interaction/wait-for-open-tabs-settle.js";
 import type { TaskExecutionOverridesIndex } from "./task-execution-overrides.js";
+
+export type { ExecutorContextPolicy } from "../agents/types.js";
 
 export interface PreprocessStageLLMs {
 	findTargetURL: LLMOptions;
@@ -267,6 +270,8 @@ export interface CreatePromptForStepInput {
 	stepsHistory: StepHistoryEntry[];
 	stepNumber?: number;
 	llmOptions?: LLMOptions;
+	/** Explicit per-run executor context behavior. */
+	executorContextPolicy: Readonly<ExecutorContextPolicy>;
 	autoSwitchToNewTab?: boolean;
 	finalizationInstruction?: string;
 	forceMemoryContent?: boolean;
@@ -339,7 +344,8 @@ export interface ProcessModelStepOutputInput {
 	rawAssistantOutputText?: string;
 	promptPayload: Record<string, unknown>;
 	stepsHistory: StepHistoryEntry[];
-	executorProvider?: Provider;
+	/** Explicit per-run executor context behavior. */
+	executorContextPolicy: Readonly<ExecutorContextPolicy>;
 	openAIEncryptedResponses?: boolean;
 	reasoningTokens?: string;
 	stepNumber?: number;

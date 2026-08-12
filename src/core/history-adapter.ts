@@ -8,6 +8,7 @@ import {
 	shouldIncludeExecutorReasoningHistory,
 	type ExecutorPromptOptions,
 } from "../agents/prompts.js";
+import { OPENAI_EXECUTOR_CONTEXT_POLICY } from "../agents/executor-context-policy.js";
 import {
 	createOpenAICachedUserContent,
 	createOpenAIStableStepUserContent,
@@ -15,7 +16,7 @@ import {
 
 export function buildHistoryMessagesFromFullStepHistory(
 	stepsHistory: StepHistoryEntry[],
-	_options: ExecutorPromptOptions = {},
+	options: ExecutorPromptOptions = {},
 	historyOptions: {
 		omitProjectionContext?: boolean;
 		openAIExplicitPromptCaching?: boolean;
@@ -41,7 +42,9 @@ export function buildHistoryMessagesFromFullStepHistory(
 					: payloadText,
 			),
 		);
-		const reasoningTokens = shouldIncludeExecutorReasoningHistory()
+		const reasoningTokens = shouldIncludeExecutorReasoningHistory(
+			options.executorContextPolicy ?? OPENAI_EXECUTOR_CONTEXT_POLICY,
+		)
 			? step.reasoningTokens?.trim()
 			: undefined;
 		messages.push({

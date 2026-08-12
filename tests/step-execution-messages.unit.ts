@@ -16,7 +16,10 @@ import {
 	serializeMessagesForDisk,
 } from "../src/agents/executor-utils/step-execution.js";
 import type { Browser } from "../src/browser/types.js";
-import { featureFlags } from "../src/featureFlags.js";
+import {
+	OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+} from "../src/agents/executor-context-policy.js";
 import {
 	configFeatureFlags,
 	setConfigFeatureFlags,
@@ -25,8 +28,6 @@ import type { Message, StepResult } from "../src/agents/types.js";
 
 describe("step-execution-messages", () => {
 	it("gates action-context serialization and logging", () => {
-		const originalActionContextFields =
-			featureFlags.executorActionContextFields;
 		const originalConsoleLog = console.log;
 		const logs: string[] = [];
 		const step: StepResult = {
@@ -43,25 +44,34 @@ describe("step-execution-messages", () => {
 		};
 
 		try {
-			featureFlags.executorActionContextFields = false;
-			assert.deepEqual(formatStepForPrompt(step), {
+			assert.deepEqual(
+				formatStepForPrompt(step, OPENAI_EXECUTOR_CONTEXT_POLICY),
+				{
 				tools: [{ click: "r2" }],
-			});
-			logStepActionContext(step);
+				},
+			);
+			logStepActionContext(step, OPENAI_EXECUTOR_CONTEXT_POLICY);
 			assert.deepEqual(logs, []);
 
-			featureFlags.executorActionContextFields = true;
-			assert.deepEqual(formatStepForPrompt(step), {
+			assert.deepEqual(
+				formatStepForPrompt(
+					step,
+					OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
+				),
+				{
 				previousStepStatus: "progressed",
 				previousStepOutcome: "Opened the search form.",
 				currentStateObservation: "The search field is visible.",
 				nextActionRationale: "Enter the requested query.",
 				tools: [{ click: "r2" }],
-			});
-			logStepActionContext(step);
+				},
+			);
+			logStepActionContext(
+				step,
+				OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
+			);
 			assert.lengthOf(logs, 4);
 		} finally {
-			featureFlags.executorActionContextFields = originalActionContextFields;
 			console.log = originalConsoleLog;
 		}
 	});

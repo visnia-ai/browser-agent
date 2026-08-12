@@ -46,6 +46,12 @@ export interface LLMOptions {
 	openrouterProvider?: string;
 }
 
+/** Model-derived executor context behavior, resolved once for each agent run. */
+export interface ExecutorContextPolicy {
+	includeReasoningTokensInPreviousSteps: boolean;
+	executorActionContextFields: boolean;
+}
+
 export interface TokenUsage {
 	input_tokens: number;
 	cached_input_tokens?: number;

@@ -9,6 +9,11 @@ export * from "./run-task.js";
 export * from "./run-agent.js";
 export * from "./training-rollout.js";
 export {
+	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_EXECUTOR_CONTEXT_POLICY,
+	resolveExecutorContextPolicy,
+} from "../agents/executor-context-policy.js";
+export {
 	capturePreviewDataUrl,
 	connectToTarget,
 	switchTab,

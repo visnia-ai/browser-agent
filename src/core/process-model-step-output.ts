@@ -2,8 +2,11 @@ import yaml from "js-yaml";
 import { logActionBoundary } from "../agents/executor-utils/action-boundary-logging.js";
 import { normalizeActionListWithDiagnostics } from "../agents/executor-utils/action-normalization.js";
 import { serializeModelOutputForHistory } from "../agents/executor-utils/step-execution.js";
-import type { PreviousStepStatus, StepResult } from "../agents/types.js";
-import { featureFlags } from "../featureFlags.js";
+import type {
+	ExecutorContextPolicy,
+	PreviousStepStatus,
+	StepResult,
+} from "../agents/types.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -39,7 +42,10 @@ type NormalizedModelStep =
 			normalizationDiagnostics: string[];
 	  };
 
-function normalizeModelStep(raw: unknown): NormalizedModelStep {
+function normalizeModelStep(
+	raw: unknown,
+	executorContextPolicy: Readonly<ExecutorContextPolicy>,
+): NormalizedModelStep {
 	if (!isRecord(raw)) {
 		return {
 			actionContractStatus: "rejected",
@@ -66,7 +72,7 @@ function normalizeModelStep(raw: unknown): NormalizedModelStep {
 			!Array.isArray(raw.checklistUpdate)
 				? (raw.checklistUpdate as StepResult["checklistUpdate"])
 				: undefined,
-		...(featureFlags.executorActionContextFields
+		...(executorContextPolicy.executorActionContextFields
 			? {
 					previousStepStatus: normalizePreviousStepStatus(
 						raw.previousStepStatus ?? rawActionContext?.status,
@@ -126,8 +132,9 @@ export class ModelStepActionContractError extends Error {
 
 export function processModelStepOutput(
 	rawStepOutput: unknown,
+	executorContextPolicy: Readonly<ExecutorContextPolicy>,
 ): ProcessedModelStepOutput {
-	const normalized = normalizeModelStep(rawStepOutput);
+	const normalized = normalizeModelStep(rawStepOutput, executorContextPolicy);
 	const rawTools = isRecord(rawStepOutput) ? rawStepOutput.tools : undefined;
 	logActionBoundary("model_step_normalized", {
 		action_contract_status: normalized.actionContractStatus,

@@ -2,28 +2,22 @@
 
 A powerful & efficient browser agent that automates any task on the web.
 
----
+To install, run:
+```sh
+npm install -g @visnia/browser-agent-sdk
+```
 
 ## Table of contents
 
+- [Benchmarks](#benchmarks)
 - [Requirements](#requirements)
-- [Install & Use](#install--use)
-  - [Providers](#providers)
+- [Providers](#providers)
 - [Recommended model](#recommended-model)
 - [SDKs](#sdks)
   - [TypeScript](#typescript)
   - [Python](#python)
 - [Credentials](#credentials)
 - [License](#license)
-
-## Requirements
-
-- Node.js (v20 or later) and npm
-- Google Chrome or a compatible Chromium installation
-- An API key for the configured model provider, except when using vLLM or Codex. Supported providers include OpenAI, OpenRouter, Anthropic, Google, Together, Codex, and vLLM-compatible endpoints.
-- For `codex`, the [Codex CLI](https://github.com/openai/codex) installed on `PATH` (`npm install -g @openai/codex`). Browser Agent uses its ChatGPT OAuth session instead of an API key.
-
-
 
 ## Benchmarks
 
@@ -54,23 +48,16 @@ A powerful & efficient browser agent that automates any task on the web.
   </tbody>
 </table>
 
+## Requirements
 
+- Node.js (v20 or later) and npm
+- Google Chrome or a compatible Chromium installation
+- An API key for the configured model provider, except when using vLLM or Codex. Supported providers include OpenAI, OpenRouter, Anthropic, Google, Together, Codex, and vLLM-compatible endpoints.
+- For `codex`, the [Codex CLI](https://github.com/openai/codex) installed on `PATH` (`npm install -g @openai/codex`). Browser Agent uses its ChatGPT OAuth session instead of an API key.
 
-
-## Install & Use
-
-Install the CLI globally with npm. 
-
-```sh
-npm install -g @visnia/browser-agent-sdk
-```
-
-
-
-### Providers
+## Providers
 
 Set the environment variables for your selected model provider:
-
 
 | Provider   | Environment variables |
 | ---------- | --------------------- |
@@ -81,7 +68,6 @@ Set the environment variables for your selected model provider:
 | openrouter | `OPENROUTER_API_KEY`  |
 | codex      | Codex CLI OAuth login |
 | vllm       | `VLLM_BASE_URL`       |
-
 
 Create a configuration file:
 

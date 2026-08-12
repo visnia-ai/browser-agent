@@ -38,6 +38,7 @@ feature_flags:
   user_takeover_tool: false
   auth_takeover: true
   pre_execution_dom_pruning: false
+  enable_executor_action_context_fields_for_openai: false
 
 browser_profiles:
   mode: seeded

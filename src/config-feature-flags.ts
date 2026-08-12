@@ -13,6 +13,8 @@ export interface ConfigFeatureFlags {
 	extractDataWholeContext: boolean;
 	/** Choose current-only prompts (arm C) or append-only reset/delta history (arm D). */
 	semanticProjectionHistory: "current" | "cumulative";
+	/** Include executor action-context fields for OpenAI models. */
+	enableExecutorActionContextFieldsForOpenAI: boolean;
 	/** Chain OpenAI executor steps with client-held encrypted reasoning. */
 	openAIEncryptedResponses: boolean;
 	/** Use GPT-5.6 explicit prompt-cache breakpoints for executor prompts. */
@@ -31,6 +33,7 @@ export const configFeatureFlags: ConfigFeatureFlags = {
 	agentTakeoverTool: false,
 	extractDataWholeContext: false,
 	semanticProjectionHistory: "current",
+	enableExecutorActionContextFieldsForOpenAI: false,
 	openAIEncryptedResponses: true,
 	openAIExplicitPromptCaching: true,
 	optimizeExecutorStepDelays: false,
@@ -68,6 +71,12 @@ export function mergeConfigFeatureFlags(
 			? {
 					semanticProjectionHistory:
 						overrides.semanticProjectionHistory,
+				}
+			: {}),
+		...(overrides.enableExecutorActionContextFieldsForOpenAI !== undefined
+			? {
+					enableExecutorActionContextFieldsForOpenAI:
+						overrides.enableExecutorActionContextFieldsForOpenAI,
 				}
 			: {}),
 		...(overrides.openAIEncryptedResponses !== undefined
@@ -117,6 +126,10 @@ export function setConfigFeatureFlags(
 	if (flags.semanticProjectionHistory !== undefined) {
 		configFeatureFlags.semanticProjectionHistory =
 			flags.semanticProjectionHistory;
+	}
+	if (flags.enableExecutorActionContextFieldsForOpenAI !== undefined) {
+		configFeatureFlags.enableExecutorActionContextFieldsForOpenAI =
+			flags.enableExecutorActionContextFieldsForOpenAI;
 	}
 	if (flags.openAIEncryptedResponses !== undefined) {
 		configFeatureFlags.openAIEncryptedResponses =

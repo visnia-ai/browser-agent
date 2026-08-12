@@ -1,6 +1,7 @@
 import { configFeatureFlags } from "../config-feature-flags.js";
 import { featureFlags } from "../featureFlags.js";
-import type { Provider } from "./types.js";
+import { OPENAI_EXECUTOR_CONTEXT_POLICY } from "./executor-context-policy.js";
+import type { ExecutorContextPolicy, Provider } from "./types.js";
 
 export const MAX_STEP_FINALIZATION_INSTRUCTION = `This is the final allowed step because the step budget is exhausted.
 
@@ -61,20 +62,30 @@ export type ExecutorPromptOptions = {
 	currentUrl?: string;
 	provider?: Provider;
 	semanticProjectionHistory?: "current" | "cumulative";
+	executorContextPolicy?: Readonly<ExecutorContextPolicy>;
 };
 
-export function shouldIncludeExecutorReasoningHistory(): boolean {
-	return featureFlags.includeReasoningTokensInPreviousSteps;
+function getExecutorContextPolicy(
+	options: ExecutorPromptOptions,
+): Readonly<ExecutorContextPolicy> {
+	return options.executorContextPolicy ?? OPENAI_EXECUTOR_CONTEXT_POLICY;
 }
 
-function getResponseKeyOrder(): string {
+export function shouldIncludeExecutorReasoningHistory(
+	policy: Readonly<ExecutorContextPolicy>,
+): boolean {
+	return policy.includeReasoningTokensInPreviousSteps;
+}
+
+function getResponseKeyOrder(options: ExecutorPromptOptions): string {
 	const actionContextKeys =
 		"previousStepStatus, previousStepOutcome, currentStateObservation, nextActionRationale";
 	const checklistUpdateKey = configFeatureFlags.taskChecklist
 		? "checklistUpdate, "
 		: "";
 	const thinkingKey = featureFlags.executorThinkingField ? "thinking, " : "";
-	const actionContextKeyList = featureFlags.executorActionContextFields
+	const actionContextKeyList = getExecutorContextPolicy(options)
+		.executorActionContextFields
 		? `${actionContextKeys}, `
 		: "";
 	return `${thinkingKey}${checklistUpdateKey}${actionContextKeyList}tools`;
@@ -168,13 +179,16 @@ function getProjectionHistoryInstructions(
 - Target refs may appear in the reset baseline or any applied delta, but they are valid only while present in the fully reconstructed current projection.`;
 }
 
-function getExecutorActionContextPreamble(): string {
+function getExecutorActionContextPreamble(
+	options: ExecutorPromptOptions,
+): string {
 	const thinkingExample = featureFlags.executorThinkingField
 		? `thinking: |-
   The previous action revealed the search field, so the next useful step is to enter the query.
 `
 		: "";
-	const actionContextExample = featureFlags.executorActionContextFields
+	const actionContextExample = getExecutorContextPolicy(options)
+		.executorActionContextFields
 		? `previousStepStatus: "progressed"
 previousStepOutcome: |-
   Opened the search form.
@@ -188,16 +202,19 @@ nextActionRationale: |-
 	return `${thinkingExample}${actionContextExample}`;
 }
 
-function getExecutorActionContextRules(): string {
+function getExecutorActionContextRules(options: ExecutorPromptOptions): string {
 	const thinkingRule = featureFlags.executorThinkingField
 		? `- thinking must always be present, must be used for any kind of reasoning, and MUST use YAML block scalar style: |-
 `
 		: "";
-	const reasoningHistoryRule = shouldIncludeExecutorReasoningHistory()
+	const executorContextPolicy = getExecutorContextPolicy(options);
+	const reasoningHistoryRule = shouldIncludeExecutorReasoningHistory(
+		executorContextPolicy,
+	)
 		? `- Prior assistant messages may include a reasoning_tokens field containing fallible reasoning from earlier executor steps. Use it only for continuity; the current payload and browser state remain the source of truth, and do not copy reasoning_tokens into your response.
 `
 		: "";
-	const actionContextRules = featureFlags.executorActionContextFields
+	const actionContextRules = executorContextPolicy.executorActionContextFields
 		? `- When the current step has no meaningful previous browser action to assess (for example the first step), use previousStepStatus: "none" and leave the three short text fields as empty strings.
 - previousStepStatus must be one of: "none", "progressed", "no_change", "blocked", "opened_tab", "switched_context", "partial"
 - previousStepOutcome must be a short phrase describing what the previous step actually changed, and MUST use YAML block scalar style: |-
@@ -243,9 +260,9 @@ function getExecutorSectionResponseFormat(
 	const checklistUpdateExampleBlock = configFeatureFlags.taskChecklist
 		? CHECKLIST_UPDATE_FORMAT_BLOCK
 		: "";
-	const actionContextExampleBlock = getExecutorActionContextPreamble();
+	const actionContextExampleBlock = getExecutorActionContextPreamble(options);
 	const textLikeScalarFields = `link, summary, downloaded_file_path, ref, path, root, text, url, script, request, value`;
-	const actionContextRules = getExecutorActionContextRules();
+	const actionContextRules = getExecutorActionContextRules(options);
 	return `### Expected Output
 Return only parseable YAML between <yaml> and </yaml>.
 
@@ -260,7 +277,7 @@ ${checklistUpdateExampleBlock}${actionContextExampleBlock}tools:
 </yaml>
 
 Rules:
-- All shown top-level response fields are mandatory except checklistUpdate. Each key (${getResponseKeyOrder()}) must appear once in that order.
+- All shown top-level response fields are mandatory except checklistUpdate. Each key (${getResponseKeyOrder(options)}) must appear once in that order.
 ${actionContextRules}- Quote all text fields (${textLikeScalarFields}) with double quotes.
 - When modelOutputErrors is present, return a complete corrected response using the required wire form. Do not repeat the rejected action shape.
 - Tool forms:

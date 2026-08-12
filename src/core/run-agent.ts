@@ -28,8 +28,8 @@ import {
 } from "../agents/executor-utils/step-execution.js";
 import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
 import { configFeatureFlags } from "../config-feature-flags.js";
-import { featureFlags as internalFeatureFlags } from "../featureFlags.js";
 import { supportsOpenAIExplicitPromptCaching } from "../llm-capabilities.js";
+import { resolveExecutorContextPolicy } from "../agents/executor-context-policy.js";
 import {
 	buildOpenAIExplicitNoCacheRequest,
 	buildOpenAIPromptCacheRequest,
@@ -791,6 +791,10 @@ export async function runAgent(
 		input.validatorLifecycle,
 	);
 	const generateStep = input.generateStep ?? createDefaultGenerateStep();
+	const executorContextPolicy = resolveExecutorContextPolicy(
+		input.stageLLMs.runAgent,
+		input.featureFlags.enableExecutorActionContextFieldsForOpenAI,
+	);
 	const openAIEncryptedResponsesEnabled =
 		input.stageLLMs.runAgent.provider === "openai" &&
 		input.featureFlags.openAIEncryptedResponses;
@@ -807,8 +811,7 @@ export async function runAgent(
 				model: input.stageLLMs.runAgent.model,
 				shard: input.promptCacheShard ?? "core",
 				featureFlags: input.featureFlags,
-				executorActionContextFields:
-					internalFeatureFlags.executorActionContextFields,
+				executorContextPolicy,
 			})
 		: undefined;
 	const dataExtractionPromptCache =
@@ -961,6 +964,7 @@ export async function runAgent(
 										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
 										openAIExplicitPromptCaching:
 											openAIExplicitPromptCachingEnabled,
+										executorContextPolicy,
 									}),
 							}),
 					);
@@ -1081,7 +1085,10 @@ export async function runAgent(
 					} = generatedStep;
 					usages.push(usage);
 					stepAttemptUsages.push(usage);
-					const processedRawStep = processModelStepOutput(rawStep);
+					const processedRawStep = processModelStepOutput(
+						rawStep,
+						executorContextPolicy,
+					);
 					await input.onStepGenerated?.({
 						stepNumber,
 						attempt,
@@ -1108,7 +1115,7 @@ export async function runAgent(
 							: serializeModelOutputForHistory(rawStep);
 					const accountedStepUsage =
 						combineStepAttemptUsage(stepAttemptUsages);
-					logStepActionContext(parsedRawStep);
+					logStepActionContext(parsedRawStep, executorContextPolicy);
 					const maxStepHasOnlyReturnResults =
 						parsedRawStep.actions.length === 1 &&
 						parsedRawStep.actions[0]?.type === "return_results";
@@ -1133,6 +1140,7 @@ export async function runAgent(
 							stepNumber: mainLoopStepIndex,
 							step: parsedRawStep,
 							totalTokens: accountedStepUsage.total_tokens,
+							executorContextPolicy,
 						});
 						steps.push({
 							step: stepNumber,
@@ -1197,7 +1205,7 @@ export async function runAgent(
 										mode: "process_model_step_output",
 										rawStepOutput: rawStep,
 										rawAssistantOutputText: rawAssistantContent,
-										executorProvider: input.stageLLMs.runAgent.provider,
+										executorContextPolicy,
 										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
 										reasoningTokens: reasoning_tokens,
 										promptPayload: promptResult.prompt.payload,
@@ -1241,6 +1249,7 @@ export async function runAgent(
 						stepNumber: mainLoopStepIndex,
 						step: processResult.step,
 						totalTokens: accountedStepUsage.total_tokens,
+						executorContextPolicy,
 					});
 
 					const authTakeoverAttempts =

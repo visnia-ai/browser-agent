@@ -236,6 +236,7 @@ tasks:
 			agentTakeoverTool: false,
 			extractDataWholeContext: false,
 			semanticProjectionHistory: "current",
+			enableExecutorActionContextFieldsForOpenAI: false,
 			openAIEncryptedResponses: true,
 			openAIExplicitPromptCaching: true,
 			optimizeExecutorStepDelays: false,
@@ -294,6 +295,7 @@ tasks:
 			agentTakeoverTool: false,
 			extractDataWholeContext: false,
 			semanticProjectionHistory: "current",
+			enableExecutorActionContextFieldsForOpenAI: false,
 			openAIEncryptedResponses: true,
 			openAIExplicitPromptCaching: true,
 			optimizeExecutorStepDelays: false,
@@ -715,6 +717,8 @@ tasks:
 			configFeatureFlags.extractDataWholeContext;
 		const originalSemanticProjectionHistory =
 			configFeatureFlags.semanticProjectionHistory;
+		const originalEnableExecutorActionContextFieldsForOpenAI =
+			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI;
 		const originalOpenAIEncryptedResponses =
 			configFeatureFlags.openAIEncryptedResponses;
 		const originalOpenAIExplicitPromptCaching =
@@ -742,6 +746,7 @@ feature_flags:
   agent_takeover_tool: true
   extract_data_whole_context: true
   semantic_projection_history: cumulative
+  enable_executor_action_context_fields_for_openai: true
   openai_encrypted_responses: false
   openai_explicit_prompt_caching: false
   optimize_executor_step_delays: true
@@ -761,6 +766,7 @@ tasks:
 				agentTakeoverTool: true,
 				extractDataWholeContext: true,
 				semanticProjectionHistory: "cumulative",
+				enableExecutorActionContextFieldsForOpenAI: true,
 				openAIEncryptedResponses: false,
 				openAIExplicitPromptCaching: false,
 				optimizeExecutorStepDelays: true,
@@ -774,6 +780,8 @@ tasks:
 				agentTakeoverTool: originalAgentTakeover,
 				extractDataWholeContext: originalExtractDataWholeContext,
 				semanticProjectionHistory: originalSemanticProjectionHistory,
+				enableExecutorActionContextFieldsForOpenAI:
+					originalEnableExecutorActionContextFieldsForOpenAI,
 				openAIEncryptedResponses: originalOpenAIEncryptedResponses,
 				openAIExplicitPromptCaching:
 					originalOpenAIExplicitPromptCaching,
@@ -791,11 +799,48 @@ tasks:
 				originalExtractDataWholeContext;
 			configFeatureFlags.semanticProjectionHistory =
 				originalSemanticProjectionHistory;
+			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI =
+				originalEnableExecutorActionContextFieldsForOpenAI;
 			configFeatureFlags.openAIEncryptedResponses =
 				originalOpenAIEncryptedResponses;
 			configFeatureFlags.openAIExplicitPromptCaching =
 				originalOpenAIExplicitPromptCaching;
 		}
+	});
+
+	it("parses the camelCase OpenAI action-context flag", () => {
+		const configPath = writeTempConfig(`
+provider: openai
+model: gpt-5.2
+feature_flags:
+  enableExecutorActionContextFieldsForOpenAI: true
+concurrency: 1
+tasks:
+  - "test task"
+`);
+
+		assert.isTrue(
+			loadConfig(configPath).featureFlags
+				.enableExecutorActionContextFieldsForOpenAI,
+		);
+	});
+
+	it("rejects a non-boolean OpenAI action-context flag", () => {
+		const error = captureLoadConfigFailure(`
+provider: openai
+model: gpt-5.2
+feature_flags:
+  enable_executor_action_context_fields_for_openai: enabled
+concurrency: 1
+tasks:
+  - "test task"
+`);
+
+		assert.include(
+			error,
+			"feature_flags.enable_executor_action_context_fields_for_openai",
+		);
+		assert.include(error, "Use true or false");
 	});
 
 	for (const legacyFlag of [
@@ -882,7 +927,7 @@ tasks:
 
 		assert.include(
 			errorOutput,
-			"feature_flags.executor_action_context_fields has been removed; executor action-context fields are controlled by the internal featureFlags.executorActionContextFields flag.",
+			"feature_flags.executor_action_context_fields has been removed; executor action-context fields are derived from the executor model identity.",
 		);
 	});
 
@@ -1706,6 +1751,8 @@ tasks:
 			configFeatureFlags.extractDataWholeContext;
 		const originalSemanticProjectionHistory =
 			configFeatureFlags.semanticProjectionHistory;
+		const originalEnableExecutorActionContextFieldsForOpenAI =
+			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI;
 		const originalOpenAIEncryptedResponses =
 			configFeatureFlags.openAIEncryptedResponses;
 		const originalOpenAIExplicitPromptCaching =
@@ -1720,6 +1767,7 @@ tasks:
 					agentTakeoverTool: true,
 					extractDataWholeContext: true,
 					semanticProjectionHistory: "current",
+					enableExecutorActionContextFieldsForOpenAI: true,
 					openAIEncryptedResponses: false,
 					openAIExplicitPromptCaching: false,
 					optimizeExecutorStepDelays: false,
@@ -1735,6 +1783,7 @@ tasks:
 				agentTakeoverTool: true,
 				extractDataWholeContext: true,
 				semanticProjectionHistory: "current",
+				enableExecutorActionContextFieldsForOpenAI: true,
 				openAIEncryptedResponses: false,
 				openAIExplicitPromptCaching: false,
 				optimizeExecutorStepDelays: false,
@@ -1752,6 +1801,8 @@ tasks:
 				originalExtractDataWholeContext;
 			configFeatureFlags.semanticProjectionHistory =
 				originalSemanticProjectionHistory;
+			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI =
+				originalEnableExecutorActionContextFieldsForOpenAI;
 			configFeatureFlags.openAIEncryptedResponses =
 				originalOpenAIEncryptedResponses;
 			configFeatureFlags.openAIExplicitPromptCaching =

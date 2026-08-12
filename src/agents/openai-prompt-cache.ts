@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ConfigFeatureFlags } from "../config-feature-flags.js";
 import type {
 	ContentPart,
+	ExecutorContextPolicy,
 	Message,
 	MessageProviderOptions,
 	OpenAIPromptCacheRequest,
@@ -72,14 +73,14 @@ export function buildOpenAIPromptCacheRequest(input: {
 	model: string;
 	shard: string;
 	featureFlags: ConfigFeatureFlags;
-	executorActionContextFields: boolean;
+	executorContextPolicy: Readonly<ExecutorContextPolicy>;
 }): OpenAIPromptCacheRequest {
 	const fingerprint = JSON.stringify({
 		provider: "openai",
 		model: input.model,
 		promptSchemaVersion: OPENAI_PROMPT_CACHE_SCHEMA_VERSION,
 		featureFlags: input.featureFlags,
-		executorActionContextFields: input.executorActionContextFields,
+		executorContextPolicy: input.executorContextPolicy,
 		shard: input.shard,
 	});
 	const digest = createHash("sha256").update(fingerprint).digest("hex").slice(0, 32);
