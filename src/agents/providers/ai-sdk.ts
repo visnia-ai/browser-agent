@@ -948,7 +948,9 @@ async function runProviderChatInternal(
 				args.openAIInputMessages?.some((message) => message.role === "system"),
 			),
 			abortSignal: args.abortSignal,
-			maxOutputTokens: args.options.reserveOutputTokens,
+			...(args.options.provider === "codex"
+				? {}
+				: { maxOutputTokens: args.options.reserveOutputTokens }),
 			temperature: isVLLMProvider ? 0.2 : undefined,
 			...(outputStopSequences.length > 0
 				? {
@@ -1055,7 +1057,9 @@ async function runProviderChatInternal(
 			args.openAIInputMessages?.some((message) => message.role === "system"),
 		),
 		abortSignal: args.abortSignal,
-		maxOutputTokens: args.options.reserveOutputTokens,
+		...(args.options.provider === "codex"
+			? {}
+			: { maxOutputTokens: args.options.reserveOutputTokens }),
 		temperature: isVLLMProvider ? 0.2 : undefined,
 		providerOptions: providerOptions as unknown as NonNullable<
 			Parameters<typeof generateText>[0]["providerOptions"]

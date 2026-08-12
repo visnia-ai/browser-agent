@@ -265,6 +265,7 @@ describe("Codex provider fetch", () => {
 					provider: "codex",
 					model: "gpt-5.6-luna",
 					reasoningEffort: "high",
+					reserveOutputTokens: 4_000,
 				},
 				prompt: "Return JSON.",
 				onOutputChunk: (chunk) => chunks.push(chunk),
@@ -281,6 +282,7 @@ describe("Codex provider fetch", () => {
 				effort: "high",
 				summary: "detailed",
 			});
+			assert.notProperty(requestedBody, "max_output_tokens");
 			assert.notProperty(requestedBody, "prompt_cache_key");
 			assert.deepEqual(requestedBody.include, [
 				"reasoning.encrypted_content",
