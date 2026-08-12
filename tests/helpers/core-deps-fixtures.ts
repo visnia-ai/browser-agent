@@ -39,6 +39,7 @@ export function createMockCoreDeps(
 		agentTakeoverTool: false,
 		extractDataWholeContext: false,
 		semanticProjectionHistory: "current",
+		enableExecutorActionContextFieldsForOpenAI: false,
 		openAIEncryptedResponses: true,
 		openAIExplicitPromptCaching: true,
 		optimizeExecutorStepDelays: false,

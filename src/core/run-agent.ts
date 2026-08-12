@@ -793,6 +793,7 @@ export async function runAgent(
 	const generateStep = input.generateStep ?? createDefaultGenerateStep();
 	const executorContextPolicy = resolveExecutorContextPolicy(
 		input.stageLLMs.runAgent,
+		input.featureFlags.enableExecutorActionContextFieldsForOpenAI,
 	);
 	const openAIEncryptedResponsesEnabled =
 		input.stageLLMs.runAgent.provider === "openai" &&

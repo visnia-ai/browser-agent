@@ -6,6 +6,12 @@ export const OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 		executorActionContextFields: false,
 	});
 
+export const OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
+	Object.freeze({
+		includeReasoningTokensInPreviousSteps: true,
+		executorActionContextFields: true,
+	});
+
 export const NON_OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
 		includeReasoningTokensInPreviousSteps: false,
@@ -19,9 +25,13 @@ export const NON_OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy>
  */
 export function resolveExecutorContextPolicy(
 	llmOptions: Pick<LLMOptions, "provider" | "model">,
+	enableExecutorActionContextFieldsForOpenAI = false,
 ): Readonly<ExecutorContextPolicy> {
 	const normalizedModel = llmOptions.model.trim().toLowerCase();
-	return llmOptions.provider === "openai" || normalizedModel.startsWith("openai/")
-		? OPENAI_EXECUTOR_CONTEXT_POLICY
-		: NON_OPENAI_EXECUTOR_CONTEXT_POLICY;
+	const isOpenAIModel =
+		llmOptions.provider === "openai" || normalizedModel.startsWith("openai/");
+	if (!isOpenAIModel) return NON_OPENAI_EXECUTOR_CONTEXT_POLICY;
+	return enableExecutorActionContextFieldsForOpenAI
+		? OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY
+		: OPENAI_EXECUTOR_CONTEXT_POLICY;
 }

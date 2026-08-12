@@ -14,6 +14,7 @@ import {
 import { CONTEXT_DIR, STEPS_DIR } from "../src/browser/constants.js";
 import {
 	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
 	OPENAI_EXECUTOR_CONTEXT_POLICY,
 } from "../src/agents/executor-context-policy.js";
 import { resetStepsDir, setRuntimeOptions } from "../src/runtime-options.js";
@@ -1303,7 +1304,7 @@ describe("core-api", () => {
 		assert.deepEqual(stepsHistory, []);
 	});
 
-	it("step(process_model_step_output) restores action context when enabled", async () => {
+	it("step(process_model_step_output) restores OpenAI action context when enabled", async () => {
 		const result = await step(createMockCoreDeps(), {
 			mode: "process_model_step_output",
 			rawStepOutput: {
@@ -1316,7 +1317,7 @@ describe("core-api", () => {
 			},
 			promptPayload: { currentURL: "https://example.com" },
 			stepsHistory: [],
-			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+			executorContextPolicy: OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
 		});
 
 		assert.strictEqual(result.mode, "process_model_step_output");
@@ -3473,6 +3474,7 @@ describe("core-api", () => {
 				featureFlags: {
 					...deps.featureFlags,
 					preStepScreenshotInLatestUserPrompt: false,
+					enableExecutorActionContextFieldsForOpenAI: true,
 				},
 				maxSteps: 3,
 				generateStep: async ({ stepNumber, messages }) => {
@@ -3637,7 +3639,7 @@ describe("core-api", () => {
 		assert.notInclude(previousAssistantContent, "nextActionRationale");
 	});
 
-	it("runAgent logs action-context fields before action execution lines", async () => {
+	it("runAgent logs enabled OpenAI action-context fields before action execution lines", async () => {
 		const logs: string[] = [];
 		const originalConsoleLog = console.log;
 		console.log = (...args: unknown[]) => {
@@ -3671,11 +3673,14 @@ describe("core-api", () => {
 				stageLLMs: {
 					findTargetURL: { provider: "openai", model: "gpt-test" },
 					createChecklist: { provider: "openai", model: "gpt-test" },
-					runAgent: { provider: "openrouter", model: "z-ai/glm-test" },
+					runAgent: { provider: "openrouter", model: "openai/gpt-test" },
 					verifySuccess: { provider: "openai", model: "gpt-test" },
 				},
 				dataExtraction: { provider: "openai", model: "gpt-test" },
-				featureFlags: deps.featureFlags,
+				featureFlags: {
+					...deps.featureFlags,
+					enableExecutorActionContextFieldsForOpenAI: true,
+				},
 				maxSteps: 2,
 				generateStep: async ({ stepNumber }) => {
 					if (stepNumber === 1) {

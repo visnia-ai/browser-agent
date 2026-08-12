@@ -17,7 +17,7 @@ import {
 } from "../src/agents/executor-utils/step-execution.js";
 import type { Browser } from "../src/browser/types.js";
 import {
-	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+	OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
 	OPENAI_EXECUTOR_CONTEXT_POLICY,
 } from "../src/agents/executor-context-policy.js";
 import {
@@ -54,7 +54,10 @@ describe("step-execution-messages", () => {
 			assert.deepEqual(logs, []);
 
 			assert.deepEqual(
-				formatStepForPrompt(step, NON_OPENAI_EXECUTOR_CONTEXT_POLICY),
+				formatStepForPrompt(
+					step,
+					OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
+				),
 				{
 				previousStepStatus: "progressed",
 				previousStepOutcome: "Opened the search form.",
@@ -63,7 +66,10 @@ describe("step-execution-messages", () => {
 				tools: [{ click: "r2" }],
 				},
 			);
-			logStepActionContext(step, NON_OPENAI_EXECUTOR_CONTEXT_POLICY);
+			logStepActionContext(
+				step,
+				OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY,
+			);
 			assert.lengthOf(logs, 4);
 		} finally {
 			console.log = originalConsoleLog;
