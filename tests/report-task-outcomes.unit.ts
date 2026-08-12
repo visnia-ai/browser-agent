@@ -250,7 +250,7 @@ describe("report-task-outcomes recorded token usage", () => {
 		fs.writeFileSync(
 			path.join(tokenUsageDir, "task-001.json"),
 			JSON.stringify({
-				schemaVersion: 1,
+				schemaVersion: 2,
 				attempts: [
 					{
 						invocations: [

@@ -414,7 +414,10 @@ function parseTokenUsageArtifacts(rootDir: string): ParsedFileMetrics {
 		const artifact = JSON.parse(
 			fs.readFileSync(filePath, "utf-8"),
 		) as Record<string, unknown>;
-		if (artifact.schemaVersion !== 1 || !Array.isArray(artifact.attempts)) {
+		if (
+			(artifact.schemaVersion !== 1 && artifact.schemaVersion !== 2) ||
+			!Array.isArray(artifact.attempts)
+		) {
 			throw new Error(`Invalid token usage artifact: ${filePath}`);
 		}
 		const attempts = artifact.attempts;
