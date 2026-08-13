@@ -7,6 +7,7 @@ import type {
 	PreviousStepStatus,
 	StepResult,
 } from "../agents/types.js";
+import type { CustomToolRegistry } from "../custom-tools.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -83,6 +84,7 @@ type NormalizedModelStep =
 function normalizeModelStep(
 	raw: unknown,
 	executorContextPolicy: Readonly<ExecutorContextPolicy>,
+	customTools?: CustomToolRegistry,
 ): NormalizedModelStep {
 	if (!isRecord(raw)) {
 		return {
@@ -95,7 +97,7 @@ function normalizeModelStep(
 		? raw.actionContext
 		: null;
 	const rawActions = Array.isArray(raw.tools) ? raw.tools : raw.actions;
-	const normalizedActions = normalizeActionListWithDiagnostics(rawActions);
+	const normalizedActions = normalizeActionListWithDiagnostics(rawActions, customTools);
 	if (normalizedActions.status === "rejected") {
 		return {
 			actionContractStatus: "rejected",
@@ -172,8 +174,13 @@ export function processModelStepOutput(
 	rawStepOutput: unknown,
 	executorContextPolicy: Readonly<ExecutorContextPolicy>,
 	rawAssistantOutputText?: string,
+	customTools?: CustomToolRegistry,
 ): ProcessedModelStepOutput {
-	const normalized = normalizeModelStep(rawStepOutput, executorContextPolicy);
+	const normalized = normalizeModelStep(
+		rawStepOutput,
+		executorContextPolicy,
+		customTools,
+	);
 	const rawTools = isRecord(rawStepOutput) ? rawStepOutput.tools : undefined;
 	logActionBoundary("model_step_normalized", {
 		action_contract_status: normalized.actionContractStatus,

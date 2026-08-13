@@ -15,6 +15,7 @@ from browser_agent.protocol import (
     start_agent_process,
     terminate_process,
 )
+from browser_agent import BrowserAgentCustomTool, BrowserAgentCredential, BrowserAgentTask
 from tests.helpers import FAKE_EXECUTABLE
 
 
@@ -57,6 +58,44 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                 _ = [message async for message in process.messages()]
             await terminate_process(process)
             Path(filename).unlink(missing_ok=True)
+
+    async def test_includes_custom_tools_only_when_provided(self) -> None:
+        class Stdin:
+            def __init__(self) -> None:
+                self.writes: list[bytes] = []
+            def write(self, value: bytes) -> None:
+                self.writes.append(value)
+            async def drain(self) -> None:
+                pass
+
+        stdin = Stdin()
+        process = type("Process", (), {"stdin": stdin})()
+        agent = AgentProcess(process)  # type: ignore[arg-type]
+        await request_run(agent)
+        await request_run(
+            agent,
+            [BrowserAgentTask("use tool", credentials=[BrowserAgentCredential(
+                "user", "password", "example.com"
+            )])],
+            (BrowserAgentCustomTool(
+                "page_title", "Read the page title.",
+                {"type": "object", "properties": {}},
+                "async () => document.title",
+            ),),
+        )
+        first, second = [json.loads(value) for value in stdin.writes]
+        self.assertEqual(first["params"], {})
+        self.assertEqual(second["params"], {
+            "tasks": [{"credentials": [{
+                "username": "user", "password": "password", "domain": "example.com"
+            }]}],
+            "custom_tools": [{
+                "name": "page_title",
+                "description": "Read the page title.",
+                "arguments": {"type": "object", "properties": {}},
+                "javascript": "async () => document.title",
+            }],
+        })
 
     async def test_start_failure_and_termination_paths(self) -> None:
         with self.assertRaisesRegex(Exception, "could not be started"):

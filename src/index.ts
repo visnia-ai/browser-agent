@@ -246,6 +246,7 @@ export async function main(
 		stepMessagesJsonlPath,
 		taskExecutionOverridesPath,
 		proxy,
+		customTools,
 	} = config;
 	const taskExecutionOverrides = taskExecutionOverridesPath
 		? loadTaskExecutionOverrides(taskExecutionOverridesPath)
@@ -560,6 +561,7 @@ export async function main(
 								},
 								persistence,
 								taskExecutionOverrides,
+								customTools,
 							}),
 						taskLogsDir,
 					);

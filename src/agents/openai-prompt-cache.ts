@@ -7,6 +7,10 @@ import type {
 	MessageProviderOptions,
 	OpenAIPromptCacheRequest,
 } from "./types.js";
+import {
+	customToolPublicMetadata,
+	type CustomToolRegistry,
+} from "../custom-tools.js";
 
 export const OPENAI_PROMPT_CACHE_SCHEMA_VERSION =
 	"executor-explicit-cache-v2";
@@ -74,13 +78,16 @@ export function buildOpenAIPromptCacheRequest(input: {
 	shard: string;
 	featureFlags: ConfigFeatureFlags;
 	executorContextPolicy: Readonly<ExecutorContextPolicy>;
+	customTools?: CustomToolRegistry;
 }): OpenAIPromptCacheRequest {
+	const customTools = customToolPublicMetadata(input.customTools);
 	const fingerprint = JSON.stringify({
 		provider: "openai",
 		model: input.model,
 		promptSchemaVersion: OPENAI_PROMPT_CACHE_SCHEMA_VERSION,
 		featureFlags: input.featureFlags,
 		executorContextPolicy: input.executorContextPolicy,
+		...(customTools.length > 0 ? { customTools } : {}),
 		shard: input.shard,
 	});
 	const digest = createHash("sha256").update(fingerprint).digest("hex").slice(0, 32);

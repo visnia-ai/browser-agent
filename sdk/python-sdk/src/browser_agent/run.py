@@ -10,13 +10,17 @@ from .errors import BrowserAgentError, normalize_error
 from .events import BrowserAgentEvent, ErrorEvent, ReplayEvents, RunCompletedEvent
 from .models import (
     BrowserAgentLogEntry,
+    BrowserAgentCustomTool,
     BrowserAgentResult,
     BrowserAgentTask,
     Provider,
     ReasoningEffort,
     ValidatorLifecycleMode,
 )
-from .options import ResolvedOptions, child_environment, normalize_tasks, resolve_options
+from .options import (
+    ResolvedOptions, child_environment, normalize_custom_tools, normalize_tasks,
+    resolve_options,
+)
 from .protocol import AgentProcess, consume_logs, request_run, start_agent_process, terminate_process
 from .rpc import RpcState
 from .runtime import (
@@ -36,12 +40,15 @@ class BrowserAgent:
         headless: bool = False,
         executable_path: str | None = None, workspace_directory: str | None = None,
         browser_profile_directory: str | None = None,
-        user_takeover_tool: bool = False, max_steps: int = 50, concurrency: int = 8,
+        user_takeover_tool: bool = False,
+        custom_tools: Sequence[BrowserAgentCustomTool] = (),
+        max_steps: int = 50, concurrency: int = 8,
         runs_per_task: int = 1, retry_count: int = 2,
         validator_lifecycle: ValidatorLifecycleMode = "retry",
         on_log: Callable[[BrowserAgentLogEntry], None] | None = None,
     ) -> None:
         self._options = resolve_options(**locals())
+        self._custom_tools = normalize_custom_tools(custom_tools)
         self._dependencies: ExecutableDependencies = DEFAULT_EXECUTABLE_DEPENDENCIES
         self._executable: asyncio.Future[str] | None = None
 
@@ -60,7 +67,8 @@ class BrowserAgent:
         if self._executable is None:
             self._executable = asyncio.create_task(self._verify())
         return BrowserAgentRun(
-            str(uuid.uuid4()), self._options, tasks, self._executable, on_event
+            str(uuid.uuid4()), self._options, tasks, self._custom_tools,
+            self._executable, on_event
         )
 
     async def _verify(self) -> str:
@@ -72,10 +80,12 @@ class BrowserAgent:
 class BrowserAgentRun:
     def __init__(
         self, run_id: str, options: ResolvedOptions, tasks: list[BrowserAgentTask],
+        custom_tools: tuple[BrowserAgentCustomTool, ...],
         executable: asyncio.Future[str],
         on_event: Callable[[BrowserAgentEvent], None] | None,
     ) -> None:
         self.id, self._options, self._tasks = run_id, options, tasks
+        self._custom_tools = custom_tools
         self._on_event = on_event
         self._stream = ReplayEvents[BrowserAgentEvent]()
         self._process: AgentProcess | None = None
@@ -161,7 +171,7 @@ class BrowserAgentRun:
             self._terminal = asyncio.get_running_loop().create_future()
             asyncio.create_task(self._pump(self._process))
             asyncio.create_task(self._watch_exit(self._process))
-            await request_run(self._process, self._tasks)
+            await request_run(self._process, self._tasks, self._custom_tools)
             outcome = await self._terminal
             if outcome == "cancelled":
                 await terminate_process(self._process)

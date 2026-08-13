@@ -535,6 +535,7 @@ export async function runTask(input: RunTaskInput): Promise<RunTaskResult> {
 					task: input.task,
 					stageLLMs: input.stageLLMs,
 					featureFlags: configFeatureFlags,
+					customTools: input.customTools,
 					promptCacheShard: `worker-${input.browserLaunch.workerId}`,
 					autoSwitchToNewTab: true,
 					requestAuthDomainCandidates: input.requestAuthDomainCandidates,

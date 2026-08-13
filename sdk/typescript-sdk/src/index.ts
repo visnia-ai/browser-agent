@@ -3,6 +3,7 @@ export { BrowserAgentError, type BrowserAgentErrorCode } from "./errors.js";
 export type {
 	BrowserAgentEvent,
 	BrowserAgentCredential,
+	BrowserAgentCustomTool,
 	BrowserAgentLogEntry,
 	BrowserAgentOptions,
 	BrowserAgentResult,

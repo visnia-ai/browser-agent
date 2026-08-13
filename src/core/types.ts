@@ -46,6 +46,12 @@ import type { UserTakeoverCategory } from "../user-action-types.js";
 import type { switchTab } from "../browser/interaction/tabs.js";
 import type { waitForAllOpenTabsToSettle } from "../browser/interaction/wait-for-open-tabs-settle.js";
 import type { TaskExecutionOverridesIndex } from "./task-execution-overrides.js";
+import type { CustomToolRegistry } from "../custom-tools.js";
+
+export type {
+	CustomToolDefinition,
+	CustomToolRegistry,
+} from "../custom-tools.js";
 
 export type { ExecutorContextPolicy } from "../agents/types.js";
 
@@ -168,9 +174,13 @@ export interface CoreDeps {
 	buildStepPayload: typeof buildStepPayload;
 	buildStepMessages: typeof buildStepMessages;
 	getExecutorSystem: (options?: ExecutorPromptOptions) => string;
-	normalizeActionList: (actions: unknown) => Action[];
+	normalizeActionList: (
+		actions: unknown,
+		customTools?: CustomToolRegistry,
+	) => Action[];
 	normalizeActionListWithDiagnostics: (
 		actions: unknown,
+		customTools?: CustomToolRegistry,
 	) => import("../agents/executor-utils/action-normalization.js").NormalizeActionListResult;
 	executeActions: typeof executeActions;
 	extractDataResultsFromSnapshot: typeof extractDataResultsFromSnapshot;
@@ -279,6 +289,7 @@ export interface CreatePromptForStepInput {
 	modelOutputErrors?: string[];
 	openAIEncryptedResponses?: boolean;
 	openAIExplicitPromptCaching?: boolean;
+	customTools?: CustomToolRegistry;
 }
 
 export interface CreatePromptForStepResult {
@@ -315,6 +326,7 @@ export interface BrowseInput {
 	promptDownloadedFiles?: string[];
 	promptWorkspaceFiles?: string[];
 	memoryContentAvailable?: boolean;
+	customTools?: CustomToolRegistry;
 }
 
 export interface BrowseResult {
@@ -360,6 +372,7 @@ export interface ProcessModelStepOutputInput {
 	allowModelResultCompletion?: boolean;
 	allowFatalActionErrors?: boolean;
 	autoSwitchToNewTab?: boolean;
+	customTools?: CustomToolRegistry;
 }
 
 export interface ProcessModelStepOutputResult {
@@ -442,6 +455,7 @@ export interface RunTaskInput {
 	browserLaunch: RunTaskBrowserLaunchOptions;
 	persistence: RunTaskPersistenceCallbacks;
 	taskExecutionOverrides?: TaskExecutionOverridesIndex;
+	customTools?: CustomToolRegistry;
 }
 
 export interface RunFailureRecord {
@@ -545,6 +559,7 @@ export interface RunAgentInput {
 	generateStep?: RunAgentGenerateStep;
 	/** Stable routing shard used in the OpenAI prompt-cache key. */
 	promptCacheShard?: string;
+	customTools?: CustomToolRegistry;
 }
 
 export interface RunAgentStepTrace {

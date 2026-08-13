@@ -13,6 +13,7 @@ import type {
 	StoredEncryptedAuthCredentials,
 } from "./auth/types.js";
 import type { Config } from "./utils.js";
+import { compileCustomTools } from "./custom-tools.js";
 
 type JsonRpcId = string | number;
 
@@ -136,17 +137,23 @@ function parseCredential(value: unknown, context: string): RpcCredential {
 	return { username, password: source.password, domain };
 }
 
-function applyRequestCredentials(config: Config, params: unknown): Config {
+function applyRequestParams(config: Config, params: unknown): Config {
 	if (params === undefined) return config;
 	if (!params || typeof params !== "object" || Array.isArray(params)) {
 		throw new Error("browser-agent/run params must be an object.");
 	}
 	const source = params as Record<string, unknown>;
 	for (const key of Object.keys(source)) {
-		if (key !== "tasks")
+		if (key !== "tasks" && key !== "custom_tools")
 			throw new Error(`browser-agent/run params.${key} is not supported.`);
 	}
-	if (source.tasks === undefined) return config;
+	const customTools = compileCustomTools(
+		source.custom_tools,
+		"browser-agent/run params.custom_tools",
+	);
+	if (source.tasks === undefined) {
+		return customTools.size > 0 ? { ...config, customTools } : config;
+	}
 	if (
 		!Array.isArray(source.tasks) ||
 		source.tasks.length !== config.tasks.length
@@ -182,7 +189,9 @@ function applyRequestCredentials(config: Config, params: unknown): Config {
 			),
 		);
 	});
-	if (!parsed.some(Boolean)) return config;
+	if (!parsed.some(Boolean)) {
+		return customTools.size > 0 ? { ...config, customTools } : config;
+	}
 	const encryptionKey = crypto.randomBytes(32).toString("base64");
 	const tasks = config.tasks.map((task, index) => {
 		const credentials = parsed[index];
@@ -206,6 +215,7 @@ function applyRequestCredentials(config: Config, params: unknown): Config {
 	return {
 		...config,
 		tasks,
+		...(customTools.size > 0 ? { customTools } : {}),
 		featureFlags: { ...config.featureFlags, authTakeover: true },
 	};
 }
@@ -289,7 +299,7 @@ export async function runRpcStdio(params: {
 			return false;
 		}
 		try {
-			config = applyRequestCredentials(config, request.params);
+			config = applyRequestParams(config, request.params);
 		} catch (error) {
 			sendError(
 				output,

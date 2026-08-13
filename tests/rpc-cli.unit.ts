@@ -37,6 +37,84 @@ function rpcConfig(): Config {
 }
 
 describe("RPC CLI", () => {
+	it("compiles SDK custom tools from the optional run request", async () => {
+		const output = captureStream();
+		const fakeMain = (async (_argv, loadConfig) => {
+			const tools = loadConfig!("pipeline").customTools;
+			assert.equal(tools?.size, 1);
+			const tool = tools?.get("lookup_value");
+			assert.equal(tool?.description, "Look up a value.");
+			assert.isTrue(tool?.validateArguments({ key: "one" }));
+			assert.isFalse(tool?.validateArguments({ key: 1 }));
+		}) as typeof main;
+		const succeeded = await runRpcStdio({
+			argv: ["node", "src/cli.ts", "pipeline", "--rpc"],
+			configPath: "pipeline",
+			loadConfig: rpcConfig,
+			input: Readable.from([
+				`${JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "browser-agent/run",
+					params: {
+						custom_tools: [
+							{
+								name: "lookup_value",
+								description: "Look up a value.",
+								arguments: {
+									type: "object",
+									properties: { key: { type: "string" } },
+									required: ["key"],
+								},
+								javascript: "async (args) => args.key",
+							},
+						],
+					},
+				})}\n`,
+			]),
+			output: output.stream,
+			errorStream: captureStream().stream,
+			mainFn: fakeMain,
+			resolveChromePath: () => "/fake/chrome",
+		});
+		assert.isTrue(succeeded);
+		assert.strictEqual(parseMessages(output.read())[0]?.result.accepted, true);
+	});
+
+	it("rejects malformed SDK custom tools before accepting a run", async () => {
+		const output = captureStream();
+		const succeeded = await runRpcStdio({
+			argv: ["node", "src/cli.ts", "pipeline", "--rpc"],
+			configPath: "pipeline",
+			loadConfig: rpcConfig,
+			input: Readable.from([
+				`${JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "browser-agent/run",
+					params: {
+						custom_tools: [
+							{
+								name: "click",
+								description: "collision",
+								arguments: { type: "object" },
+								javascript: "() => true",
+							},
+						],
+					},
+				})}\n`,
+			]),
+			output: output.stream,
+			errorStream: captureStream().stream,
+			mainFn: (async () => undefined) as typeof main,
+			resolveChromePath: () => "/fake/chrome",
+		});
+		assert.isFalse(succeeded);
+		const [message] = parseMessages(output.read());
+		assert.equal(message.error.data.code, "CONFIG_INVALID");
+		assert.match(message.error.message, /collides with a built-in/);
+	});
+
 	it("encrypts per-task plaintext credentials before main receives config", async () => {
 		const output = captureStream();
 		const username = "sdk-user@example.com";

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Literal, TypeAlias
 
@@ -13,6 +13,12 @@ ValidatorLifecycleMode: TypeAlias = Literal["retry", "disabled"]
 UserTakeoverCategory: TypeAlias = Literal[
     "authentication", "otp", "verification", "payment", "other"
 ]
+@dataclass(frozen=True, slots=True)
+class BrowserAgentCustomTool:
+    name: str
+    description: str
+    arguments: Mapping[str, object]
+    javascript: str
 @dataclass(frozen=True, slots=True)
 class BrowserAgentCredential:
     username: str

@@ -1,7 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 import { BrowserAgentError, redact } from "./errors.js";
-import type { BrowserAgentLogEntry, BrowserAgentTask } from "./types.js";
+import type {
+	BrowserAgentCustomTool,
+	BrowserAgentLogEntry,
+	BrowserAgentTask,
+} from "./types.js";
 
 export type RpcMessage = {
 	jsonrpc: "2.0";
@@ -83,18 +87,23 @@ export function startAgentProcess(
 export function requestRun(
 	process: AgentProcess,
 	tasks: readonly BrowserAgentTask[] = [],
+	customTools: readonly BrowserAgentCustomTool[] = [],
 ): void {
 	const rpcTasks = tasks.map((task) =>
 		task.credentials ? { credentials: task.credentials } : {},
 	);
+	const params = {
+		...(rpcTasks.some((task) => "credentials" in task)
+			? { tasks: rpcTasks }
+			: {}),
+		...(customTools.length ? { custom_tools: customTools } : {}),
+	};
 	process.child.stdin.write(
 		`${JSON.stringify({
 			jsonrpc: "2.0",
 			id: 1,
 			method: "browser-agent/run",
-			params: rpcTasks.some((task) => "credentials" in task)
-				? { tasks: rpcTasks }
-				: {},
+			params,
 		})}\n`,
 	);
 }

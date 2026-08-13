@@ -1,17 +1,27 @@
 from __future__ import annotations
 
+import math
 import os
-from collections.abc import Callable, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
 from .errors import BrowserAgentError
 from .models import (
-    BrowserAgentCredential, BrowserAgentLogEntry, BrowserAgentTask, Provider,
-    ReasoningEffort,
+    BrowserAgentCredential, BrowserAgentCustomTool, BrowserAgentLogEntry,
+    BrowserAgentTask, Provider, ReasoningEffort,
     ValidatorLifecycleMode,
 )
+
+CUSTOM_TOOL_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+BUILT_IN_TOOL_NAMES = frozenset({
+    "agent_takeover", "click", "download_current_file", "dropdown_select",
+    "evaluate", "extract_data", "long_press", "memory_clear", "memory_read",
+    "memory_write", "navigate", "paste_file", "read_file", "return_results",
+    "scroll", "switch_tab", "type", "upload_files", "user_takeover", "wait",
+})
 
 PROVIDER_ENV: dict[Provider, str | None] = {
     "openai": "OPENAI_API_KEY",
@@ -86,6 +96,61 @@ def positive(value: int | None, default: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         invalid("Execution limits must be positive integers.")
     return value
+def json_value(value: object, ancestors: set[int] | None = None) -> object:
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if isinstance(value, float) and not math.isfinite(value):
+            invalid("Custom tool schemas must contain valid JSON values.")
+        return value
+    ancestors = set() if ancestors is None else ancestors
+    identifier = id(value)
+    if identifier in ancestors:
+        invalid("Custom tool schemas must not contain circular references.")
+    ancestors.add(identifier)
+    try:
+        if isinstance(value, (list, tuple)):
+            return [json_value(item, ancestors) for item in value]
+        if isinstance(value, Mapping):
+            if any(not isinstance(key, str) for key in value):
+                invalid("Custom tool schemas must use string object keys.")
+            return {
+                key: json_value(item, ancestors) for key, item in value.items()
+            }
+        invalid("Custom tool schemas must contain valid JSON values.")
+    finally:
+        ancestors.remove(identifier)
+def normalize_custom_tools(
+    value: Sequence[BrowserAgentCustomTool],
+) -> tuple[BrowserAgentCustomTool, ...]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        invalid("custom_tools must be a sequence.")
+    names: set[str] = set()
+    normalized = []
+    for tool in value:
+        if not isinstance(tool, BrowserAgentCustomTool):
+            invalid("Each custom tool must be a BrowserAgentCustomTool.")
+        if not isinstance(tool.name, str) or not CUSTOM_TOOL_NAME.fullmatch(tool.name):
+            invalid("Custom tool names must match ^[a-z][a-z0-9_]{0,63}$.")
+        if tool.name in BUILT_IN_TOOL_NAMES:
+            invalid(f"Custom tool name '{tool.name}' conflicts with a built-in tool.")
+        if tool.name in names:
+            invalid(f"Duplicate custom tool name '{tool.name}'.")
+        names.add(tool.name)
+        if not isinstance(tool.description, str) or not tool.description.strip():
+            invalid("Custom tool descriptions must be non-empty strings.")
+        if (
+            not isinstance(tool.arguments, Mapping)
+            or tool.arguments.get("type") != "object"
+        ):
+            invalid('Custom tool arguments must be a JSON Schema with type "object".')
+        arguments = json_value(tool.arguments)
+        if not isinstance(tool.javascript, str) or not tool.javascript.strip():
+            invalid("Custom tool javascript must be a non-empty string.")
+        normalized.append(BrowserAgentCustomTool(
+            tool.name, tool.description.strip(), arguments, tool.javascript.strip()
+        ))
+    return tuple(normalized)
 def reasoning(provider: Provider, model: str, effort: ReasoningEffort | None):
     capability = next(
         (item for item in CAPABILITIES if item[0] == provider and

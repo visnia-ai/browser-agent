@@ -2,6 +2,10 @@ import { configFeatureFlags } from "../config-feature-flags.js";
 import { featureFlags } from "../featureFlags.js";
 import { OPENAI_EXECUTOR_CONTEXT_POLICY } from "./executor-context-policy.js";
 import type { ExecutorContextPolicy, Provider } from "./types.js";
+import {
+	customToolPublicMetadata,
+	type CustomToolRegistry,
+} from "../custom-tools.js";
 
 export const MAX_STEP_FINALIZATION_INSTRUCTION = `This is the final allowed step because the step budget is exhausted.
 
@@ -63,7 +67,27 @@ export type ExecutorPromptOptions = {
 	provider?: Provider;
 	semanticProjectionHistory?: "current" | "cumulative";
 	executorContextPolicy?: Readonly<ExecutorContextPolicy>;
+	customTools?: CustomToolRegistry;
 };
+
+function getCustomToolsPrompt(options: ExecutorPromptOptions): string {
+	const tools = customToolPublicMetadata(options.customTools);
+	if (tools.length === 0) return "";
+	return `### Custom Tools
+The SDK user provided these additional tools. Call them using the same YAML list form as built-in tools. Arguments must match the shown JSON Schema. A successful return value appears in toolObservations on the next step; wait for that observation before relying on the result.
+
+${tools
+	.map(
+		(tool) => `- ${tool.name}: ${tool.description}
+  Invocation: ${tool.name}: { ...arguments }
+  Arguments JSON Schema:
+${JSON.stringify(tool.arguments, null, 2)
+	.split("\n")
+	.map((line) => `    ${line}`)
+	.join("\n")}`,
+	)
+	.join("\n\n")}`;
+}
 
 function getExecutorContextPolicy(
 	options: ExecutorPromptOptions,
@@ -391,10 +415,12 @@ function getExecutorPromptBlock(
 
 function buildExecutorSystem(options: ExecutorPromptOptions = {}): string {
 	const blocks = options.blocks ?? EXECUTOR_PROMPT_BLOCKS_ALL;
-	return blocks
+	const base = blocks
 		.map((block) => getExecutorPromptBlock(block, options))
 		.filter((section) => section.length > 0)
 		.join("\n\n");
+	const customTools = getCustomToolsPrompt(options);
+	return customTools ? `${base}\n\n${customTools}` : base;
 }
 
 export function getExecutorSystemBase(): string {

@@ -5,14 +5,15 @@ from .events import (
     TaskResultEvent, UserTakeoverEvent,
 )
 from .models import (
-    BrowserAgentCredential, BrowserAgentLogEntry, BrowserAgentResult, BrowserAgentTask,
-    BrowserAgentTaskResult, BrowserAgentTaskRunResult, BrowserAgentValidatorResult,
-    Provider, ReasoningEffort, UserTakeoverCategory, ValidatorLifecycleMode,
+    BrowserAgentCredential, BrowserAgentCustomTool, BrowserAgentLogEntry,
+    BrowserAgentResult, BrowserAgentTask, BrowserAgentTaskResult,
+    BrowserAgentTaskRunResult, BrowserAgentValidatorResult, Provider,
+    ReasoningEffort, UserTakeoverCategory, ValidatorLifecycleMode,
 )
 from .run import BrowserAgent, BrowserAgentRun
 
 __all__ = """
-BrowserAgent BrowserAgentCredential BrowserAgentError BrowserAgentErrorCode BrowserAgentEvent BrowserAgentLogEntry check_codex_login ensure_codex_login
+BrowserAgent BrowserAgentCredential BrowserAgentCustomTool BrowserAgentError BrowserAgentErrorCode BrowserAgentEvent BrowserAgentLogEntry check_codex_login ensure_codex_login
 BrowserAgentResult BrowserAgentRun BrowserAgentTask BrowserAgentTaskResult
 BrowserAgentTaskRunResult BrowserAgentValidatorResult ErrorEvent Provider ReasoningEffort
 RunCompletedEvent RunStartedEvent TaskResultEvent UserTakeoverCategory UserTakeoverEvent ValidatorLifecycleMode

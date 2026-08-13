@@ -45,6 +45,7 @@ interface BrowserAgentOptions {
 	workspaceDirectory?: string;
 	browserProfileDirectory?: string;
 	userTakeoverTool?: boolean;
+	customTools?: readonly BrowserAgentCustomTool[];
 	maxSteps?: number;
 	concurrency?: number;
 	runsPerTask?: number;
@@ -53,6 +54,13 @@ interface BrowserAgentOptions {
 }
 
 type ValidatorLifecycleMode = "retry" | "disabled";
+
+interface BrowserAgentCustomTool {
+	name: string;
+	description: string;
+	arguments: Record<string, unknown>;
+	javascript: string;
+}
 ```
 
 | Option                    | Default                       | Description                                                                      |
@@ -71,11 +79,48 @@ type ValidatorLifecycleMode = "retry" | "disabled";
 | `workspaceDirectory`      | Temporary directory           | Agent file workspace; relative paths resolve from the current working directory. |
 | `browserProfileDirectory` | —                             | Seed Chrome user-data directory copied into isolated worker profiles.            |
 | `userTakeoverTool`        | `false`                       | Allow the agent to request user intervention.                                    |
+| `customTools`             | `[]`                          | Trusted page-context JavaScript tools available to every task and retry.          |
 | `maxSteps`                | `50`                          | Positive integer maximum step count.                                             |
 | `concurrency`             | `8`                           | Positive integer maximum concurrent task count.                                  |
 | `runsPerTask`             | `1`                           | Positive integer number of executions per task.                                  |
 | `retryCount`              | `2`                           | Non-negative integer retry count per failed task execution.                      |
 | `validatorLifecycle`      | `"retry"`                     | Use `"disabled"` to skip success validation and accept agent completion.         |
+
+### Custom tools
+
+Custom tools let the agent call application-specific JavaScript in the active
+page. Each tool has a lowercase name, a model-facing description, a JSON Schema
+Draft 2020-12 object schema for its arguments, and a sync or async function
+expression. For example:
+
+```ts
+const agent = new BrowserAgent({
+	provider: "openai",
+	model: "gpt-5.4",
+	downloadDirectory: "./downloads",
+	customTools: [
+		{
+			name: "read_product_price",
+			description: "Read the price for a product card.",
+			arguments: {
+				type: "object",
+				properties: { selector: { type: "string" } },
+				required: ["selector"],
+				additionalProperties: false,
+			},
+			javascript: `async (args) =>
+				document.querySelector(args.selector)?.textContent ?? null`,
+		},
+	],
+});
+```
+
+Names must match `^[a-z][a-z0-9_]{0,63}$` and cannot duplicate another custom
+tool or a built-in tool. JavaScript runs as trusted SDK-user code in the active
+page's main world, with access to its DOM and same-origin browser APIs. Its
+return value must be JSON-serializable. Tool metadata is included in the agent's
+system prompt only when at least one custom tool is configured; JavaScript
+source is not shown to the model.
 
 ### Providers and reasoning
 

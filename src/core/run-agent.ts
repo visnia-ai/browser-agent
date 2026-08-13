@@ -817,6 +817,7 @@ export async function runAgent(
 				shard: input.promptCacheShard ?? "core",
 				featureFlags: input.featureFlags,
 				executorContextPolicy,
+				customTools: input.customTools,
 			})
 		: undefined;
 	const dataExtractionPromptCache =
@@ -971,6 +972,7 @@ export async function runAgent(
 										openAIExplicitPromptCaching:
 											openAIExplicitPromptCachingEnabled,
 										executorContextPolicy,
+										customTools: input.customTools,
 									}),
 							}),
 					);
@@ -1095,6 +1097,7 @@ export async function runAgent(
 						rawStep,
 						executorContextPolicy,
 						raw_response,
+						input.customTools,
 					);
 					await input.onStepGenerated?.({
 						stepNumber,
@@ -1229,6 +1232,7 @@ export async function runAgent(
 											validatorLifecycle.mode === "disabled",
 										allowFatalActionErrors: true,
 										autoSwitchToNewTab: input.autoSwitchToNewTab,
+										customTools: input.customTools,
 									}),
 							}),
 					);

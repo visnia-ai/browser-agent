@@ -270,7 +270,8 @@ export type Action =
 	| { type: "return_results"; results?: ExecutorResultItem[] }
 	| { type: "memory_clear"; target: "memory" | "memory_result" | "all" }
 	| { type: "extract_data"; root?: string }
-	| { type: "agent_takeover"; request: string };
+	| { type: "agent_takeover"; request: string }
+	| { type: "custom_tool"; name: string; arguments: Record<string, unknown> };
 
 export interface StepTokenUsage {
 	step: number;

@@ -1,6 +1,7 @@
 import type { Action, ExecutorResultItem } from "../types.js";
 import { isUserTakeoverCategory } from "../../user-action-types.js";
 import { configFeatureFlags } from "../../config-feature-flags.js";
+import type { CustomToolRegistry } from "../../custom-tools.js";
 
 export type NormalizeActionListResult =
 	| {
@@ -618,10 +619,39 @@ function describeMalformedAction(index: number, entry: unknown): string {
 
 export function normalizeActionListWithDiagnostics(
 	actions: unknown,
+	customTools?: CustomToolRegistry,
 ): NormalizeActionListResult {
 	const { entries, diagnostics } = actionEntries(actions);
 	const normalized: Action[] = [];
 	for (const [index, entry] of entries.entries()) {
+		if (isRecord(entry)) {
+			const keys = Object.keys(entry);
+			const customTool = keys.length === 1 ? customTools?.get(keys[0]) : undefined;
+			if (customTool) {
+				const args = entry[customTool.name];
+				if (!isRecord(args)) {
+					diagnostics.push(
+						`tools[${index}].${customTool.name}: arguments must be an object`,
+					);
+					continue;
+				}
+				if (!customTool.validateArguments(args)) {
+					const details = (customTool.validateArguments.errors ?? [])
+						.map((error) => `${error.instancePath || "/"} ${error.message ?? "is invalid"}`)
+						.join("; ");
+					diagnostics.push(
+						`tools[${index}].${customTool.name}: arguments do not match schema${details ? ` (${details})` : ""}`,
+					);
+					continue;
+				}
+				normalized.push({
+					type: "custom_tool",
+					name: customTool.name,
+					arguments: args,
+				});
+				continue;
+			}
+		}
 		const parsed = normalizeShorthandActionEntry(entry);
 		if (parsed) {
 			normalized.push(parsed);
@@ -635,8 +665,11 @@ export function normalizeActionListWithDiagnostics(
 	return { status: "accepted", actions: normalized, diagnostics: [] };
 }
 
-export function normalizeActionList(actions: unknown): Action[] {
-	const result = normalizeActionListWithDiagnostics(actions);
+export function normalizeActionList(
+	actions: unknown,
+	customTools?: CustomToolRegistry,
+): Action[] {
+	const result = normalizeActionListWithDiagnostics(actions, customTools);
 	if (result.status === "rejected") {
 		throw new ActionListContractError(result.diagnostics);
 	}

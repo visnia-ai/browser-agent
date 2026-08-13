@@ -17,6 +17,12 @@ export type ReasoningEffort =
 	| "max"
 	| "enabled";
 export type ValidatorLifecycleMode = "retry" | "disabled";
+export interface BrowserAgentCustomTool {
+	name: string;
+	description: string;
+	arguments: Record<string, unknown>;
+	javascript: string;
+}
 export interface BrowserAgentOptions {
 	provider: Provider;
 	model: string;
@@ -32,6 +38,7 @@ export interface BrowserAgentOptions {
 	workspaceDirectory?: string;
 	browserProfileDirectory?: string;
 	userTakeoverTool?: boolean;
+	customTools?: readonly BrowserAgentCustomTool[];
 	maxSteps?: number;
 	concurrency?: number;
 	runsPerTask?: number;

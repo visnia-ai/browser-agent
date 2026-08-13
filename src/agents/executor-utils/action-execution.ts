@@ -49,6 +49,7 @@ import {
 	waitForUserTakeoverSignal,
 } from "./user-takeover.js";
 import { formatTabTitle } from "./step-context.js";
+import type { CustomToolRegistry } from "../../custom-tools.js";
 
 export interface StepPartTimingEntry {
 	part: string;
@@ -56,6 +57,53 @@ export interface StepPartTimingEntry {
 }
 
 const MAX_EVALUATE_OBSERVATION_CHARACTERS = 4_000;
+const CUSTOM_TOOL_TIMEOUT_MS = 30_000;
+
+function formatCustomToolObservation(name: string, value: unknown): string {
+	const serialized = JSON.stringify(value);
+	const truncated = serialized.length > MAX_EVALUATE_OBSERVATION_CHARACTERS;
+	const visible = truncated
+		? serialized.slice(0, MAX_EVALUATE_OBSERVATION_CHARACTERS)
+		: serialized;
+	return `${name} result (${serialized.length} chars${truncated ? ", truncated" : ""}): ${visible}`;
+}
+
+async function executeCustomTool(params: {
+	browser: Browser;
+	name: string;
+	arguments: Record<string, unknown>;
+	customTools: CustomToolRegistry;
+}): Promise<unknown> {
+	const definition = params.customTools.get(params.name);
+	if (!definition) throw new Error(`custom tool \"${params.name}\" is unavailable`);
+	const expression = `(async () => {
+		const tool = (${definition.javascript});
+		if (typeof tool !== "function") throw new Error("custom tool source must evaluate to a function");
+		const value = await tool(${JSON.stringify(params.arguments)});
+		const serialized = JSON.stringify(value);
+		if (serialized === undefined) throw new Error("custom tool must return a JSON-serializable value");
+		return serialized;
+	})()`;
+	const { result, exceptionDetails } = await params.browser.Runtime.evaluate({
+		expression,
+		returnByValue: true,
+		awaitPromise: true,
+		timeout: CUSTOM_TOOL_TIMEOUT_MS,
+	});
+	if (exceptionDetails) {
+		const rawMessage =
+			exceptionDetails.exception?.description ||
+			exceptionDetails.text ||
+			"custom tool execution failed";
+		throw new Error(
+			rawMessage.split("\n", 1)[0].slice(0, 1_000),
+		);
+	}
+	if (typeof result.value !== "string") {
+		throw new Error("custom tool did not return a JSON-serializable value");
+	}
+	return JSON.parse(result.value);
+}
 
 function formatEvaluateObservation(result: string): string {
 	const truncated = result.length > MAX_EVALUATE_OBSERVATION_CHARACTERS;
@@ -409,6 +457,7 @@ export async function executeActions(params: {
 	memoryContentAvailable?: boolean;
 	extractDataResultsFromSnapshot?: typeof extractDataResultsFromSnapshot;
 	dataExtractionCoordinator?: DataExtractionCoordinator;
+	customTools?: CustomToolRegistry;
 }): Promise<ExecuteActionsResult> {
 	let pendingMemoryRead = false;
 	let returnedResult: string | undefined;
@@ -455,6 +504,22 @@ export async function executeActions(params: {
 		const actionStartedAt = Date.now();
 		try {
 			switch (action.type) {
+				case "custom_tool": {
+					if (!params.customTools) {
+						throw new Error("custom tools are unavailable");
+					}
+					console.log(`    -> ${action.name}(${JSON.stringify(action.arguments)})`);
+					const customResult = await executeCustomTool({
+						browser: params.b,
+						name: action.name,
+						arguments: action.arguments,
+						customTools: params.customTools,
+					});
+					toolObservations.push(
+						formatCustomToolObservation(action.name, customResult),
+					);
+					break;
+				}
 				case "click":
 					console.log(`    -> click(ref=${action.ref})`);
 					const autoUploadResult = await clickAndAutoUploadIfFileChooser({
@@ -951,7 +1016,9 @@ export async function executeActions(params: {
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
 			console.log(`    -> ERROR: ${message}`);
-			if (action.type === "click") {
+			if (action.type === "custom_tool") {
+				interactionErrors.push(`${action.name}(): ${message}`);
+			} else if (action.type === "click") {
 				interactionErrors.push(`click(ref=${action.ref}): ${message}`);
 			} else if (action.type === "long_press") {
 				interactionErrors.push(

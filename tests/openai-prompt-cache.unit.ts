@@ -6,6 +6,7 @@ import {
 	isOpenAICacheMarkerPart,
 	OPENAI_CURRENT_STEP_MARKER,
 } from "../src/agents/openai-prompt-cache.js";
+import { compileCustomTools } from "../src/custom-tools.js";
 import { buildStepMessages } from "../src/agents/executor-utils/step-execution.js";
 import type { Message } from "../src/agents/types.js";
 import { configFeatureFlags } from "../src/config-feature-flags.js";
@@ -115,6 +116,20 @@ describe("OpenAI explicit prompt caching", () => {
 			buildOpenAIPromptCacheRequest({
 				...base,
 				executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+			}).promptCacheKey,
+		);
+		assert.notEqual(
+			first.promptCacheKey,
+			buildOpenAIPromptCacheRequest({
+				...base,
+				customTools: compileCustomTools([
+					{
+						name: "lookup_value",
+						description: "Look up a value.",
+						arguments: { type: "object" },
+						javascript: "() => true",
+					},
+				]),
 			}).promptCacheKey,
 		);
 	});

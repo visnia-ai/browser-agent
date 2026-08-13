@@ -43,6 +43,56 @@ test("starts RPC, writes the run request, skips blanks, and reads logs", async (
 	}
 });
 
+test("includes custom tools in the initial request only when provided", () => {
+	const writes: string[] = [];
+	const process = {
+		child: { stdin: { write: (value: string) => writes.push(value) } },
+	} as unknown as AgentProcess;
+	requestRun(process);
+	requestRun(
+		process,
+		[
+			{
+				task: "use tool",
+				credentials: [
+					{ username: "user", password: "password", domain: "example.com" },
+				],
+			},
+		],
+		[
+			{
+				name: "page_title",
+				description: "Read the page title.",
+				arguments: { type: "object", properties: {} },
+				javascript: "async () => document.title",
+			},
+		],
+	);
+	assert.deepEqual(JSON.parse(writes[0]!), {
+		jsonrpc: "2.0",
+		id: 1,
+		method: "browser-agent/run",
+		params: {},
+	});
+	assert.deepEqual(JSON.parse(writes[1]!).params, {
+		tasks: [
+			{
+				credentials: [
+					{ username: "user", password: "password", domain: "example.com" },
+				],
+			},
+		],
+		custom_tools: [
+			{
+				name: "page_title",
+				description: "Read the page title.",
+				arguments: { type: "object", properties: {} },
+				javascript: "async () => document.title",
+			},
+		],
+	});
+});
+
 test("redacts logs and isolates callback failures", async () => {
 	const entries: string[] = [];
 	const process = {

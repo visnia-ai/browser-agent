@@ -28,6 +28,7 @@ import type {
 	StoredEncryptedAuthCredentials,
 } from "./auth/types.js";
 import type { BrowserProfilesConfig } from "./browser/profile.js";
+import type { CustomToolRegistry } from "./custom-tools.js";
 import type {
 	StepRuntimeMetrics,
 	ValidatorLifecycleOptions,
@@ -98,6 +99,8 @@ export interface Config {
 	saveTaskLogs: boolean;
 	stepMessagesJsonlPath: string;
 	taskExecutionOverridesPath?: string;
+	/** RPC-only SDK-injected custom tools. */
+	customTools?: CustomToolRegistry;
 }
 
 export interface ConfigTask {

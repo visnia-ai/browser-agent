@@ -426,6 +426,7 @@ async function createPromptForStepImpl(
 		)
 			? ("cumulative" as const)
 			: ("current" as const),
+		customTools: input.customTools,
 	};
 	const cumulativeProjectionHistoryEnabled =
 		executorPromptOptions.semanticProjectionHistory === "cumulative";
@@ -997,7 +998,10 @@ export async function browse(
 					actions: normalizedInput as Action[],
 					diagnostics: [] as [],
 				}
-			: deps.normalizeActionListWithDiagnostics(normalizedInput);
+			: deps.normalizeActionListWithDiagnostics(
+					normalizedInput,
+					input.customTools,
+				);
 	const actions =
 		normalizedActions.status === "accepted" ? normalizedActions.actions : [];
 	logActionBoundary("browse_actions_received", {
@@ -1085,6 +1089,7 @@ export async function browse(
 				downloadedFiles: input.promptDownloadedFiles,
 				workspaceFiles: input.promptWorkspaceFiles,
 				memoryContentAvailable: input.memoryContentAvailable,
+				customTools: input.customTools,
 				extractDataResultsFromSnapshot: deps.extractDataResultsFromSnapshot,
 				dataExtractionCoordinator: session.dataExtractionCoordinator,
 				stepBaseIndex:
@@ -1295,6 +1300,7 @@ export async function processStepModelOutput(
 		input.rawStepOutput,
 		executorContextPolicy,
 		input.rawAssistantOutputText,
+		input.customTools,
 	);
 	if (processedStep.actionContractStatus === "rejected") {
 		throw new ModelStepActionContractError(
@@ -1429,6 +1435,7 @@ export async function processModelOutputAndBrowse(
 			: [],
 		memoryContentAvailable:
 			typeof input.promptPayload.memoryContent === "string",
+		customTools: input.customTools,
 	});
 
 	if (typeof result.execution.returned_result === "string") {

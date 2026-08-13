@@ -19,6 +19,12 @@ export function buildActionSignatureWithUrl(
 		const type = typeof record.type === "string" ? record.type : "unknown";
 		const ref = typeof record.ref === "string" ? record.ref : "";
 		const targetUrl = typeof record.url === "string" ? record.url : "";
+		if (type === "custom_tool") {
+			const name = typeof record.name === "string" ? record.name : "";
+			return `${type}:${name}:${yaml
+				.dump(record.arguments ?? {}, { sortKeys: true })
+				.trim()}`;
+		}
 		return `${type}:${ref}:${targetUrl}`;
 	});
 	return `${url}::${yaml.dump(normalizedActions).trim()}`;

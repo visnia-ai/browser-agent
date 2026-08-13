@@ -29,6 +29,7 @@ class RunTests(unittest.IsolatedAsyncioTestCase):
             "early",
             valid(),
             [BrowserAgentTask("early")],
+            (),
             pending,
             None,
         )
@@ -93,6 +94,7 @@ class RunTests(unittest.IsolatedAsyncioTestCase):
             "helpers",
             valid(),
             [BrowserAgentTask("helpers")],
+            (),
             pending,
             None,
         )

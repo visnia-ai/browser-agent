@@ -6,9 +6,12 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import MappingProxyType
 
 import browser_agent
-from browser_agent import BrowserAgent, BrowserAgentError, BrowserAgentTask
+from browser_agent import (
+    BrowserAgent, BrowserAgentCustomTool, BrowserAgentError, BrowserAgentTask,
+)
 from browser_agent.runtime import ExecutableDependencies
 from tests.helpers import create_agent, fake_environment
 
@@ -16,7 +19,8 @@ from tests.helpers import create_agent, fake_environment
 class AgentTests(unittest.TestCase):
     def test_package_root_api_and_frozen_models(self) -> None:
         self.assertEqual(set(browser_agent.__all__), {
-            "BrowserAgent", "BrowserAgentCredential", "BrowserAgentError", "BrowserAgentErrorCode",
+            "BrowserAgent", "BrowserAgentCredential", "BrowserAgentCustomTool",
+            "BrowserAgentError", "BrowserAgentErrorCode",
             "BrowserAgentEvent", "BrowserAgentLogEntry", "BrowserAgentResult",
             "BrowserAgentRun", "BrowserAgentTask", "BrowserAgentTaskResult",
             "BrowserAgentTaskRunResult", "BrowserAgentValidatorResult", "ErrorEvent",
@@ -30,12 +34,54 @@ class AgentTests(unittest.TestCase):
             "endpoint_url", "openrouter_provider", "max_model_len",
             "reserve_output_tokens", "headless", "executable_path",
             "workspace_directory", "browser_profile_directory",
-            "user_takeover_tool", "max_steps", "concurrency", "runs_per_task",
+            "user_takeover_tool", "custom_tools", "max_steps", "concurrency", "runs_per_task",
             "retry_count", "validator_lifecycle", "on_log",
         ])
         self.assertTrue(all(item.kind is inspect.Parameter.KEYWORD_ONLY
                             for item in parameters.values()))
         self.assertNotIn("timeout_ms", inspect.signature(BrowserAgent.run).parameters)
+        self.assertEqual(parameters["custom_tools"].default, ())
+
+    def test_normalizes_custom_tools(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {"selector": {"type": "string", "minLength": 1}},
+            "required": ["selector"],
+            "additionalProperties": False,
+        }
+        agent = create_agent(custom_tools=[BrowserAgentCustomTool(
+            "read_heading", " Read a heading. ", MappingProxyType(schema),
+            " async (args) => document.querySelector(args.selector)?.textContent ",
+        )])
+        self.assertEqual(agent._custom_tools, (BrowserAgentCustomTool(
+            "read_heading", "Read a heading.", schema,
+            "async (args) => document.querySelector(args.selector)?.textContent",
+        ),))
+        self.assertIsNot(agent._custom_tools[0].arguments, schema)
+
+    def test_rejects_invalid_custom_tools(self) -> None:
+        circular: dict[str, object] = {"type": "object"}
+        circular["self"] = circular
+        definitions = [
+            "bad",
+            [None],
+            [BrowserAgentCustomTool("Bad-Name", "description", {"type": "object"}, "() => null")],
+            [BrowserAgentCustomTool("click", "description", {"type": "object"}, "() => null")],
+            [
+                BrowserAgentCustomTool("duplicate", "first", {"type": "object"}, "() => null"),
+                BrowserAgentCustomTool("duplicate", "second", {"type": "object"}, "() => null"),
+            ],
+            [BrowserAgentCustomTool("empty_description", " ", {"type": "object"}, "() => null")],
+            [BrowserAgentCustomTool("array_arguments", "description", {"type": "array"}, "() => null")],
+            [BrowserAgentCustomTool("empty_javascript", "description", {"type": "object"}, " ")],
+            [BrowserAgentCustomTool("circular_schema", "description", circular, "() => null")],
+            [BrowserAgentCustomTool("non_json", "description", {"type": "object", "minimum": float("nan")}, "() => null")],
+            [BrowserAgentCustomTool("bad_key", "description", {"type": "object", 1: True}, "() => null")],
+            [BrowserAgentCustomTool("bad_value", "description", {"type": "object", "example": {1}}, "() => null")],
+        ]
+        for custom_tools in definitions:
+            with self.subTest(custom_tools=custom_tools), self.assertRaises(BrowserAgentError):
+                create_agent(custom_tools=custom_tools)
     def test_validates_construction_and_active_loop(self) -> None:
         with self.assertRaises(BrowserAgentError):
             BrowserAgent(

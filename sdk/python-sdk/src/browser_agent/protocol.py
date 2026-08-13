@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from .errors import BrowserAgentError, redact
-from .models import BrowserAgentLogEntry, BrowserAgentTask
+from .models import BrowserAgentCustomTool, BrowserAgentLogEntry, BrowserAgentTask
 
 @dataclass(slots=True)
 class AgentProcess:
@@ -52,7 +52,9 @@ async def start_agent_process(
         ) from error
     return AgentProcess(process)
 async def request_run(
-    agent: AgentProcess, tasks: list[BrowserAgentTask] | tuple[BrowserAgentTask, ...] = ()
+    agent: AgentProcess,
+    tasks: list[BrowserAgentTask] | tuple[BrowserAgentTask, ...] = (),
+    custom_tools: tuple[BrowserAgentCustomTool, ...] = (),
 ) -> None:
     assert agent.process.stdin
     rpc_tasks = [
@@ -62,6 +64,17 @@ async def request_run(
         ]} if task.credentials else {}
         for task in tasks
     ]
+    params = {"tasks": rpc_tasks} if any(task for task in rpc_tasks) else {}
+    if custom_tools:
+        params["custom_tools"] = [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "arguments": tool.arguments,
+                "javascript": tool.javascript,
+            }
+            for tool in custom_tools
+        ]
     agent.process.stdin.write(
         (
             json.dumps(
@@ -69,7 +82,7 @@ async def request_run(
                     "jsonrpc": "2.0",
                     "id": 1,
                     "method": "browser-agent/run",
-                    "params": {"tasks": rpc_tasks} if any(task for task in rpc_tasks) else {},
+                    "params": params,
                 }
             )
             + "\n"

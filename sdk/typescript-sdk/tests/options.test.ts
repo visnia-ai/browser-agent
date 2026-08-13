@@ -313,6 +313,142 @@ test("rejects every invalid option shape", () => {
 	}
 });
 
+test("normalizes custom tools and rejects invalid definitions", () => {
+	const schema = {
+		type: "object",
+		properties: {
+			selector: { type: "string", minLength: 1 },
+			limit: { type: ["integer", "null"], minimum: 1 },
+		},
+		required: ["selector"],
+		additionalProperties: false,
+	};
+	const resolved = resolveOptions({
+		...base,
+		customTools: [
+			{
+				name: "read_heading",
+				description: " Read a heading. ",
+				arguments: schema,
+				javascript: " async (args) => document.querySelector(args.selector)?.textContent ",
+			},
+		],
+	});
+	assert.deepEqual(resolved.customTools, [
+		{
+			name: "read_heading",
+			description: "Read a heading.",
+			arguments: schema,
+			javascript:
+				"async (args) => document.querySelector(args.selector)?.textContent",
+		},
+	]);
+	assert.notEqual(resolved.customTools[0]?.arguments, schema);
+	assert.deepEqual(resolveOptions(base).customTools, []);
+
+	const circular: Record<string, unknown> = { type: "object" };
+	circular.self = circular;
+	for (const customTools of [
+		"bad",
+		[null],
+		[
+			{
+				name: "Bad-Name",
+				description: "description",
+				arguments: { type: "object" },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "click",
+				description: "description",
+				arguments: { type: "object" },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "duplicate",
+				description: "first",
+				arguments: { type: "object" },
+				javascript: "() => null",
+			},
+			{
+				name: "duplicate",
+				description: "second",
+				arguments: { type: "object" },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "empty_description",
+				description: " ",
+				arguments: { type: "object" },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "array_arguments",
+				description: "description",
+				arguments: { type: "array" },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "empty_javascript",
+				description: "description",
+				arguments: { type: "object" },
+				javascript: " ",
+			},
+		],
+		[
+			{
+				name: "circular_schema",
+				description: "description",
+				arguments: circular,
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "non_json_schema",
+				description: "description",
+				arguments: { type: "object", minimum: Number.NaN },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "undefined_schema_value",
+				description: "description",
+				arguments: { type: "object", title: undefined },
+				javascript: "() => null",
+			},
+		],
+		[
+			{
+				name: "class_schema",
+				description: "description",
+				arguments: Object.assign(new Date(), { type: "object" }),
+				javascript: "() => null",
+			},
+		],
+	] as unknown[]) {
+		assert.throws(
+			() =>
+				resolveOptions({
+					...base,
+					customTools: customTools as never,
+				}),
+			{ code: "CONFIG_INVALID" },
+		);
+	}
+});
+
 test("normalizes tasks and rejects malformed tasks", () => {
 	assert.deepEqual(
 		normalizeTasks({

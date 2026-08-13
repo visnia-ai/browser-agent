@@ -1,7 +1,7 @@
 import dataclasses
 import unittest
 
-from browser_agent import BrowserAgentCredential, BrowserAgentTask
+from browser_agent import BrowserAgentCredential, BrowserAgentCustomTool, BrowserAgentTask
 
 
 class ModelTests(unittest.TestCase):
@@ -13,6 +13,10 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(
             [field.name for field in dataclasses.fields(BrowserAgentCredential)],
             ["username", "password", "domain"],
+        )
+        self.assertEqual(
+            [field.name for field in dataclasses.fields(BrowserAgentCustomTool)],
+            ["name", "description", "arguments", "javascript"],
         )
         task = BrowserAgentTask("task")
         with self.assertRaises(dataclasses.FrozenInstanceError):

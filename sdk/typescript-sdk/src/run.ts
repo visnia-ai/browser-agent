@@ -175,7 +175,7 @@ export class BrowserAgentRunImpl implements API.BrowserAgentRun {
 				files.internalPaths,
 			);
 			const terminal = this.#terminal(this.#process);
-			requestRun(this.#process, this.tasks);
+			requestRun(this.#process, this.tasks, this.options.customTools);
 			const outcome = await terminal;
 			if (outcome === "cancelled") {
 				await terminateProcess(this.#process);

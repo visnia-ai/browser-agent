@@ -1,6 +1,6 @@
 {
 	"name": "browser-agent",
-	"version": "1.0.17",
+	"version": "1.0.18",
 	"repository": "https://github.com/visnia-ai/browser-agent",
 	"license": "MIT",
 	"type": "module",
@@ -54,6 +54,7 @@
 		"@openrouter/ai-sdk-provider": "^3.0.0",
 		"@tesseract.js-data/eng": "^1.0.0",
 		"ai": "^7.0.58",
+		"ajv": "^8.20.0",
 		"chrome-launcher": "^1.2.1",
 		"chrome-remote-interface": "^0.33.2",
 		"dotenv": "^16.4.7",

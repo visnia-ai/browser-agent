@@ -2,6 +2,7 @@ import {
 	BrowserAgent,
 	BrowserAgentError,
 	type BrowserAgentCredential,
+	type BrowserAgentCustomTool,
 	type BrowserAgentErrorCode,
 	type BrowserAgentEvent,
 	type BrowserAgentLogEntry,
@@ -23,6 +24,14 @@ const options: BrowserAgentOptions = {
 	model: "gpt-5.4",
 	downloadDirectory: ".",
 	validatorLifecycle: "disabled",
+	customTools: [
+		{
+			name: "page_title",
+			description: "Read the page title.",
+			arguments: { type: "object", properties: {} },
+			javascript: "() => document.title",
+		},
+	],
 };
 const agent = new BrowserAgent(options);
 const codex = new BrowserAgent({
@@ -42,6 +51,7 @@ void codex;
 void code;
 type PublicTypes = [
 	BrowserAgentCredential,
+	BrowserAgentCustomTool,
 	BrowserAgentEvent,
 	BrowserAgentLogEntry,
 	BrowserAgentResult,

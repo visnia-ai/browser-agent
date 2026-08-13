@@ -2,11 +2,36 @@ import path from "node:path";
 import { BrowserAgentError } from "./errors.js";
 import type {
 	BrowserAgentCredential,
+	BrowserAgentCustomTool,
 	BrowserAgentOptions,
 	BrowserAgentTask,
 	Provider,
 	ReasoningEffort,
 } from "./types.js";
+
+const CUSTOM_TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+const BUILT_IN_TOOL_NAMES = new Set([
+	"agent_takeover",
+	"click",
+	"download_current_file",
+	"dropdown_select",
+	"evaluate",
+	"extract_data",
+	"long_press",
+	"memory_clear",
+	"memory_read",
+	"memory_write",
+	"navigate",
+	"paste_file",
+	"read_file",
+	"return_results",
+	"scroll",
+	"switch_tab",
+	"type",
+	"upload_files",
+	"user_takeover",
+	"wait",
+]);
 
 const PROVIDER_ENV: Record<Provider, string | undefined> = {
 	openai: "OPENAI_API_KEY",
@@ -93,12 +118,14 @@ export interface ResolvedOptions extends Omit<
 	| "maxModelLen"
 	| "reserveOutputTokens"
 	| "validatorLifecycle"
+	| "customTools"
 > {
 	reasoningEffort: ReasoningEffort;
 	apiKey?: string;
 	maxModelLen: number;
 	reserveOutputTokens: number;
 	validatorLifecycle: "retry" | "disabled";
+	customTools: readonly BrowserAgentCustomTool[];
 	apiKeyEnvironment?: string;
 }
 const invalid = (message: string): never => {
@@ -110,6 +137,86 @@ const positive = (value: number | undefined, fallback: number) => {
 		invalid("Execution limits must be positive integers.");
 	return result;
 };
+
+function cloneJsonValue(value: unknown, ancestors = new Set<object>()): unknown {
+	if (
+		value === null ||
+		typeof value === "string" ||
+		typeof value === "boolean"
+	)
+		return value;
+	if (typeof value === "number") {
+		if (!Number.isFinite(value))
+			invalid("Custom tool schemas must contain valid JSON values.");
+		return value;
+	}
+	if (!value || typeof value !== "object")
+		invalid("Custom tool schemas must contain valid JSON values.");
+	const objectValue = value as object;
+	if (ancestors.has(objectValue))
+		invalid("Custom tool schemas must not contain circular references.");
+	ancestors.add(objectValue);
+	try {
+		if (Array.isArray(objectValue))
+			return objectValue.map((item) => cloneJsonValue(item, ancestors));
+		if (
+			Object.getPrototypeOf(objectValue) !== Object.prototype &&
+			Object.getPrototypeOf(objectValue) !== null
+		)
+			invalid("Custom tool schemas must be plain JSON objects.");
+		return Object.fromEntries(
+			Object.entries(objectValue).map(([key, item]) => [
+				key,
+				cloneJsonValue(item, ancestors),
+			]),
+		);
+	} finally {
+		ancestors.delete(objectValue);
+	}
+}
+
+function normalizeCustomTools(
+	tools: readonly BrowserAgentCustomTool[] | undefined,
+): readonly BrowserAgentCustomTool[] {
+	if (tools === undefined) return [];
+	if (!Array.isArray(tools)) invalid("customTools must be an array.");
+	const names = new Set<string>();
+	return tools.map((tool) => {
+		if (!tool || typeof tool !== "object" || Array.isArray(tool))
+			invalid("Each custom tool must be an object.");
+		if (typeof tool.name !== "string" || !CUSTOM_TOOL_NAME.test(tool.name))
+			invalid(
+				"Custom tool names must match ^[a-z][a-z0-9_]{0,63}$.",
+			);
+		if (BUILT_IN_TOOL_NAMES.has(tool.name))
+			invalid(
+				`Custom tool name '${tool.name}' conflicts with a built-in tool.`,
+			);
+		if (names.has(tool.name))
+			invalid(`Duplicate custom tool name '${tool.name}'.`);
+		names.add(tool.name);
+		if (typeof tool.description !== "string" || !tool.description.trim())
+			invalid("Custom tool descriptions must be non-empty strings.");
+		if (
+			!tool.arguments ||
+			typeof tool.arguments !== "object" ||
+			Array.isArray(tool.arguments) ||
+			tool.arguments.type !== "object"
+		)
+			invalid(
+				'Custom tool arguments must be a JSON Schema with type "object".',
+			);
+		const schema = cloneJsonValue(tool.arguments) as Record<string, unknown>;
+		if (typeof tool.javascript !== "string" || !tool.javascript.trim())
+			invalid("Custom tool javascript must be a non-empty string.");
+		return {
+			name: tool.name,
+			description: tool.description.trim(),
+			arguments: schema,
+			javascript: tool.javascript.trim(),
+		};
+	});
+}
 
 export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 	if (!options || typeof options !== "object")
@@ -193,6 +300,7 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 	if (reserveOutputTokens >= maxModelLen) {
 		invalid("reserveOutputTokens must be smaller than maxModelLen.");
 	}
+	const customTools = normalizeCustomTools(options.customTools);
 	return {
 		...options,
 		model,
@@ -214,6 +322,7 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 		maxModelLen,
 		reserveOutputTokens,
 		userTakeoverTool: options.userTakeoverTool ?? false,
+		customTools,
 		maxSteps: positive(options.maxSteps, 50),
 		concurrency: positive(options.concurrency, 8),
 		runsPerTask: positive(options.runsPerTask, 1),

@@ -450,7 +450,9 @@ export function serializeActionsForPrompt(
 		return `[omitted ${value.length} characters; starts with ${JSON.stringify(value.slice(0, 120))}]`;
 	};
 	return actions.map((action) => {
-		switch (action.type) {
+			switch (action.type) {
+			case "custom_tool":
+				return { [action.name]: action.arguments };
 			case "click":
 				return { click: action.ref };
 			case "long_press":
