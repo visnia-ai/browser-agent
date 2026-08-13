@@ -9,14 +9,16 @@ import {
 import { getExecutorSystem } from "../src/agents/prompts.js";
 
 describe("executor context policy", () => {
-	it("classifies direct OpenAI and OpenAI models through OpenRouter as OpenAI", () => {
-		assert.strictEqual(
-			resolveExecutorContextPolicy(
-				{ provider: "openai", model: "gpt-5.6" },
-				false,
-			),
-			OPENAI_EXECUTOR_CONTEXT_POLICY,
-		);
+	it("classifies direct OpenAI, Codex, and OpenAI models through OpenRouter under the OpenAI policy", () => {
+		for (const provider of ["openai", "codex"] as const) {
+			assert.strictEqual(
+				resolveExecutorContextPolicy(
+					{ provider, model: "gpt-5.6" },
+					false,
+				),
+				OPENAI_EXECUTOR_CONTEXT_POLICY,
+			);
+		}
 		assert.strictEqual(
 			resolveExecutorContextPolicy({
 				provider: "openrouter",
@@ -26,9 +28,10 @@ describe("executor context policy", () => {
 		);
 	});
 
-	it("enables action-context fields for direct and OpenRouter OpenAI models", () => {
+	it("enables action-context fields for direct OpenAI, Codex, and OpenRouter OpenAI models", () => {
 		for (const llm of [
 			{ provider: "openai" as const, model: "gpt-5.6" },
+			{ provider: "codex" as const, model: "gpt-5.6" },
 			{ provider: "openrouter" as const, model: "openai/gpt-5.6" },
 		]) {
 			assert.strictEqual(
@@ -38,7 +41,7 @@ describe("executor context policy", () => {
 		}
 	});
 
-	it("classifies every non-OpenAI model by model owner, not transport", () => {
+	it("classifies every non-OpenAI/Codex model by model owner, not transport", () => {
 		for (const llm of [
 			{ provider: "openrouter" as const, model: "z-ai/glm-5.2" },
 			{ provider: "together" as const, model: "moonshotai/kimi-k2.5" },
@@ -51,10 +54,10 @@ describe("executor context policy", () => {
 		}
 	});
 
-	it("includes both OpenAI reasoning history and action-context prompt fields when enabled", () => {
+	it("includes both reasoning history and action-context prompt fields for Codex when enabled", () => {
 		const prompt = getExecutorSystem({
 			executorContextPolicy: resolveExecutorContextPolicy(
-				{ provider: "openai", model: "gpt-5.6" },
+				{ provider: "codex", model: "gpt-5.6" },
 				true,
 			),
 		});

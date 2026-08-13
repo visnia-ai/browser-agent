@@ -8,10 +8,7 @@ import {
 	stripPayloadForHistory,
 } from "../agents/executor-utils/history-payload.js";
 import { logActionBoundary } from "../agents/executor-utils/action-boundary-logging.js";
-import {
-	buildMaxStepFinalizationMessages,
-	serializeModelOutputForHistory,
-} from "../agents/executor-utils/step-execution.js";
+import { buildMaxStepFinalizationMessages } from "../agents/executor-utils/step-execution.js";
 import {
 	buildDownloadedFilesPayload,
 	buildWorkspaceFilesPayload,
@@ -1297,6 +1294,7 @@ export async function processStepModelOutput(
 	const processedStep = processModelStepOutput(
 		input.rawStepOutput,
 		executorContextPolicy,
+		input.rawAssistantOutputText,
 	);
 	if (processedStep.actionContractStatus === "rejected") {
 		throw new ModelStepActionContractError(
@@ -1319,11 +1317,7 @@ export async function processStepModelOutput(
 		step.done = false;
 		delete step.result;
 	}
-	const assistant =
-		typeof input.rawAssistantOutputText === "string" &&
-		input.rawAssistantOutputText.length > 0
-			? input.rawAssistantOutputText
-			: serializeModelOutputForHistory(input.rawStepOutput);
+	const assistant = processedStep.assistant;
 	const priorHistoryMessages = buildHistoryMessagesFromFullStepHistory(
 		input.stepsHistory,
 		{ executorContextPolicy },

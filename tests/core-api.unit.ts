@@ -3561,7 +3561,7 @@ describe("core-api", () => {
 		}
 	});
 
-	it("runAgent includes reasoning as a previous assistant message field", async () => {
+	it("runAgent applies the OpenAI executor history policy to Codex", async () => {
 		let capturedStepTwoMessages: Message[] | null = null;
 		const deps = createMockCoreDeps({
 			executeActions: async ({ actions }) => ({
@@ -3583,7 +3583,7 @@ describe("core-api", () => {
 			stageLLMs: {
 				findTargetURL: { provider: "openai", model: "gpt-test" },
 				createChecklist: { provider: "openai", model: "gpt-test" },
-				runAgent: { provider: "openrouter", model: "openai/gpt-test" },
+				runAgent: { provider: "codex", model: "gpt-test" },
 				dataExtraction: { provider: "openai", model: "gpt-test" },
 				verifySuccess: { provider: "openai", model: "gpt-test" },
 			},
@@ -3593,13 +3593,28 @@ describe("core-api", () => {
 				if (stepNumber === 2) capturedStepTwoMessages = messages;
 				return stepNumber === 1
 					? {
-							data: { actions: [], done: false },
+							data: {
+								previousStepStatus: "progressed",
+								previousStepOutcome: "Opened the result page.",
+								currentStateObservation: "The result is visible.",
+								nextActionRationale: "Return the result.",
+								actions: [],
+								done: false,
+							},
 							usage: {
 								input_tokens: 8,
 								output_tokens: 3,
 								total_tokens: 11,
 							},
 							reasoning_tokens: "Inspect page:\nstatus: ready",
+							raw_response: [
+								"previousStepStatus: progressed",
+								"previousStepOutcome: Opened the result page.",
+								"currentStateObservation: The result is visible.",
+								"nextActionRationale: Return the result.",
+								"actions: []",
+								"done: false",
+							].join("\n"),
 						}
 					: {
 							data: {

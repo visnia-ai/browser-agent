@@ -13,7 +13,7 @@ export interface ConfigFeatureFlags {
 	extractDataWholeContext: boolean;
 	/** Choose current-only prompts (arm C) or append-only reset/delta history (arm D). */
 	semanticProjectionHistory: "current" | "cumulative";
-	/** Include executor action-context fields for OpenAI models. */
+	/** Include executor action-context fields for OpenAI and Codex models. */
 	enableExecutorActionContextFieldsForOpenAI: boolean;
 	/** Chain OpenAI executor steps with client-held encrypted reasoning. */
 	openAIEncryptedResponses: boolean;

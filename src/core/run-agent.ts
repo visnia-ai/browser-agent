@@ -23,7 +23,6 @@ import {
 	logStepActionContext,
 	logStepModelResponse,
 	saveStepContextIfNeeded,
-	serializeModelOutputForHistory,
 	serializeMessagesForDisk,
 } from "../agents/executor-utils/step-execution.js";
 import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
@@ -1088,6 +1087,7 @@ export async function runAgent(
 					const processedRawStep = processModelStepOutput(
 						rawStep,
 						executorContextPolicy,
+						raw_response,
 					);
 					await input.onStepGenerated?.({
 						stepNumber,
@@ -1109,10 +1109,7 @@ export async function runAgent(
 					}
 					modelOutputErrors = undefined;
 					const parsedRawStep = processedRawStep.step;
-					const rawAssistantContent =
-						typeof raw_response === "string" && raw_response.length > 0
-							? raw_response
-							: serializeModelOutputForHistory(rawStep);
+					const rawAssistantContent = processedRawStep.assistant;
 					const accountedStepUsage =
 						combineStepAttemptUsage(stepAttemptUsages);
 					logStepActionContext(parsedRawStep, executorContextPolicy);

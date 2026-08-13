@@ -31,6 +31,44 @@ function normalizeShortText(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
+function serializeModelStepForHistory(
+	rawStepOutput: unknown,
+	executorContextPolicy: Readonly<ExecutorContextPolicy>,
+	rawAssistantOutputText?: string,
+): string {
+	const exactAssistantOutput = rawAssistantOutputText?.trim()
+		? rawAssistantOutputText
+		: undefined;
+	if (executorContextPolicy.executorActionContextFields) {
+		return exactAssistantOutput ?? serializeModelOutputForHistory(rawStepOutput);
+	}
+	if (exactAssistantOutput) {
+		const containsActionContextFields =
+			/^(previousStepStatus|previousStepOutcome|currentStateObservation|nextActionRationale|actionContext):/m.test(
+				exactAssistantOutput,
+			);
+		if (!containsActionContextFields) return exactAssistantOutput;
+		try {
+			const parsedAssistantOutput = yaml.load(exactAssistantOutput);
+			if (isRecord(parsedAssistantOutput)) {
+				rawStepOutput = parsedAssistantOutput;
+			}
+		} catch {
+			// Fall back to the parsed model output so forbidden fields cannot be replayed.
+		}
+	}
+	if (!isRecord(rawStepOutput)) {
+		return serializeModelOutputForHistory(rawStepOutput);
+	}
+	const historyOutput = { ...rawStepOutput };
+	delete historyOutput.previousStepStatus;
+	delete historyOutput.previousStepOutcome;
+	delete historyOutput.currentStateObservation;
+	delete historyOutput.nextActionRationale;
+	delete historyOutput.actionContext;
+	return serializeModelOutputForHistory(historyOutput);
+}
+
 type NormalizedModelStep =
 	| {
 			actionContractStatus: "accepted";
@@ -133,6 +171,7 @@ export class ModelStepActionContractError extends Error {
 export function processModelStepOutput(
 	rawStepOutput: unknown,
 	executorContextPolicy: Readonly<ExecutorContextPolicy>,
+	rawAssistantOutputText?: string,
 ): ProcessedModelStepOutput {
 	const normalized = normalizeModelStep(rawStepOutput, executorContextPolicy);
 	const rawTools = isRecord(rawStepOutput) ? rawStepOutput.tools : undefined;
@@ -156,6 +195,10 @@ export function processModelStepOutput(
 	}
 	return {
 		...normalized,
-		assistant: serializeModelOutputForHistory(rawStepOutput),
+		assistant: serializeModelStepForHistory(
+			rawStepOutput,
+			executorContextPolicy,
+			rawAssistantOutputText,
+		),
 	};
 }
