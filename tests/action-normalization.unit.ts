@@ -100,6 +100,72 @@ describe("action-normalization semantic refs", () => {
 	});
 });
 
+describe("action-normalization page observations", () => {
+	it("accepts the argument-free read_page forms", () => {
+		assert.deepEqual(normalizeShorthandActionEntry("read_page"), {
+			type: "read_page",
+		});
+		assert.deepEqual(
+			normalizeShorthandActionEntry({ read_page: {} }),
+			{ type: "read_page" },
+		);
+		assert.deepEqual(
+			normalizeShorthandActionEntry({ type: "read_page" }),
+			{ type: "read_page" },
+		);
+	});
+
+	it("rejects options on read_page", () => {
+		assert.isNull(
+			normalizeShorthandActionEntry({
+				read_page: { maxChars: 10 },
+			}),
+		);
+		assert.isNull(
+			normalizeShorthandActionEntry({
+				type: "read_page",
+				view: "details",
+			}),
+		);
+	});
+
+	it("accepts only a scalar project_page target", () => {
+		assert.deepEqual(
+			normalizeShorthandActionEntry({ project_page: ".result" }),
+			{ type: "project_page", target: ".result" },
+		);
+		assert.deepEqual(
+			normalizeShorthandActionEntry({
+				type: "project_page",
+				target: "r2f",
+			}),
+			{ type: "project_page", target: "r2f" },
+		);
+		assert.isNull(
+			normalizeShorthandActionEntry({
+				project_page: { selector: ".result", limit: 5 },
+			}),
+		);
+	});
+
+	it("accepts only a scalar find_page query", () => {
+		assert.deepEqual(
+			normalizeShorthandActionEntry({ find_page: "enemy aircraft|gunner" }),
+			{ type: "find_page", query: "enemy aircraft|gunner" },
+		);
+		assert.deepEqual(
+			normalizeShorthandActionEntry({
+				type: "find_page",
+				query: "Havens",
+			}),
+			{ type: "find_page", query: "Havens" },
+		);
+		assert.isNull(
+			normalizeShorthandActionEntry({ find_page: { query: "Havens" } }),
+		);
+	});
+});
+
 describe("action-normalization paste_file", () => {
 	it("accepts typed paste_file", () => {
 		const parsed = normalizeShorthandActionEntry({

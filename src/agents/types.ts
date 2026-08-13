@@ -267,6 +267,9 @@ export type Action =
 	| { type: "memory_write"; content: string }
 	| { type: "memory_read" }
 	| { type: "read_file"; path: string }
+	| { type: "read_page" }
+	| { type: "find_page"; query: string }
+	| { type: "project_page"; target: string }
 	| { type: "return_results"; results?: ExecutorResultItem[] }
 	| { type: "memory_clear"; target: "memory" | "memory_result" | "all" }
 	| { type: "extract_data"; root?: string }
@@ -325,10 +328,32 @@ export interface ExecuteActionsResult {
 	pendingMemoryRead: boolean;
 	interactionErrors: string[];
 	toolObservations?: string[];
+	pageObservation?: string;
+	pageObservationMetadata?: import("../browser/page-markdown-observation.js").PageObservationMetadata;
+	pageObservationInvalidated?: boolean;
+	pageObservationEvents?: PageObservationEvent[];
 	returnedResult?: string;
 	authTakeoverAttempts?: AuthTakeoverAttemptEvent[];
 	userTakeover?: {
 		reason: string;
 		category?: UserTakeoverCategory;
 	};
+}
+
+export interface PageObservationEvent {
+	kind: "bootstrap" | "read_page" | "find_page" | "project_page";
+	stepNumber?: number;
+	target?: string;
+	query?: string;
+	automatic?: boolean;
+	refreshed?: boolean;
+	actionIndex?: number;
+	actionCount: number;
+	characters: number;
+	estimatedTokens: number;
+	matchedNodeCount: number;
+	returnedRefCount: number;
+	truncated: boolean;
+	unchanged: boolean;
+	batchedWithPriorAction: boolean;
 }

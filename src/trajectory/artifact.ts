@@ -139,6 +139,7 @@ function looksLikeStepPromptPayload(payload: Record<string, unknown>): boolean {
 		"task",
 		"currentURL",
 		"projection",
+		"pageObservation",
 		"interactionErrors",
 		"currentTab",
 		"openTabs",

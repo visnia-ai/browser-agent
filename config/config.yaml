@@ -33,6 +33,8 @@ stage_llms:
     reasoning_effort: medium
 
 feature_flags:
+  # Set to markdown for the request-driven 16k page-observation MVP.
+  page_observation_mode: semantic
   workflow_orchestration: true
   pre_step_screenshot_in_latest_user_prompt: false
   user_takeover_tool: false

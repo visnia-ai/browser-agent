@@ -17,6 +17,11 @@ import {
 	uploadFiles,
 } from "../../browser/browser.js";
 import { configFeatureFlags } from "../../config-feature-flags.js";
+import {
+	getPageMarkdownObservation,
+	type PageMarkdownObservationOptions,
+} from "../../browser/page-markdown-observation.js";
+import { replaceSemanticRefSnapshot } from "../../browser/semantic-ref-registry.js";
 import type {
 	Action,
 	AuthTakeoverAttemptEvent,
@@ -24,6 +29,7 @@ import type {
 	ExecutorResultItem,
 	LLMOptions,
 	OpenAIPromptCacheRequest,
+	PageObservationEvent,
 	StageModelInvocationTrace,
 } from "../types.js";
 import type {
@@ -64,6 +70,23 @@ function formatEvaluateObservation(result: string): string {
 		: result;
 	return `evaluate result (${result.length} chars${truncated ? ", truncated" : ""}): ${JSON.stringify(visibleResult)}`;
 }
+
+const PAGE_STATE_ACTION_TYPES = new Set<Action["type"]>([
+	"click",
+	"long_press",
+	"type",
+	"scroll",
+	"evaluate",
+	"dropdown_select",
+	"navigate",
+	"switch_tab",
+	"wait",
+	"download_current_file",
+	"upload_files",
+	"paste_file",
+	"user_takeover",
+	"agent_takeover",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -409,6 +432,9 @@ export async function executeActions(params: {
 	memoryContentAvailable?: boolean;
 	extractDataResultsFromSnapshot?: typeof extractDataResultsFromSnapshot;
 	dataExtractionCoordinator?: DataExtractionCoordinator;
+	pageObservationOptions?: Omit<PageMarkdownObservationOptions, "target" | "query">;
+	readPageObservation?: typeof getPageMarkdownObservation;
+	previousPageObservation?: string;
 }): Promise<ExecuteActionsResult> {
 	let pendingMemoryRead = false;
 	let returnedResult: string | undefined;
@@ -416,8 +442,16 @@ export async function executeActions(params: {
 	let dataExtractionBarrierFailed = false;
 	let userTakeoverReason: string | undefined;
 	let userTakeoverCategory: UserTakeoverCategory | undefined;
+	let pageObservation: string | undefined;
+	let pageObservationMetadata:
+		| import("../../browser/page-markdown-observation.js").PageObservationMetadata
+		| undefined;
+	let previousPageObservation = params.previousPageObservation;
+	let latestSuccessfulPageStateActionIndex = -1;
+	let latestPageObservationIndex = -1;
 	const interactionErrors: string[] = [];
 	const toolObservations: string[] = [];
+	const pageObservationEvents: PageObservationEvent[] = [];
 	const authTakeoverAttempts: AuthTakeoverAttemptEvent[] = [];
 	const extractDataMemoryFile =
 		params.extractDataMemoryFile ?? params.memoryFile;
@@ -430,6 +464,62 @@ export async function executeActions(params: {
 		? [agentTakeoverAction]
 		: params.actions;
 	const actions = candidateActions;
+	const recordPageObservation = (input: {
+		kind: "read_page" | "find_page" | "project_page";
+		actionIndex: number;
+		target?: string;
+		query?: string;
+		automatic?: boolean;
+		batchedWithPriorAction?: boolean;
+		observation: Awaited<ReturnType<typeof getPageMarkdownObservation>>;
+	}): void => {
+		const content = input.observation.content;
+		const unchanged = content === previousPageObservation;
+		pageObservationEvents.push({
+			kind: input.kind,
+			stepNumber: params.stepNumber,
+			...(input.target ? { target: input.target } : {}),
+			...(input.query ? { query: input.query } : {}),
+			...(input.automatic ? { automatic: true } : {}),
+			actionIndex: input.actionIndex + 1,
+			actionCount: actions.length,
+			characters: content.length,
+			estimatedTokens:
+				params.estimateTokenCount?.(content) ??
+				Math.max(1, Math.ceil(content.length / 4)),
+			matchedNodeCount: input.observation.diagnostics.matchedNodeCount,
+			returnedRefCount: input.observation.diagnostics.returnedRefCount,
+			truncated: input.observation.truncated,
+			unchanged,
+			batchedWithPriorAction:
+				input.batchedWithPriorAction ??
+				actions
+					.slice(0, input.actionIndex)
+					.some((action) => PAGE_STATE_ACTION_TYPES.has(action.type)),
+		});
+		if (unchanged) {
+			toolObservations.push(
+				`${input.kind} returned unchanged page content; do not repeat the same action/read sequence without changing strategy or scope`,
+			);
+		}
+		if (input.kind === "read_page" && input.observation.truncated) {
+			toolObservations.push(
+				"read_page reached the 16k character cap; prefer project_page with a known ref or stable CSS scope when the next decision needs only one region",
+			);
+		}
+		if (
+			input.kind === "project_page" &&
+			input.observation.diagnostics.matchedNodeCount === 0
+		) {
+			toolObservations.push(
+				`project_page target ${JSON.stringify(input.target)} matched no live nodes; choose a current ref or a different stable CSS selector`,
+			);
+		}
+		pageObservation = content;
+		pageObservationMetadata = input.observation.metadata;
+		previousPageObservation = content;
+		latestPageObservationIndex = input.actionIndex;
+	};
 	const hasResultExtractionBeforeNextBarrier = (
 		startIndex: number,
 	): boolean => {
@@ -453,6 +543,7 @@ export async function executeActions(params: {
 		await params.waitForAutomationPermission?.();
 		const actionTimingPart = `action_${actionIndex + 1}_${action.type}`;
 		const actionStartedAt = Date.now();
+		const interactionErrorCountBeforeAction = interactionErrors.length;
 		try {
 			switch (action.type) {
 				case "click":
@@ -777,6 +868,76 @@ export async function executeActions(params: {
 					);
 					break;
 				}
+				case "read_page": {
+					if (configFeatureFlags.pageObservationMode !== "markdown") {
+						throw new Error(
+							"read_page is available only when pageObservationMode=markdown",
+						);
+					}
+					console.log("    -> read_page()");
+					const observation = await (
+						params.readPageObservation ?? getPageMarkdownObservation
+					)(params.b, params.pageObservationOptions);
+					recordPageObservation({
+						kind: "read_page",
+						actionIndex,
+						observation,
+					});
+					console.log(
+						`       [read_page] chars=${observation.content.length} truncated=${observation.truncated}`,
+					);
+					break;
+				}
+				case "find_page": {
+					if (configFeatureFlags.pageObservationMode !== "markdown") {
+						throw new Error(
+							"find_page is available only when pageObservationMode=markdown",
+						);
+					}
+					console.log(`    -> find_page(${JSON.stringify(action.query)})`);
+					const observation = await (
+						params.readPageObservation ?? getPageMarkdownObservation
+					)(params.b, {
+						...params.pageObservationOptions,
+						query: action.query,
+					});
+					recordPageObservation({
+						kind: "find_page",
+						actionIndex,
+						query: action.query,
+						observation,
+					});
+					console.log(
+						`       [find_page] chars=${observation.content.length} matches=${observation.diagnostics.matchedNodeCount} truncated=${observation.truncated}`,
+					);
+					break;
+				}
+				case "project_page": {
+					if (configFeatureFlags.pageObservationMode !== "markdown") {
+						throw new Error(
+							"project_page is available only when pageObservationMode=markdown",
+						);
+					}
+					console.log(
+						`    -> project_page(${JSON.stringify(action.target)})`,
+					);
+					const observation = await (
+						params.readPageObservation ?? getPageMarkdownObservation
+					)(params.b, {
+						...params.pageObservationOptions,
+						target: action.target,
+					});
+					recordPageObservation({
+						kind: "project_page",
+						actionIndex,
+						target: action.target,
+						observation,
+					});
+					console.log(
+						`       [project_page] chars=${observation.content.length} matches=${observation.diagnostics.matchedNodeCount} truncated=${observation.truncated}`,
+					);
+					break;
+				}
 				case "memory_clear":
 					console.log(`    -> memory_clear(${action.target})`);
 					if (action.target === "memory") {
@@ -948,6 +1109,12 @@ export async function executeActions(params: {
 					break;
 				}
 			}
+			if (
+				PAGE_STATE_ACTION_TYPES.has(action.type) &&
+				interactionErrors.length === interactionErrorCountBeforeAction
+			) {
+				latestSuccessfulPageStateActionIndex = actionIndex;
+			}
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
 			console.log(`    -> ERROR: ${message}`);
@@ -1003,6 +1170,16 @@ export async function executeActions(params: {
 				interactionErrors.push(
 					`read_file(path=${JSON.stringify(action.path)}): ${message}`,
 				);
+			} else if (action.type === "read_page") {
+				interactionErrors.push(`read_page(): ${message}`);
+			} else if (action.type === "find_page") {
+				interactionErrors.push(
+					`find_page(query=${JSON.stringify(action.query)}): ${message}`,
+				);
+			} else if (action.type === "project_page") {
+				interactionErrors.push(
+					`project_page(target=${JSON.stringify(action.target)}): ${message}`,
+				);
 			} else if (action.type === "return_results") {
 				interactionErrors.push(`return_results(): ${message}`);
 			} else if (action.type === "memory_clear") {
@@ -1027,6 +1204,33 @@ export async function executeActions(params: {
 		}
 		if (returnedResult !== undefined) break;
 	}
+	if (
+		configFeatureFlags.pageObservationMode === "markdown" &&
+		actions.length === 1 &&
+		actions[0].type === "navigate" &&
+		latestSuccessfulPageStateActionIndex === 0 &&
+		latestPageObservationIndex < 0
+	) {
+		try {
+			const observation = await (
+				params.readPageObservation ?? getPageMarkdownObservation
+			)(params.b, params.pageObservationOptions);
+			recordPageObservation({
+				kind: "read_page",
+				actionIndex: 0,
+				automatic: true,
+				batchedWithPriorAction: true,
+				observation,
+			});
+			console.log(
+				`       [read_page:auto-navigate] chars=${observation.content.length} truncated=${observation.truncated}`,
+			);
+		} catch (error) {
+			console.warn(
+				`    -> automatic post-navigation read failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
 	if (canConsumePrintRequests(params.b)) {
 		try {
 			const printPdfPaths = await consumePrintRequestsAndSavePdfs(params.b);
@@ -1038,11 +1242,24 @@ export async function executeActions(params: {
 			interactionErrors.push(`print_to_pdf(): ${message}`);
 		}
 	}
+	const pageObservationInvalidated =
+		configFeatureFlags.pageObservationMode === "markdown" &&
+		latestSuccessfulPageStateActionIndex > latestPageObservationIndex;
+	if (pageObservationInvalidated) {
+		// Keep projected refs available throughout this batch, then revoke them
+		// when the final page state was not observed. A later read in the same
+		// batch installs a fresh ref snapshot instead.
+		replaceSemanticRefSnapshot(params.b, []);
+	}
 
 	return {
 		pendingMemoryRead,
 		interactionErrors,
 		toolObservations,
+		pageObservation,
+		pageObservationMetadata,
+		pageObservationInvalidated,
+		pageObservationEvents,
 		returnedResult,
 		authTakeoverAttempts,
 		userTakeover: userTakeoverReason

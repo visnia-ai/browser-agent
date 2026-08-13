@@ -1,6 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { Browser } from "./types.js";
 import {
+	createSemanticRefFingerprint,
 	replaceSemanticRefSnapshot,
 	type SemanticRefTarget,
 } from "./semantic-ref-registry.js";
@@ -11,6 +12,7 @@ export interface SemanticProjectionOptions {
 	redactInputRefs?: string[];
 	redactPasswordInputs?: boolean;
 	stepNumber?: number;
+	frameIds?: string[];
 }
 
 interface ProjectionNode {
@@ -625,7 +627,9 @@ function buildProjectionFields(params: {
 		protectedValue ||
 		(ref !== undefined && params.redactInputRefs.has(ref)) ||
 		(params.redactPasswordInputs &&
-			(node.role === "textbox" || node.role === "searchbox"));
+			(node.role === "textbox" ||
+				node.role === "searchbox" ||
+				node.properties.get("editable") !== undefined));
 	if (node.value) {
 		fields.set(
 			"value",
@@ -665,21 +669,44 @@ export async function getSemanticProjection(
 		replaceSemanticRefSnapshot(browser, []);
 		return serializeLargePlainTextProjection(largePlainTextDocument);
 	}
-	const response = await browser.Accessibility.getFullAXTree();
+	const requestedFrameIds = [...new Set(options.frameIds ?? [])];
+	const responses: Protocol.Accessibility.GetFullAXTreeResponse[] = [];
+	if (requestedFrameIds.length === 0) {
+		responses.push(await browser.Accessibility.getFullAXTree());
+	} else {
+		for (const frameId of requestedFrameIds) {
+			try {
+				responses.push(
+					await browser.Accessibility.getFullAXTree({ frameId }),
+				);
+			} catch {
+				// OOPIFs may require a separate CDP target session. Keep the
+				// documents that are addressable from the current session.
+			}
+		}
+		if (responses.length === 0) {
+			responses.push(await browser.Accessibility.getFullAXTree());
+		}
+	}
 	const nodes = new Map<string, ProjectionNode>();
-	for (const rawNode of response.nodes) {
-		const id = String(rawNode.nodeId);
-		nodes.set(id, {
-			id,
-			backendNodeId: rawNode.backendDOMNodeId,
-			role: normalizedRole(axValue(rawNode.role)),
-			name: normalizedText(axValue(rawNode.name)),
-			value: normalizedText(axValue(rawNode.value)),
-			description: normalizedText(axValue(rawNode.description)),
-			properties: getProperties(rawNode),
-			childIds: (rawNode.childIds ?? []).map(String),
-			ignored: rawNode.ignored === true,
-		});
+	for (let responseIndex = 0; responseIndex < responses.length; responseIndex++) {
+		for (const rawNode of responses[responseIndex].nodes) {
+			const prefix = `${responseIndex}:`;
+			const id = `${prefix}${String(rawNode.nodeId)}`;
+			nodes.set(id, {
+				id,
+				backendNodeId: rawNode.backendDOMNodeId,
+				role: normalizedRole(axValue(rawNode.role)),
+				name: normalizedText(axValue(rawNode.name)),
+				value: normalizedText(axValue(rawNode.value)),
+				description: normalizedText(axValue(rawNode.description)),
+				properties: getProperties(rawNode),
+				childIds: (rawNode.childIds ?? []).map(
+					(childId) => `${prefix}${String(childId)}`,
+				),
+				ignored: rawNode.ignored === true,
+			});
+		}
 	}
 
 	const childIds = new Set(
@@ -721,6 +748,12 @@ export async function getSemanticProjection(
 				backendNodeId: node.backendNodeId,
 				role: node.role,
 				capabilities: capabilitiesFor(node),
+				fingerprint: createSemanticRefFingerprint({
+					role: node.role,
+					name: node.name,
+					description: node.description,
+					url: node.properties.get("url"),
+				}),
 			});
 		}
 		const fields = buildProjectionFields({

@@ -1,4 +1,6 @@
 export interface ConfigFeatureFlags {
+	/** Replace automatic semantic projection prompts with request-driven Markdown page observations. */
+	pageObservationMode: "semantic" | "markdown";
 	/** Create and maintain a semantic task-completion checklist. */
 	taskChecklist: boolean;
 	/** Attach a fresh full-page screenshot to the latest executor prompt before each step. */
@@ -26,6 +28,7 @@ export interface ConfigFeatureFlags {
 }
 
 export const configFeatureFlags: ConfigFeatureFlags = {
+	pageObservationMode: "semantic",
 	taskChecklist: true,
 	preStepScreenshotInLatestUserPrompt: true,
 	userTakeoverTool: true,
@@ -46,6 +49,9 @@ export function mergeConfigFeatureFlags(
 ): ConfigFeatureFlags {
 	return {
 		...base,
+		...(overrides.pageObservationMode !== undefined
+			? { pageObservationMode: overrides.pageObservationMode }
+			: {}),
 		...(overrides.taskChecklist !== undefined
 			? { taskChecklist: overrides.taskChecklist }
 			: {}),
@@ -103,6 +109,9 @@ export function mergeConfigFeatureFlags(
 export function setConfigFeatureFlags(
 	flags: Partial<ConfigFeatureFlags>,
 ): void {
+	if (flags.pageObservationMode !== undefined) {
+		configFeatureFlags.pageObservationMode = flags.pageObservationMode;
+	}
 	if (flags.taskChecklist !== undefined) {
 		configFeatureFlags.taskChecklist = flags.taskChecklist;
 	}

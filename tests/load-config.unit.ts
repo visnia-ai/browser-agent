@@ -229,6 +229,7 @@ tasks:
 			endpointUrl: undefined,
 		});
 		assert.deepEqual(config.featureFlags, {
+			pageObservationMode: "semantic",
 			taskChecklist: true,
 			preStepScreenshotInLatestUserPrompt: false,
 			userTakeoverTool: true,
@@ -288,6 +289,7 @@ tasks:
 			endpointUrl: undefined,
 		});
 		assert.deepEqual(config.featureFlags, {
+			pageObservationMode: "semantic",
 			taskChecklist: true,
 			preStepScreenshotInLatestUserPrompt: false,
 			userTakeoverTool: true,
@@ -707,6 +709,8 @@ tasks:
 	});
 
 	it("parses YAML-backed feature flags without mutating runtime config flags", () => {
+		const originalPageObservationMode =
+			configFeatureFlags.pageObservationMode;
 		const originalTaskChecklist = configFeatureFlags.taskChecklist;
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
@@ -739,6 +743,7 @@ stage_llms:
     provider: openai
     model: gpt-5.2
 feature_flags:
+  page_observation_mode: markdown
   task_checklist: false
   pre_step_screenshot_in_latest_user_prompt: true
   user_takeover_tool: false
@@ -759,6 +764,7 @@ tasks:
 			const config = loadConfig(configPath);
 
 			assert.deepEqual(config.featureFlags, {
+				pageObservationMode: "markdown",
 				taskChecklist: false,
 				preStepScreenshotInLatestUserPrompt: true,
 				userTakeoverTool: false,
@@ -773,6 +779,7 @@ tasks:
 				optimizeTextInput: true,
 			});
 			assert.deepEqual(configFeatureFlags, {
+				pageObservationMode: originalPageObservationMode,
 				taskChecklist: originalTaskChecklist,
 				preStepScreenshotInLatestUserPrompt: originalPreStepScreenshot,
 				userTakeoverTool: originalUserTakeover,
@@ -789,6 +796,8 @@ tasks:
 				optimizeTextInput: false,
 			});
 		} finally {
+			configFeatureFlags.pageObservationMode =
+				originalPageObservationMode;
 			configFeatureFlags.taskChecklist = originalTaskChecklist;
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 				originalPreStepScreenshot;
@@ -1741,6 +1750,8 @@ tasks:
 	});
 
 	it("createDefaultCoreDeps applies config feature flags to runtime state", () => {
+		const originalPageObservationMode =
+			configFeatureFlags.pageObservationMode;
 		const originalTaskChecklist = configFeatureFlags.taskChecklist;
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
@@ -1760,6 +1771,7 @@ tasks:
 		try {
 			const deps = createDefaultCoreDeps({
 				featureFlags: {
+					pageObservationMode: "markdown",
 					taskChecklist: false,
 					preStepScreenshotInLatestUserPrompt: true,
 					userTakeoverTool: false,
@@ -1776,6 +1788,7 @@ tasks:
 			});
 
 			assert.deepEqual(deps.featureFlags, {
+				pageObservationMode: "markdown",
 				taskChecklist: false,
 				preStepScreenshotInLatestUserPrompt: true,
 				userTakeoverTool: false,
@@ -1791,6 +1804,8 @@ tasks:
 			});
 			assert.deepEqual(configFeatureFlags, deps.featureFlags);
 		} finally {
+			configFeatureFlags.pageObservationMode =
+				originalPageObservationMode;
 			configFeatureFlags.taskChecklist = originalTaskChecklist;
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 				originalPreStepScreenshot;

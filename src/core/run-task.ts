@@ -606,7 +606,14 @@ export async function runTask(input: RunTaskInput): Promise<RunTaskResult> {
 				browserEquivalentSteps: runAgentResult.mainLoopEntries.length,
 				trajectoryDurationMs: durationMs,
 				stepRuntimeMetrics: runAgentResult.stepRuntimeMetrics,
+				executorTokenTotals: runAgentResult.tokenTotals,
+				pageObservationMetrics:
+					runAgentResult.pageObservationMetrics,
+				pageObservationEvents:
+					runAgentResult.pageObservationEvents,
 				executionOverrides: {
+					pageObservationMode:
+						runAgentResult.pageObservationMetrics.mode,
 					url: !!taskExecutionOverride?.url,
 					metadata: taskExecutionOverride?.metadata,
 				},

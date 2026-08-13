@@ -135,6 +135,8 @@ export function buildStepPayload(params: {
 	previousInteractionErrors: string[];
 	previousToolObservations?: string[];
 	projection: string;
+	pageObservation?: string;
+	pageObservationMode?: boolean;
 	currentTab?: number;
 	openTabs?: string[];
 	newlyOpenedTabs?: string[];
@@ -176,7 +178,11 @@ export function buildStepPayload(params: {
 		workspaceFiles: Array.isArray(params.workspaceFiles)
 			? params.workspaceFiles
 			: [],
-		projection: params.projection,
+		...(params.pageObservationMode
+			? params.pageObservation !== undefined
+				? { pageObservation: params.pageObservation }
+				: {}
+			: { projection: params.projection }),
 	};
 	if (params.previousToolObservations?.length) {
 		payload.toolObservations = params.previousToolObservations;
@@ -532,6 +538,12 @@ export function serializeActionsForPrompt(
 				return "memory_read";
 			case "read_file":
 				return { read_file: action.path };
+			case "read_page":
+				return "read_page";
+			case "find_page":
+				return { find_page: action.query };
+			case "project_page":
+				return { project_page: action.target };
 			case "return_results":
 				return action.results
 					? { return_results: action.results }

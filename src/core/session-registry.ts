@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import type { Browser, Tab } from "../browser/types.js";
+import type { PageObservationEvent } from "../agents/types.js";
 import type { ChecklistItem } from "../agents/types.js";
 import type { SessionAuthTakeoverState } from "../auth/types.js";
 import type { DataExtractionCoordinator } from "../agents/executor-utils/data-extraction-coordinator.js";
@@ -20,6 +21,10 @@ export interface BrowserSession {
 	pendingMemoryRead: boolean;
 	previousInteractionErrors: string[];
 	previousToolObservations: string[];
+	currentPageObservation?: string;
+	currentPageObservationMetadata?: import("../browser/page-markdown-observation.js").PageObservationMetadata;
+	pageObservationBootstrapped: boolean;
+	pageObservationEvents: PageObservationEvent[];
 	previousStepTabs: Tab[] | null;
 	downloadedFileSignatures: Map<string, string> | null;
 	downloadedNewFilePaths: Set<string>;

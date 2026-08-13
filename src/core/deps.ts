@@ -16,6 +16,7 @@ import {
 	downloadFileFromUrl,
 } from "../browser/browser.js";
 import { getSemanticProjection } from "../browser/semantic-projection.js";
+import { getPageMarkdownObservation } from "../browser/page-markdown-observation.js";
 import { extractDataResultsFromSnapshot } from "../agents/data-extraction.js";
 import { extractValidRefs } from "../agents/extract-valid-refs.js";
 import { findTargetURL } from "../agents/target-url.js";
@@ -120,6 +121,7 @@ export function createDefaultCoreDeps(
 				...projectionOptions,
 				omitHrefs: projectionOptions?.preserveFullHrefs !== true,
 			}),
+		getPageObservation: getPageMarkdownObservation,
 		listTabs,
 		extractValidRefs,
 		findTargetURL,

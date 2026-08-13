@@ -63,6 +63,20 @@ export {
 export { getSemanticProjection } from "./semantic-projection.js";
 export type { SemanticProjectionOptions } from "./semantic-projection.js";
 export {
+	getPageDocumentIdentity,
+	getPageMarkdownObservation,
+	isSamePageDocument,
+	PAGE_OBSERVATION_CHARACTER_BUDGET,
+} from "./page-markdown-observation.js";
+export type {
+	PageDocumentIdentity,
+	PageMarkdownObservation,
+	PageMarkdownObservationDiagnostics,
+	PageObservationMetadata,
+	PageObservationRequest,
+	PageMarkdownObservationOptions,
+} from "./page-markdown-observation.js";
+export {
 	minifySimplifiedDOM,
 	unminifySimplifiedDOM,
 } from "./simplified-dom-minifier.js";

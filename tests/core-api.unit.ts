@@ -46,12 +46,14 @@ describe("core-api", () => {
 		configFeatureFlags.semanticProjectionHistory;
 	const originalExtractDataWholeContext =
 		configFeatureFlags.extractDataWholeContext;
+	const originalPageObservationMode = configFeatureFlags.pageObservationMode;
 
 	afterEach(() => {
 		configFeatureFlags.semanticProjectionHistory =
 			originalCumulativeProjectionHistory;
 		configFeatureFlags.extractDataWholeContext =
 			originalExtractDataWholeContext;
+		configFeatureFlags.pageObservationMode = originalPageObservationMode;
 		__setProviderOverrideForTests("vllm", null);
 		__setProviderOverrideForTests("together", null);
 	});
@@ -80,6 +82,61 @@ describe("core-api", () => {
 			deps.registry.get(9333)?.browser.userDataDir,
 			"/tmp/workflow-profile",
 		);
+	});
+
+	it("bootstraps Markdown once without reading semantic projections", async () => {
+		setConfigFeatureFlags({ pageObservationMode: "markdown" });
+		let markdownReads = 0;
+		let semanticReads = 0;
+		const deps = createMockCoreDeps({
+			extractValidRefs: (value) =>
+				[...value.matchAll(/\[(r[0-9a-z]+)\]/g)].map((match) => match[1]),
+			getPageProjection: async () => {
+				semanticReads += 1;
+				return 'projection semantic-v1 refs=1\nbutton ref="r1" name="Old"';
+			},
+			getPageObservation: async () => {
+				markdownReads += 1;
+				return {
+					content:
+						'page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\n# Example\n\n--- refs ---\n[r2] button "Continue"',
+					truncated: false,
+					diagnostics: {
+						refCount: 1,
+						returnedRefCount: 1,
+						matchedNodeCount: 1,
+					},
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+
+		const first = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+		const second = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		assert.strictEqual(markdownReads, 1);
+		assert.strictEqual(semanticReads, 0);
+		assert.include(String(first.prompt.payload.pageObservation), "# Example");
+		assert.notProperty(first.prompt.payload, "projection");
+		assert.strictEqual(
+			first.prompt.payload.pageObservation,
+			second.prompt.payload.pageObservation,
+		);
+		assert.strictEqual(first.context.valid_refs_count, 1);
+		assert.deepInclude(deps.registry.get(9222)!.pageObservationEvents[0], {
+			kind: "bootstrap",
+			actionCount: 0,
+			characters: String(first.prompt.payload.pageObservation).length,
+			batchedWithPriorAction: false,
+		});
 	});
 
 	it("step(create_prompt_for_step) returns prompt and context", async () => {
@@ -687,6 +744,312 @@ describe("core-api", () => {
 			assert.isArray(result.context.downloaded_files);
 		}
 		assert.strictEqual(deps.registry.get(9222)?.pendingMemoryRead, true);
+	});
+
+	it("keeps an explicitly requested Markdown observation for the next step", async () => {
+		setConfigFeatureFlags({ pageObservationMode: "markdown" });
+		const initialObservation =
+			'page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\n# Initial';
+		const refreshedObservation =
+			'page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\n# Refreshed';
+		let semanticReads = 0;
+		const deps = createMockCoreDeps({
+			extractValidRefs: (value) =>
+				[...value.matchAll(/\[(r[0-9a-z]+)\]/g)].map((match) => match[1]),
+			getPageProjection: async () => {
+				semanticReads += 1;
+				return 'projection semantic-v1 refs=1\nbutton ref="old"';
+			},
+			getPageObservation: async () => ({
+				content: initialObservation,
+				truncated: false,
+				diagnostics: {
+					refCount: 0,
+					returnedRefCount: 0,
+					matchedNodeCount: 1,
+				},
+			}),
+			executeActions: async ({ actions }) => {
+				assert.deepEqual(actions, [{ type: "read_page" }]);
+				return {
+					pendingMemoryRead: false,
+					interactionErrors: [],
+					toolObservations: [],
+					authTakeoverAttempts: [],
+					returnedResult: undefined,
+					userTakeover: undefined,
+					pageObservation: refreshedObservation,
+					pageObservationEvents: [
+						{
+							kind: "read_page" as const,
+							stepNumber: 1,
+							actionIndex: 1,
+							actionCount: 1,
+							characters: refreshedObservation.length,
+							estimatedTokens: refreshedObservation.length,
+							matchedNodeCount: 1,
+							returnedRefCount: 0,
+							truncated: false,
+							unchanged: false,
+							batchedWithPriorAction: false,
+						},
+					],
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		const browseResult = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [{ type: "read_page" }],
+		});
+		const nextPrompt = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		assert.strictEqual(browseResult.mode, "browse");
+		if (browseResult.mode === "browse") {
+			assert.deepEqual(browseResult.context.valid_refs, []);
+			assert.strictEqual(browseResult.context.projection, "");
+			assert.strictEqual(
+				browseResult.context.page_observation,
+				refreshedObservation,
+			);
+			assert.lengthOf(browseResult.execution.page_observation_events ?? [], 1);
+		}
+		assert.strictEqual(
+			nextPrompt.prompt.payload.pageObservation,
+			refreshedObservation,
+		);
+		assert.strictEqual(semanticReads, 0);
+	});
+
+	it("does not discard an observation for a fragment-only URL mismatch", async () => {
+		setConfigFeatureFlags({ pageObservationMode: "markdown" });
+		const fragmentObservation =
+			'page url="https://example.com/#x" title="Example"\nmatched=1 truncated=false\n\n# Fragment state';
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () => "https://example.com/",
+			getPageObservation: async () => ({
+				content: fragmentObservation,
+				truncated: false,
+				diagnostics: {
+					refCount: 0,
+					returnedRefCount: 0,
+					matchedNodeCount: 1,
+				},
+			}),
+			executeActions: async () => ({
+				pendingMemoryRead: false,
+				interactionErrors: [],
+				pageObservation: fragmentObservation,
+			}),
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+		const result = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [{ type: "read_page" }],
+		});
+		assert.strictEqual(result.mode, "browse");
+		if (result.mode === "browse") {
+			assert.strictEqual(result.context.page_observation, fragmentObservation);
+		}
+	});
+
+	it("privately replays an observation when the document identity changes", async () => {
+		setConfigFeatureFlags({ pageObservationMode: "markdown" });
+		let documentBackendNodeId = 10;
+		let reads = 0;
+		const deps = createMockCoreDeps({
+			launchBrowser: async (port) => ({
+				port,
+				client: {} as any,
+				chrome: {} as any,
+				Page: {} as any,
+				Runtime: {} as any,
+				DOM: {
+					getDocument: async () => ({
+						root: { backendNodeId: documentBackendNodeId },
+					}),
+				} as any,
+				DOMSnapshot: {} as any,
+				Input: {} as any,
+				Target: {} as any,
+				Accessibility: {} as any,
+				currentTargetId: "tab-1",
+			}),
+			getPageObservation: async (_browser, options) => {
+				reads += 1;
+				return {
+					content: `page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\n# Document ${documentBackendNodeId}`,
+					truncated: false,
+					metadata: {
+						identity: { targetId: "tab-1", documentBackendNodeId },
+						request: options?.query
+							? { kind: "find_page" as const, query: options.query }
+							: { kind: "read_page" as const },
+					},
+					diagnostics: {
+						refCount: 0,
+						returnedRefCount: 0,
+						matchedNodeCount: 1,
+					},
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		const first = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+		documentBackendNodeId = 11;
+		const second = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+		assert.include(String(first.prompt.payload.pageObservation), "Document 10");
+		assert.include(String(second.prompt.payload.pageObservation), "Document 11");
+		assert.strictEqual(reads, 2);
+		assert.deepInclude(deps.registry.get(9222)!.pageObservationEvents[1], {
+			automatic: true,
+			refreshed: true,
+		});
+	});
+
+	it("invalidates Markdown after navigation without an automatic follow-up read", async () => {
+		setConfigFeatureFlags({ pageObservationMode: "markdown" });
+		let currentUrl = "https://example.com";
+		let markdownReads = 0;
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () => currentUrl,
+			extractValidRefs: (value) =>
+				[...value.matchAll(/\[(r[0-9a-z]+)\]/g)].map((match) => match[1]),
+			getPageObservation: async () => {
+				markdownReads += 1;
+				return {
+					content:
+						'page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\n# Before navigation\n\n--- refs ---\n[r1] link "Next"',
+					truncated: false,
+					diagnostics: {
+						refCount: 1,
+						returnedRefCount: 1,
+						matchedNodeCount: 1,
+					},
+				};
+			},
+			executeActions: async ({ actions }) => {
+				assert.deepEqual(actions, [
+					{ type: "navigate", url: "https://example.org/next" },
+				]);
+				currentUrl = "https://example.org/next";
+				return {
+					pendingMemoryRead: false,
+					interactionErrors: [],
+					toolObservations: [],
+					authTakeoverAttempts: [],
+					returnedResult: undefined,
+					userTakeover: undefined,
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		const browseResult = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [
+				{ type: "navigate", url: "https://example.org/next" },
+			],
+		});
+		const nextPrompt = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		assert.strictEqual(markdownReads, 1);
+		assert.strictEqual(browseResult.mode, "browse");
+		if (browseResult.mode === "browse") {
+			assert.isUndefined(browseResult.context.page_observation);
+			assert.deepEqual(browseResult.context.valid_refs, []);
+		}
+		assert.notProperty(nextPrompt.prompt.payload, "pageObservation");
+		assert.notProperty(nextPrompt.prompt.payload, "projection");
+	});
+
+	it("invalidates Markdown after a successful standalone page action", async () => {
+		setConfigFeatureFlags({ pageObservationMode: "markdown" });
+		const projectedObservation =
+			'page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\n# Consent\n\n--- refs ---\n[r1] button "Accept all"';
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () => "https://example.com",
+			extractValidRefs: (value) =>
+				[...value.matchAll(/\[(r[0-9a-z]+)\]/g)].map((match) => match[1]),
+			getPageObservation: async () => ({
+				content: projectedObservation,
+				truncated: false,
+				diagnostics: {
+					refCount: 1,
+					returnedRefCount: 1,
+					matchedNodeCount: 1,
+				},
+			}),
+			executeActions: async ({ actions }) => {
+				assert.deepEqual(actions, [{ type: "click", ref: "r1" }]);
+				return {
+					pendingMemoryRead: false,
+					interactionErrors: [],
+					toolObservations: [],
+					authTakeoverAttempts: [],
+					pageObservationInvalidated: true,
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		const browseResult = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [{ type: "click", ref: "r1" }],
+		});
+		const nextPrompt = await createPromptForStep(deps, {
+			port: 9222,
+			userTask: "task",
+			stepsHistory: [],
+		});
+
+		assert.strictEqual(browseResult.mode, "browse");
+		if (browseResult.mode === "browse") {
+			assert.isUndefined(browseResult.context.page_observation);
+			assert.deepEqual(browseResult.context.valid_refs, []);
+		}
+		assert.notProperty(nextPrompt.prompt.payload, "pageObservation");
 	});
 
 	it("step(browse) updates focused browser context after switch_tab", async () => {
@@ -1724,6 +2087,12 @@ describe("core-api", () => {
 		assert.strictEqual(result.tokenTotals.input_tokens, 18);
 		assert.strictEqual(result.tokenTotals.output_tokens, 7);
 		assert.strictEqual(result.tokenTotals.total_tokens, 25);
+		assert.deepInclude(result.pageObservationMetrics, {
+			mode: "semantic",
+			totalReads: 0,
+			totalEstimatedTokens: 0,
+		});
+		assert.deepEqual(result.pageObservationEvents, []);
 		assert.strictEqual(result.stepsHistory.length, 2);
 		assert.isUndefined(deps.registry.get(9222));
 	});

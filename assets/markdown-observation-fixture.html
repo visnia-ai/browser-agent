@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Research results</title>
+</head>
+<body>
+  <header>
+    <nav aria-label="Primary">
+      <a href="https://example.test/home">Home</a>
+      <a href="https://example.test/about">About</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Research results</h1>
+    <p>Results compare accessibility, pricing, and availability.</p>
+    <section>
+      <h2>Recommended services</h2>
+      <ol>
+        <li><a href="https://example.test/alpha">Alpha service</a> — available today.</li>
+        <li><a href="https://example.test/beta">Beta service</a> — appointment required.</li>
+        <li><a href="https://example.test/gamma">Gamma service</a> — waitlist open.</li>
+      </ol>
+    </section>
+    <section>
+      <h2>Comparison</h2>
+      <table>
+        <thead><tr><th>Service</th><th>Price</th><th>Accessible</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Alpha</td><td>€20</td><td>Yes</td><td>Available</td></tr>
+          <tr><td>Beta</td><td>€35</td><td>Yes</td><td>Appointment</td></tr>
+          <tr><td>Gamma</td><td>Free</td><td>Partial</td><td>Waitlist</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <form>
+      <h2>Filter results</h2>
+      <label>Search <input aria-label="Search services" value=""></label>
+      <label><input type="checkbox" checked> Open now</label>
+      <label>Sort
+        <select aria-label="Sort results">
+          <option value="recommended">Recommended</option>
+          <option value="price">Price</option>
+        </select>
+      </label>
+      <button type="submit">Apply filters</button>
+    </form>
+  </main>
+</body>
+</html>

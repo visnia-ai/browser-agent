@@ -2,9 +2,12 @@ import type { Action } from "../agents/types.js";
 
 const AGENT_LOCAL_ACTION_TYPES = new Set<Action["type"]>([
 	"extract_data",
+	"find_page",
 	"memory_clear",
 	"memory_read",
 	"memory_write",
+	"project_page",
+	"read_page",
 	"return_results",
 	"wait",
 ]);

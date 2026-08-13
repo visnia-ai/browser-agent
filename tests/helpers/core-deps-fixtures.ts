@@ -32,6 +32,7 @@ export function createMockCoreDeps(
 ): CoreDeps {
 	const registry = overrides.registry ?? new SessionRegistry();
 	const featureFlags: ConfigFeatureFlags = {
+		pageObservationMode: "semantic",
 		taskChecklist: false,
 		preStepScreenshotInLatestUserPrompt: false,
 		userTakeoverTool: true,
@@ -73,6 +74,16 @@ export function createMockCoreDeps(
 		getCurrentURL: async () => currentURL,
 		getPageProjection: async () =>
 			'projection semantic-v1 refs=2\ndocument ref="r1" name="Example"\n  button ref="r2" name="Continue"',
+		getPageObservation: async () => ({
+			content:
+				'page url="https://example.com" title="Example"\nmatched=1 truncated=false\n\nExample\n\n--- refs ---\n[r2] button "Continue"',
+			truncated: false,
+			diagnostics: {
+				refCount: 1,
+				returnedRefCount: 1,
+				matchedNodeCount: 1,
+			},
+		}),
 		listTabs: async () => tabs,
 		extractValidRefs: () => ["r1", "r2"],
 		findTargetURL: async () => "https://target.example",

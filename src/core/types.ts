@@ -154,6 +154,7 @@ export interface CoreDeps {
 		browser: Browser,
 		options?: SemanticProjectionOptions,
 	) => Promise<string>;
+	getPageObservation?: typeof import("../browser/page-markdown-observation.js").getPageMarkdownObservation;
 	listTabs: (browser: Browser) => Promise<Tab[]>;
 	extractValidRefs: (projection: string) => string[];
 	findTargetURL: (
@@ -322,6 +323,7 @@ export interface BrowseResult {
 		pending_memory_read: boolean;
 		returned_result?: string;
 		interaction_errors: string[];
+		page_observation_events?: import("../agents/types.js").PageObservationEvent[];
 		auth_takeover_attempts?: AuthTakeoverAttemptEvent[];
 		user_takeover?: {
 			reason: string;
@@ -334,6 +336,7 @@ export interface BrowseResult {
 		current_tab: number;
 		downloaded_files: string[];
 		projection: string;
+		page_observation?: string;
 		valid_refs: string[];
 	};
 }
@@ -579,6 +582,22 @@ export interface StepRuntimeMetrics {
 	browserInteractionMs: number;
 }
 
+export interface PageObservationMetrics {
+	mode: ConfigFeatureFlags["pageObservationMode"];
+	totalReads: number;
+	bootstrapReads: number;
+	wholePageReads: number;
+	foundReads: number;
+	projectedReads: number;
+	batchedReads: number;
+	standaloneReads: number;
+	unchangedReads: number;
+	truncatedReads: number;
+	zeroMatchProjections: number;
+	totalCharacters: number;
+	totalEstimatedTokens: number;
+}
+
 export interface RunAgentResult {
 	preprocess: PreprocessTaskResult;
 	completed: boolean;
@@ -589,6 +608,8 @@ export interface RunAgentResult {
 	mainLoopEntries: MainLoopStepEntry[];
 	stepTokenUsage: StepTokenUsage[];
 	stepRuntimeMetrics: StepRuntimeMetrics[];
+	pageObservationEvents: import("../agents/types.js").PageObservationEvent[];
+	pageObservationMetrics: PageObservationMetrics;
 	stepArtifacts?: RunAgentStepArtifact[];
 	tokenTotals: RunAgentTokenTotals;
 	successVerification?: import("../agents/types.js").SuccessVerificationResult;

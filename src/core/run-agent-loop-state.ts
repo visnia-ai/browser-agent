@@ -19,7 +19,8 @@ export function buildActionSignatureWithUrl(
 		const type = typeof record.type === "string" ? record.type : "unknown";
 		const ref = typeof record.ref === "string" ? record.ref : "";
 		const targetUrl = typeof record.url === "string" ? record.url : "";
-		return `${type}:${ref}:${targetUrl}`;
+		const target = typeof record.target === "string" ? record.target : "";
+		return `${type}:${ref}:${targetUrl}:${target}`;
 	});
 	return `${url}::${yaml.dump(normalizedActions).trim()}`;
 }

@@ -50,6 +50,11 @@ import { shouldIncludeExecutorReasoningHistory } from "../agents/prompts.js";
 import { OPENAI_EXECUTOR_CONTEXT_POLICY } from "../agents/executor-context-policy.js";
 import { resolveProjectionHistoryContext } from "./projection-history.js";
 import {
+	getPageDocumentIdentity,
+	isSamePageDocument,
+} from "../browser/page-markdown-observation.js";
+import { replaceSemanticRefSnapshot } from "../browser/semantic-ref-registry.js";
+import {
 	applyChecklistUpdate,
 	formatChecklistForPrompt,
 	normalizeChecklistUpdate,
@@ -63,6 +68,92 @@ const BLANK_DOWNLOAD_TAB_CONTEXT_NOTE =
 	"Ignored blank download tab; stayed on source tab.";
 const PDF_DOWNLOAD_TAB_CONTEXT_NOTE =
 	"Downloaded newly opened PDF; stayed on source tab.";
+
+async function refreshChangedDocumentObservation(input: {
+	session: BrowserSession;
+	deps: CoreDeps;
+	stepNumber?: number;
+	redactInputRefs?: string[];
+	redactPasswordInputs?: boolean;
+}): Promise<void> {
+	const { session } = input;
+	const metadata = session.currentPageObservationMetadata;
+	if (!session.currentPageObservation || !input.deps.getPageObservation) {
+		return;
+	}
+	if (!metadata) {
+		// Compatibility fallback for observations produced by older/custom deps.
+		// Live Markdown observations carry a DOM document identity and never use
+		// this URL comparison. Ignore fragments so same-document hash changes do
+		// not throw useful content away.
+		const observedUrl = /^page url=("(?:[^"\\]|\\.)*")/m.exec(
+			session.currentPageObservation,
+		)?.[1];
+		if (!observedUrl) return;
+		try {
+			const currentUrl = await input.deps.getCurrentURL(session.browser);
+			const parsedObservedUrl = new URL(JSON.parse(observedUrl));
+			const parsedCurrentUrl = new URL(currentUrl);
+			parsedObservedUrl.hash = "";
+			parsedCurrentUrl.hash = "";
+			if (parsedObservedUrl.href === parsedCurrentUrl.href) return;
+		} catch {
+			return;
+		}
+		session.currentPageObservation = undefined;
+		replaceSemanticRefSnapshot(session.browser, []);
+		return;
+	}
+	try {
+		const identity = await getPageDocumentIdentity(session.browser);
+		if (isSamePageDocument(metadata.identity, identity)) return;
+
+		const request = metadata.request;
+		const observation = await input.deps.getPageObservation(session.browser, {
+			redactInputRefs: input.redactInputRefs,
+			redactPasswordInputs: input.redactPasswordInputs,
+			stepNumber: input.stepNumber,
+			...(request.kind === "project_page" && request.targetKind === "selector"
+				? { target: request.target }
+				: request.kind === "find_page"
+					? { query: request.query }
+					: {}),
+		});
+		const previous = session.currentPageObservation;
+		session.currentPageObservation = observation.content;
+		session.currentPageObservationMetadata = observation.metadata;
+		session.pageObservationEvents.push({
+			kind:
+				request.kind === "project_page" && request.targetKind === "ref"
+					? "read_page"
+					: request.kind,
+			stepNumber: input.stepNumber,
+			...(request.kind === "project_page" && request.targetKind === "selector"
+				? { target: request.target }
+				: {}),
+			...(request.kind === "find_page" ? { query: request.query } : {}),
+			automatic: true,
+			refreshed: true,
+			actionCount: 0,
+			characters: observation.content.length,
+			estimatedTokens: input.deps.estimateTokenCount(observation.content),
+			matchedNodeCount: observation.diagnostics.matchedNodeCount,
+			returnedRefCount: observation.diagnostics.returnedRefCount,
+			truncated: observation.truncated,
+			unchanged: observation.content === previous,
+			batchedWithPriorAction: false,
+		});
+	} catch (error) {
+		// Never expose a possibly stale observation or ref set. Recovery is an
+		// internal harness concern; the model can continue from fresh context.
+		session.currentPageObservation = undefined;
+		session.currentPageObservationMetadata = undefined;
+		replaceSemanticRefSnapshot(session.browser, []);
+		console.warn(
+			`[page-observation] private document refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
 
 function getSessionOrThrow(deps: CoreDeps, port: number): BrowserSession {
 	const session = deps.registry.get(port);
@@ -430,7 +521,10 @@ async function createPromptForStepImpl(
 			? ("cumulative" as const)
 			: ("current" as const),
 	};
+	const markdownPageObservationsEnabled =
+		configFeatureFlags.pageObservationMode === "markdown";
 	const cumulativeProjectionHistoryEnabled =
+		!markdownPageObservationsEnabled &&
 		executorPromptOptions.semanticProjectionHistory === "cumulative";
 
 	session.lastTask = input.userTask;
@@ -476,6 +570,60 @@ async function createPromptForStepImpl(
 			},
 		});
 	const refreshProjectionContext = async (): Promise<void> => {
+		if (markdownPageObservationsEnabled) {
+			await refreshChangedDocumentObservation({
+				session,
+				deps,
+				stepNumber: input.stepNumber,
+				redactInputRefs: domOptions.redactInputRefs,
+				redactPasswordInputs: domOptions.redactPasswordInputs,
+			});
+			if (!session.pageObservationBootstrapped) {
+				if (!deps.getPageObservation) {
+					throw new Error(
+						"Markdown page observations require getPageObservation",
+					);
+				}
+				let observationCharacters = 0;
+				const observation = await timeStateExtractionPhase(
+					{
+						stepNumber: input.stepNumber,
+						phase: "getPageObservation:bootstrap",
+						detail: () =>
+							`observation_chars=${observationCharacters}`,
+					},
+					async () => {
+						const result = await deps.getPageObservation!(session.browser, {
+							redactInputRefs: domOptions.redactInputRefs,
+							redactPasswordInputs: domOptions.redactPasswordInputs,
+							stepNumber: input.stepNumber,
+						});
+						observationCharacters = result.content.length;
+						return result;
+					},
+				);
+				session.currentPageObservation = observation.content;
+				session.currentPageObservationMetadata = observation.metadata;
+				session.pageObservationBootstrapped = true;
+				session.pageObservationEvents.push({
+					kind: "bootstrap",
+					stepNumber: input.stepNumber,
+					actionCount: 0,
+					characters: observation.content.length,
+					estimatedTokens: deps.estimateTokenCount(observation.content),
+					matchedNodeCount: observation.diagnostics.matchedNodeCount,
+					returnedRefCount: observation.diagnostics.returnedRefCount,
+					truncated: observation.truncated,
+					unchanged: false,
+					batchedWithPriorAction: false,
+				});
+			}
+			projection = "";
+			validRefs = deps.extractValidRefs(
+				session.currentPageObservation ?? "",
+			);
+			return;
+		}
 		try {
 			projection = await timeStateExtractionPhase(
 				{
@@ -584,6 +732,13 @@ async function createPromptForStepImpl(
 						`Auto-switching to first newly opened tab: "${deps.formatTabTitle(firstNewTab)}"`,
 					);
 					await deps.switchTab(session.browser, firstNewTab.targetId);
+					if (markdownPageObservationsEnabled) {
+						session.currentPageObservation = undefined;
+						session.currentPageObservationMetadata = undefined;
+						if (input.stepsHistory.length === 0) {
+							session.pageObservationBootstrapped = false;
+						}
+					}
 					currentUrl = await timeStateExtractionPhase(
 						{
 							stepNumber: input.stepNumber,
@@ -624,6 +779,7 @@ async function createPromptForStepImpl(
 	let preStepScreenshotDataUrl = "";
 	if (
 		configFeatureFlags.preStepScreenshotInLatestUserPrompt &&
+		!markdownPageObservationsEnabled &&
 		!protectAuthContext
 	) {
 		for (
@@ -809,6 +965,10 @@ async function createPromptForStepImpl(
 				previousInteractionErrors: promptInteractionErrors,
 				previousToolObservations: session.previousToolObservations,
 				projection: projectionHistoryContext?.projection ?? projection,
+				pageObservation: markdownPageObservationsEnabled
+					? session.currentPageObservation
+					: undefined,
+				pageObservationMode: markdownPageObservationsEnabled,
 				currentTab,
 				openTabs: openTabs.map((tab) => deps.formatTabTitle(tab)),
 				newlyOpenedTabs: newlyOpenedTabs.map((tab) => deps.formatTabTitle(tab)),
@@ -1088,9 +1248,16 @@ export async function browse(
 				downloadedFiles: input.promptDownloadedFiles,
 				workspaceFiles: input.promptWorkspaceFiles,
 				memoryContentAvailable: input.memoryContentAvailable,
-				extractDataResultsFromSnapshot: deps.extractDataResultsFromSnapshot,
-				dataExtractionCoordinator: session.dataExtractionCoordinator,
-				stepBaseIndex:
+					extractDataResultsFromSnapshot: deps.extractDataResultsFromSnapshot,
+					dataExtractionCoordinator: session.dataExtractionCoordinator,
+					pageObservationOptions: {
+						redactInputRefs: domOptions.redactInputRefs,
+						redactPasswordInputs: domOptions.redactPasswordInputs,
+						stepNumber: input.stepNumber,
+					},
+					readPageObservation: deps.getPageObservation,
+					previousPageObservation: session.currentPageObservation,
+					stepBaseIndex:
 					typeof input.stepNumber === "number"
 						? Math.max(0, input.stepNumber)
 						: undefined,
@@ -1123,6 +1290,21 @@ export async function browse(
 	session.pendingMemoryRead =
 		session.pendingMemoryRead || execution.pendingMemoryRead;
 	session.previousToolObservations = execution.toolObservations ?? [];
+	if (configFeatureFlags.pageObservationMode === "markdown") {
+		if (execution.pageObservationInvalidated) {
+			session.currentPageObservation = undefined;
+			session.currentPageObservationMetadata = undefined;
+		} else if (execution.pageObservation !== undefined) {
+			session.currentPageObservation = execution.pageObservation;
+			session.currentPageObservationMetadata =
+				execution.pageObservationMetadata;
+		}
+	}
+	if (execution.pageObservationEvents?.length) {
+		session.pageObservationEvents.push(
+			...execution.pageObservationEvents.map((event) => ({ ...event })),
+		);
+	}
 	let currentUrl = "";
 	try {
 		currentUrl = await deps.getCurrentURL(session.browser);
@@ -1214,24 +1396,35 @@ export async function browse(
 	}
 	let projection = "";
 	let validRefs: string[] = [];
-	try {
-		projection = await deps.getPageProjection(session.browser, domOptions);
-		validRefs = deps.extractValidRefs(projection);
-	} catch (error) {
-		const message = toErrorMessage(error);
-		if (message.includes("bad refs") || message.includes("valid_refs")) {
-			additionalInteractionErrors.push(`context(valid_refs): ${message}`);
-		} else {
-			additionalInteractionErrors.push(`context(projection): ${message}`);
-		}
-	}
-	if (projection && validRefs.length === 0) {
+	if (configFeatureFlags.pageObservationMode === "markdown") {
+		await refreshChangedDocumentObservation({
+			session,
+			deps,
+			stepNumber: input.stepNumber,
+			redactInputRefs: domOptions.redactInputRefs,
+			redactPasswordInputs: domOptions.redactPasswordInputs,
+		});
+		validRefs = deps.extractValidRefs(session.currentPageObservation ?? "");
+	} else {
 		try {
+			projection = await deps.getPageProjection(session.browser, domOptions);
 			validRefs = deps.extractValidRefs(projection);
 		} catch (error) {
-			additionalInteractionErrors.push(
-				`context(valid_refs): ${toErrorMessage(error)}`,
-			);
+			const message = toErrorMessage(error);
+			if (message.includes("bad refs") || message.includes("valid_refs")) {
+				additionalInteractionErrors.push(`context(valid_refs): ${message}`);
+			} else {
+				additionalInteractionErrors.push(`context(projection): ${message}`);
+			}
+		}
+		if (projection && validRefs.length === 0) {
+			try {
+				validRefs = deps.extractValidRefs(projection);
+			} catch (error) {
+				additionalInteractionErrors.push(
+					`context(valid_refs): ${toErrorMessage(error)}`,
+				);
+			}
 		}
 	}
 
@@ -1271,6 +1464,7 @@ export async function browse(
 			interaction_errors: interactionErrors,
 			auth_takeover_attempts: execution.authTakeoverAttempts,
 			user_takeover: normalizedUserTakeover,
+			page_observation_events: execution.pageObservationEvents ?? [],
 		},
 		context: {
 			current_url: currentUrl,
@@ -1278,6 +1472,10 @@ export async function browse(
 			current_tab: currentTab,
 			downloaded_files: downloadedFilesState.downloadedFiles,
 			projection,
+			page_observation:
+				configFeatureFlags.pageObservationMode === "markdown"
+					? session.currentPageObservation
+					: undefined,
 			valid_refs: validRefs,
 		},
 	};

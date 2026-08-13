@@ -10,7 +10,10 @@ import {
 	reportExecution,
 	type Config,
 } from "./utils.js";
-import { setConfigFeatureFlags } from "./config-feature-flags.js";
+import {
+	configFeatureFlags,
+	setConfigFeatureFlags,
+} from "./config-feature-flags.js";
 import { resetStepsDir, setRuntimeOptions } from "./runtime-options.js";
 import { runTask } from "./core/run-task.js";
 import type {
@@ -433,7 +436,11 @@ export async function main(
 			fileWorkspaceRoot ? path.resolve(fileWorkspaceRoot) : "disabled"
 		}`,
 	);
-	console.log("Page projection: semantic-v1 (canonical)");
+	console.log(
+		configFeatureFlags.pageObservationMode === "markdown"
+			? "Page observation: request-driven Markdown (16k character budget)"
+			: "Page projection: semantic-v1 (canonical)",
+	);
 	console.log(`Wait between tasks (ms): ${waitBetweenTasksMs}`);
 	console.log(`Task runs per task: ${taskRuns}`);
 	console.log(`Task run retry count: ${taskRunRetryCount}`);

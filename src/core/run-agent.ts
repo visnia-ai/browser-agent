@@ -71,6 +71,7 @@ import type {
 	RunAgentResult,
 	RunAgentStepArtifact,
 	RunAgentTokenTotals,
+	PageObservationMetrics,
 	StepHistoryEntry,
 	StepRuntimeMetrics,
 	ValidatorFeedback,
@@ -483,6 +484,44 @@ function recordStepRuntimeMetrics(params: {
 	});
 }
 
+function summarizePageObservationMetrics(
+	mode: PageObservationMetrics["mode"],
+	events: BrowserSession["pageObservationEvents"],
+): PageObservationMetrics {
+	const requestedReads = events.filter((event) => event.kind !== "bootstrap");
+	return {
+		mode,
+		totalReads: events.length,
+		bootstrapReads: events.filter((event) => event.kind === "bootstrap")
+			.length,
+		wholePageReads: events.filter((event) => event.kind === "read_page")
+			.length,
+		foundReads: events.filter((event) => event.kind === "find_page").length,
+		projectedReads: events.filter((event) => event.kind === "project_page")
+			.length,
+		batchedReads: requestedReads.filter(
+			(event) => event.batchedWithPriorAction,
+		).length,
+		standaloneReads: requestedReads.filter(
+			(event) => !event.batchedWithPriorAction,
+		).length,
+		unchangedReads: requestedReads.filter((event) => event.unchanged).length,
+		truncatedReads: events.filter((event) => event.truncated).length,
+		zeroMatchProjections: events.filter(
+			(event) =>
+				event.kind === "project_page" && event.matchedNodeCount === 0,
+		).length,
+		totalCharacters: events.reduce(
+			(total, event) => total + event.characters,
+			0,
+		),
+		totalEstimatedTokens: events.reduce(
+			(total, event) => total + event.estimatedTokens,
+			0,
+		),
+	};
+}
+
 function emitStagnationWarning(
 	session: BrowserSession,
 	stepNumber: number,
@@ -611,6 +650,10 @@ interface SessionSnapshot {
 	pendingMemoryRead: boolean;
 	previousInteractionErrors: string[];
 	previousToolObservations: string[];
+	currentPageObservation?: string;
+	currentPageObservationMetadata?: BrowserSession["currentPageObservationMetadata"];
+	pageObservationBootstrapped: boolean;
+	pageObservationEvents: BrowserSession["pageObservationEvents"];
 	previousStepTabs: BrowserSession["previousStepTabs"];
 	downloadedFileSignatures: BrowserSession["downloadedFileSignatures"];
 	downloadedNewFilePaths: Set<string>;
@@ -639,6 +682,17 @@ function snapshotSession(session: BrowserSession): SessionSnapshot {
 		pendingMemoryRead: session.pendingMemoryRead,
 		previousInteractionErrors: [...session.previousInteractionErrors],
 		previousToolObservations: [...session.previousToolObservations],
+		currentPageObservation: session.currentPageObservation,
+		currentPageObservationMetadata: session.currentPageObservationMetadata
+			? {
+					identity: { ...session.currentPageObservationMetadata.identity },
+					request: { ...session.currentPageObservationMetadata.request },
+				}
+			: undefined,
+		pageObservationBootstrapped: session.pageObservationBootstrapped,
+		pageObservationEvents: session.pageObservationEvents.map((event) => ({
+			...event,
+		})),
 		previousStepTabs: session.previousStepTabs
 			? session.previousStepTabs.map((tab) => ({ ...tab }))
 			: null,
@@ -685,6 +739,17 @@ async function restoreSession(
 	session.pendingMemoryRead = snapshot.pendingMemoryRead;
 	session.previousInteractionErrors = [...snapshot.previousInteractionErrors];
 	session.previousToolObservations = [...snapshot.previousToolObservations];
+	session.currentPageObservation = snapshot.currentPageObservation;
+	session.currentPageObservationMetadata = snapshot.currentPageObservationMetadata
+		? {
+				identity: { ...snapshot.currentPageObservationMetadata.identity },
+				request: { ...snapshot.currentPageObservationMetadata.request },
+			}
+		: undefined;
+	session.pageObservationBootstrapped = snapshot.pageObservationBootstrapped;
+	session.pageObservationEvents = snapshot.pageObservationEvents.map(
+		(event) => ({ ...event }),
+	);
 	session.previousStepTabs = snapshot.previousStepTabs
 		? snapshot.previousStepTabs.map((tab) => ({ ...tab }))
 		: null;
@@ -885,6 +950,15 @@ export async function runAgent(
 			input.artifactDirectories,
 		);
 		const session = sessionResult.session;
+		const pageObservationResult = () => ({
+			pageObservationEvents: session.pageObservationEvents.map((event) => ({
+				...event,
+			})),
+			pageObservationMetrics: summarizePageObservationMetrics(
+				input.featureFlags.pageObservationMode,
+				session.pageObservationEvents,
+			),
+		});
 		let finalResult: string | null = null;
 
 		for (let stepNumber = 1; stepNumber <= maxSteps; stepNumber++) {
@@ -1405,7 +1479,10 @@ export async function runAgent(
 
 						const progressSignature = buildProgressSignature({
 							url: processResult.browse?.context.current_url ?? "",
-							projection: processResult.browse?.context.projection ?? "",
+							projection:
+								processResult.browse?.context.page_observation ??
+								processResult.browse?.context.projection ??
+								"",
 							downloadedFiles:
 								processResult.browse?.context.downloaded_files ?? [],
 						});
@@ -1548,6 +1625,7 @@ export async function runAgent(
 					mainLoopEntries,
 					stepTokenUsage,
 					stepRuntimeMetrics,
+					...pageObservationResult(),
 					...(input.includeStepArtifactsInResult ? { stepArtifacts } : {}),
 					tokenTotals: sumTokenUsage(usages),
 					userActionRequired: {
@@ -1569,6 +1647,7 @@ export async function runAgent(
 					mainLoopEntries,
 					stepTokenUsage,
 					stepRuntimeMetrics,
+					...pageObservationResult(),
 					...(input.includeStepArtifactsInResult ? { stepArtifacts } : {}),
 					tokenTotals: sumTokenUsage(usages),
 					successVerification: stepResult.successVerification,
@@ -1586,6 +1665,7 @@ export async function runAgent(
 			mainLoopEntries,
 			stepTokenUsage,
 			stepRuntimeMetrics,
+			...pageObservationResult(),
 			...(input.includeStepArtifactsInResult ? { stepArtifacts } : {}),
 			tokenTotals: sumTokenUsage(usages),
 		};

@@ -317,6 +317,17 @@ function parseSemanticProjectionHistory(
 	);
 }
 
+function parsePageObservationMode(
+	value: unknown,
+	fullPath: string,
+): "semantic" | "markdown" {
+	if (value === undefined) return "semantic";
+	if (value === "semantic" || value === "markdown") return value;
+	failConfig(
+		`Invalid feature_flags.page_observation_mode value in config: ${fullPath}. Use "semantic" or "markdown".`,
+	);
+}
+
 const LEGACY_PROVIDER_KEYS = new Set([
 	"openai_api_key",
 	"openaiApiKey",
@@ -1062,6 +1073,13 @@ export function loadConfig(configPath: string): Config {
 		}
 	}
 	const configuredFeatureFlags: ConfigFeatureFlags = {
+		pageObservationMode: parsePageObservationMode(
+			pickFirstDefined(featureFlagsSource, [
+				"page_observation_mode",
+				"pageObservationMode",
+			]),
+			fullPath,
+		),
 		taskChecklist:
 			parseBooleanConfigValue(
 				pickFirstDefined(featureFlagsSource, [

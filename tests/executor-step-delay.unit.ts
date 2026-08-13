@@ -12,6 +12,9 @@ describe("optimized executor step delays", () => {
 			{ type: "extract_data", root: "results" },
 			{ type: "memory_write", content: "progress" },
 			{ type: "memory_read" },
+			{ type: "read_page" },
+			{ type: "find_page", query: "result" },
+			{ type: "project_page", target: "#results" },
 			{ type: "wait", ms: 100 },
 		];
 

@@ -40,6 +40,9 @@ const ACTION_TYPES = new Set<Action["type"]>([
 	"memory_write",
 	"memory_read",
 	"read_file",
+	"read_page",
+	"find_page",
+	"project_page",
 	"return_results",
 	"memory_clear",
 	"extract_data",
@@ -249,6 +252,7 @@ function normalizeReturnResultsAction(value: unknown): Action | null {
 export function normalizeShorthandActionEntry(entry: unknown): Action | null {
 	if (typeof entry === "string") {
 		const keyword = entry.trim();
+		if (keyword === "read_page") return { type: "read_page" };
 		if (keyword === "memory_read") return { type: "memory_read" };
 		if (keyword === "return_results") {
 			return { type: "return_results" };
@@ -323,6 +327,19 @@ export function normalizeShorthandActionEntry(entry: unknown): Action | null {
 		}
 		if (obj.type === "read_file") {
 			return normalizeReadFileRecord(obj);
+		}
+		if (obj.type === "read_page") {
+			return Object.keys(obj).every((key) => key === "type")
+				? { type: "read_page" }
+				: null;
+		}
+		if (obj.type === "find_page") {
+			const query = toTrimmedString(obj.query);
+			return query ? { type: "find_page", query } : null;
+		}
+		if (obj.type === "project_page") {
+			const target = toTrimmedString(obj.target);
+			return target ? { type: "project_page", target } : null;
 		}
 		if (obj.type === "type") {
 			if (typeof obj.ref !== "string" || !obj.ref.trim()) return null;
@@ -491,6 +508,25 @@ export function normalizeShorthandActionEntry(entry: unknown): Action | null {
 		const filePath = toTrimmedString(obj.read_file);
 		return filePath ? { type: "read_file", path: filePath } : null;
 	}
+	if (Object.prototype.hasOwnProperty.call(obj, "read_page")) {
+		const value = obj.read_page;
+		if (
+			value === null ||
+			value === true ||
+			(isRecord(value) && Object.keys(value).length === 0)
+		) {
+			return { type: "read_page" };
+		}
+		return null;
+	}
+	if (Object.prototype.hasOwnProperty.call(obj, "find_page")) {
+		const query = toTrimmedString(obj.find_page);
+		return query ? { type: "find_page", query } : null;
+	}
+	if (Object.prototype.hasOwnProperty.call(obj, "project_page")) {
+		const target = toTrimmedString(obj.project_page);
+		return target ? { type: "project_page", target } : null;
+	}
 	if (Object.prototype.hasOwnProperty.call(obj, "return_results")) {
 		return normalizeReturnResultsAction(obj.return_results);
 	}
@@ -586,6 +622,24 @@ function describeMalformedAction(index: number, entry: unknown): string {
 		Object.prototype.hasOwnProperty.call(entry, "read_file")
 	) {
 		return `${prefix}: read_file requires a non-empty workspace-relative path scalar, for example read_file: "./downloads/file.pdf"`;
+	}
+	if (
+		entry.type === "read_page" ||
+		Object.prototype.hasOwnProperty.call(entry, "read_page")
+	) {
+		return `${prefix}: read_page takes no arguments`;
+	}
+	if (
+		entry.type === "find_page" ||
+		Object.prototype.hasOwnProperty.call(entry, "find_page")
+	) {
+		return `${prefix}: find_page requires one non-empty visible-text query string`;
+	}
+	if (
+		entry.type === "project_page" ||
+		Object.prototype.hasOwnProperty.call(entry, "project_page")
+	) {
+		return `${prefix}: project_page requires one non-empty ref or CSS selector string`;
 	}
 	if (
 		entry.type === "return_results" ||

@@ -16,6 +16,7 @@ const PROMPT_ONLY_PAYLOAD_FIELDS = [
 	"currentDateTime",
 	"memoryAvailable",
 	"memoryContent",
+	"pageObservation",
 	"authContext",
 	"checklist",
 ] as const;
