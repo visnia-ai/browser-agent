@@ -1342,8 +1342,10 @@ export async function processStepModelOutput(
 	};
 	input.stepsHistory.push(historyEntry);
 
-	const successVerification =
-		step.done && deps.defaultSuccessVerifierLLMOptions
+	const successVerifierLLMOptions = input.skipSuccessVerification
+		? undefined
+		: deps.defaultSuccessVerifierLLMOptions;
+	const successVerification = step.done && successVerifierLLMOptions
 			? await (deps.verifyTaskSuccess ?? defaultVerifyTaskSuccess)({
 					task:
 						typeof input.promptPayload.task === "string"
@@ -1360,7 +1362,7 @@ export async function processStepModelOutput(
 					purpose: input.verificationPurpose,
 					contextMode: input.validatorContext,
 					historyMessages: priorHistoryMessages,
-					llmOptions: deps.defaultSuccessVerifierLLMOptions,
+					llmOptions: successVerifierLLMOptions,
 					openAIPromptCache: input.verificationPromptCache,
 					estimateTokenCount: deps.estimateTokenCount,
 					caller: "processStepModelOutput:verifySuccess",
@@ -1432,7 +1434,10 @@ export async function processModelOutputAndBrowse(
 	if (typeof result.execution.returned_result === "string") {
 		preprocessResult.step.done = true;
 		preprocessResult.step.result = result.execution.returned_result;
-		const successVerification = deps.defaultSuccessVerifierLLMOptions
+		const successVerifierLLMOptions = input.skipSuccessVerification
+			? undefined
+			: deps.defaultSuccessVerifierLLMOptions;
+		const successVerification = successVerifierLLMOptions
 			? await (deps.verifyTaskSuccess ?? defaultVerifyTaskSuccess)({
 					task:
 						typeof input.promptPayload.task === "string"
@@ -1452,7 +1457,7 @@ export async function processModelOutputAndBrowse(
 						input.stepsHistory,
 						{ executorContextPolicy: input.executorContextPolicy },
 					),
-					llmOptions: deps.defaultSuccessVerifierLLMOptions,
+					llmOptions: successVerifierLLMOptions,
 					openAIPromptCache: input.verificationPromptCache,
 					estimateTokenCount: deps.estimateTokenCount,
 					caller: "processModelOutputAndBrowse:verifyMemoryReturnResults",

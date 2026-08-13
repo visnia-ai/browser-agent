@@ -75,6 +75,31 @@ test("forwards the OpenRouter provider constraint", async () => {
 	}
 });
 
+test("disables validator lifecycle when requested", async () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "ts-validator-config-"));
+	try {
+		const files = await createRuntimeFiles(
+			resolveOptions({
+				provider: "openai",
+				model: "gpt-5.4",
+				apiKey: "secret",
+				downloadDirectory: path.join(root, "downloads"),
+				validatorLifecycle: "disabled",
+			}),
+			[{ task: "go" }],
+		);
+		const config = JSON.parse(fs.readFileSync(files.configPath, "utf8"));
+		assert.deepEqual(config.validator_lifecycle, {
+			mode: "disabled",
+			max_failures: 3,
+			context: "full",
+		});
+		await files.cleanup();
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("forwards Codex without credential or endpoint overrides", async () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "ts-codex-config-"));
 	try {

@@ -76,6 +76,22 @@ class ConfigTests(unittest.TestCase):
             )
             files.cleanup()
 
+    def test_disables_validator_lifecycle_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="py-validator-config-") as root:
+            files = create_runtime_files(
+                valid(
+                    download_directory=str(Path(root) / "downloads"),
+                    validator_lifecycle="disabled",
+                ),
+                [BrowserAgentTask("go")],
+            )
+            config = json.loads(Path(files.config_path).read_text())
+            self.assertEqual(
+                config["validator_lifecycle"],
+                {"mode": "disabled", "max_failures": 3, "context": "full"},
+            )
+            files.cleanup()
+
     def test_forwards_codex_without_overrides(self) -> None:
         with tempfile.TemporaryDirectory(prefix="py-codex-config-") as root:
             files = create_runtime_files(

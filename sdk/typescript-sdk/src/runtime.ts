@@ -176,7 +176,7 @@ export async function createRuntimeFiles(
 				task_runs: options.runsPerTask,
 				task_run_retry_count: options.retryCount,
 				validator_lifecycle: {
-					mode: "retry",
+					mode: options.validatorLifecycle,
 					max_failures: 3,
 					context: "full",
 				},

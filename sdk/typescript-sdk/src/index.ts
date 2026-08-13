@@ -13,5 +13,6 @@ export type {
 	BrowserAgentTaskRunResult,
 	Provider,
 	ReasoningEffort,
+	ValidatorLifecycleMode,
 	UserTakeoverCategory,
 } from "./types.js";

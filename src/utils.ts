@@ -1311,9 +1311,9 @@ export function loadConfig(configPath: string): Config {
 			"maxFailures",
 		]);
 		const context = pickFirstDefined(lifecycle, ["context"]);
-		if (mode !== "terminal" && mode !== "retry") {
+		if (mode !== "terminal" && mode !== "retry" && mode !== "disabled") {
 			failConfig(
-				`Invalid validator_lifecycle.mode in config: ${fullPath}. Use terminal or retry.`,
+				`Invalid validator_lifecycle.mode in config: ${fullPath}. Use terminal, retry, or disabled.`,
 			);
 		}
 		if (

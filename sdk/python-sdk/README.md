@@ -60,6 +60,7 @@ All `BrowserAgent` constructor arguments are keyword-only.
 | `concurrency`               | `8`                           | Positive integer maximum concurrent task count.                                  |
 | `runs_per_task`             | `1`                           | Positive integer number of executions per task.                                  |
 | `retry_count`               | `2`                           | Non-negative integer retry count per failed task execution.                      |
+| `validator_lifecycle`       | `"retry"`                     | Use `"disabled"` to skip success validation and accept agent completion.         |
 
 ### Providers and reasoning
 
@@ -71,6 +72,8 @@ Provider: TypeAlias = Literal[
 ReasoningEffort: TypeAlias = Literal[
     "none", "minimal", "low", "medium", "high", "xhigh", "max", "enabled"
 ]
+
+ValidatorLifecycleMode: TypeAlias = Literal["retry", "disabled"]
 ```
 
 | Provider and model                                                                             | API-key environment     | Reasoning values                                    | Default   |

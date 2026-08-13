@@ -9,6 +9,7 @@ Provider: TypeAlias = Literal[
 ReasoningEffort: TypeAlias = Literal[
     "none", "minimal", "low", "medium", "high", "xhigh", "max", "enabled"
 ]
+ValidatorLifecycleMode: TypeAlias = Literal["retry", "disabled"]
 UserTakeoverCategory: TypeAlias = Literal[
     "authentication", "otp", "verification", "payment", "other"
 ]

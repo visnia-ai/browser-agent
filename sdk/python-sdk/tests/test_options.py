@@ -30,6 +30,7 @@ def valid(**overrides: object):
         "concurrency": 8,
         "runs_per_task": 1,
         "retry_count": 2,
+        "validator_lifecycle": "retry",
         "on_log": None,
         **overrides,
     }
@@ -54,6 +55,11 @@ class OptionTests(unittest.TestCase):
             str(Path("browser-profile").resolve()),
         )
         self.assertEqual(options.retry_count, 0)
+        self.assertEqual(options.validator_lifecycle, "retry")
+        self.assertEqual(
+            valid(validator_lifecycle="disabled").validator_lifecycle,
+            "disabled",
+        )
         with patch.dict(os.environ, {"OPENAI_API_KEY": "inherited"}):
             self.assertEqual(valid(api_key=" ").api_key, "inherited")
         self.assertIsNone(
@@ -145,6 +151,7 @@ class OptionTests(unittest.TestCase):
             {"retry_count": -1},
             {"retry_count": 1.5},
             {"retry_count": False},
+            {"validator_lifecycle": "terminal"},
             {"max_model_len": 0},
             {"reserve_output_tokens": 0},
             {"max_model_len": 4_000, "reserve_output_tokens": 4_000},

@@ -10,6 +10,7 @@ from .errors import BrowserAgentError
 from .models import (
     BrowserAgentCredential, BrowserAgentLogEntry, BrowserAgentTask, Provider,
     ReasoningEffort,
+    ValidatorLifecycleMode,
 )
 
 PROVIDER_ENV: dict[Provider, str | None] = {
@@ -76,6 +77,7 @@ class ResolvedOptions:
     concurrency: int
     runs_per_task: int
     retry_count: int
+    validator_lifecycle: ValidatorLifecycleMode
     on_log: Callable[[BrowserAgentLogEntry], None] | None
 def invalid(message: str):
     raise BrowserAgentError("CONFIG_INVALID", message)
@@ -135,6 +137,9 @@ def resolve_options(**values) -> ResolvedOptions:
     retry = values["retry_count"]
     if isinstance(retry, bool) or not isinstance(retry, int) or retry < 0:
         invalid("retry_count must be an integer greater than or equal to zero.")
+    validator_lifecycle = values["validator_lifecycle"]
+    if validator_lifecycle not in ("retry", "disabled"):
+        invalid("validator_lifecycle must be retry or disabled.")
     absolute = lambda value: str(Path(value).resolve()) if value else None
     max_model_len = positive(values["max_model_len"], 48_000)
     reserve_output_tokens = positive(values["reserve_output_tokens"], 4_000)
@@ -149,7 +154,7 @@ def resolve_options(**values) -> ResolvedOptions:
         absolute(values["browser_profile_directory"]),
         values["user_takeover_tool"], positive(values["max_steps"], 50),
         positive(values["concurrency"], 8), positive(values["runs_per_task"], 1),
-        retry, values["on_log"],
+        retry, validator_lifecycle, values["on_log"],
     )
 def normalize_tasks(value: BrowserAgentTask | Sequence[BrowserAgentTask]):
     tasks = [value] if isinstance(value, BrowserAgentTask) else list(value)

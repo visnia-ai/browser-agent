@@ -92,11 +92,13 @@ export interface ResolvedOptions extends Omit<
 	| "apiKey"
 	| "maxModelLen"
 	| "reserveOutputTokens"
+	| "validatorLifecycle"
 > {
 	reasoningEffort: ReasoningEffort;
 	apiKey?: string;
 	maxModelLen: number;
 	reserveOutputTokens: number;
+	validatorLifecycle: "retry" | "disabled";
 	apiKeyEnvironment?: string;
 }
 const invalid = (message: string): never => {
@@ -183,6 +185,9 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 	const retryCount = options.retryCount ?? 2;
 	if (!Number.isInteger(retryCount) || retryCount < 0)
 		invalid("retryCount must be an integer greater than or equal to zero.");
+	const validatorLifecycle = options.validatorLifecycle ?? "retry";
+	if (validatorLifecycle !== "retry" && validatorLifecycle !== "disabled")
+		invalid("validatorLifecycle must be retry or disabled.");
 	const maxModelLen = positive(options.maxModelLen, 48_000);
 	const reserveOutputTokens = positive(options.reserveOutputTokens, 4_000);
 	if (reserveOutputTokens >= maxModelLen) {
@@ -213,6 +218,7 @@ export function resolveOptions(options: BrowserAgentOptions): ResolvedOptions {
 		concurrency: positive(options.concurrency, 8),
 		runsPerTask: positive(options.runsPerTask, 1),
 		retryCount,
+		validatorLifecycle,
 	};
 }
 

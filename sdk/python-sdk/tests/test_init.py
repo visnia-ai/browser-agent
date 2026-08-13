@@ -22,7 +22,7 @@ class AgentTests(unittest.TestCase):
             "BrowserAgentTaskRunResult", "BrowserAgentValidatorResult", "ErrorEvent",
             "Provider", "ReasoningEffort", "RunCompletedEvent", "RunStartedEvent",
             "TaskResultEvent", "UserTakeoverCategory", "UserTakeoverEvent",
-            "check_codex_login", "ensure_codex_login",
+            "ValidatorLifecycleMode", "check_codex_login", "ensure_codex_login",
         })
         parameters = inspect.signature(BrowserAgent).parameters
         self.assertEqual(list(parameters), [
@@ -31,7 +31,7 @@ class AgentTests(unittest.TestCase):
             "reserve_output_tokens", "headless", "executable_path",
             "workspace_directory", "browser_profile_directory",
             "user_takeover_tool", "max_steps", "concurrency", "runs_per_task",
-            "retry_count", "on_log",
+            "retry_count", "validator_lifecycle", "on_log",
         ])
         self.assertTrue(all(item.kind is inspect.Parameter.KEYWORD_ONLY
                             for item in parameters.values()))

@@ -14,6 +14,7 @@ from .models import (
     BrowserAgentTask,
     Provider,
     ReasoningEffort,
+    ValidatorLifecycleMode,
 )
 from .options import ResolvedOptions, child_environment, normalize_tasks, resolve_options
 from .protocol import AgentProcess, consume_logs, request_run, start_agent_process, terminate_process
@@ -37,6 +38,7 @@ class BrowserAgent:
         browser_profile_directory: str | None = None,
         user_takeover_tool: bool = False, max_steps: int = 50, concurrency: int = 8,
         runs_per_task: int = 1, retry_count: int = 2,
+        validator_lifecycle: ValidatorLifecycleMode = "retry",
         on_log: Callable[[BrowserAgentLogEntry], None] | None = None,
     ) -> None:
         self._options = resolve_options(**locals())

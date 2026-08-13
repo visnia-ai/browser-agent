@@ -41,8 +41,14 @@ test("resolves provider capabilities, paths, environment, and overrides", () => 
 	assert.equal(options.headless, true);
 	assert.equal(options.userTakeoverTool, false);
 	assert.equal(options.retryCount, 0);
+	assert.equal(options.validatorLifecycle, "retry");
 	assert.equal(options.maxModelLen, 48_000);
 	assert.equal(options.reserveOutputTokens, 4_000);
+	assert.equal(
+		resolveOptions({ ...base, validatorLifecycle: "disabled" })
+			.validatorLifecycle,
+		"disabled",
+	);
 
 	const previous = process.env.OPENAI_API_KEY;
 	const anthropic = process.env.ANTHROPIC_API_KEY;
@@ -298,6 +304,7 @@ test("rejects every invalid option shape", () => {
 		{ ...base, runsPerTask: Number.NaN },
 		{ ...base, retryCount: -1 },
 		{ ...base, retryCount: 1.5 },
+		{ ...base, validatorLifecycle: "terminal" },
 	] as unknown[];
 	for (const options of invalid) {
 		assert.throws(() => resolveOptions(options as BrowserAgentOptions), {

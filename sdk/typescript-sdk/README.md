@@ -49,7 +49,10 @@ interface BrowserAgentOptions {
 	concurrency?: number;
 	runsPerTask?: number;
 	retryCount?: number;
+	validatorLifecycle?: ValidatorLifecycleMode;
 }
+
+type ValidatorLifecycleMode = "retry" | "disabled";
 ```
 
 | Option                    | Default                       | Description                                                                      |
@@ -72,6 +75,7 @@ interface BrowserAgentOptions {
 | `concurrency`             | `8`                           | Positive integer maximum concurrent task count.                                  |
 | `runsPerTask`             | `1`                           | Positive integer number of executions per task.                                  |
 | `retryCount`              | `2`                           | Non-negative integer retry count per failed task execution.                      |
+| `validatorLifecycle`      | `"retry"`                     | Use `"disabled"` to skip success validation and accept agent completion.         |
 
 ### Providers and reasoning
 

@@ -14,6 +14,7 @@ import {
 	type BrowserAgentTaskRunResult,
 	type Provider,
 	type ReasoningEffort,
+	type ValidatorLifecycleMode,
 	type UserTakeoverCategory,
 } from "../src/index.js";
 
@@ -21,6 +22,7 @@ const options: BrowserAgentOptions = {
 	provider: "openai",
 	model: "gpt-5.4",
 	downloadDirectory: ".",
+	validatorLifecycle: "disabled",
 };
 const agent = new BrowserAgent(options);
 const codex = new BrowserAgent({
@@ -49,6 +51,7 @@ type PublicTypes = [
 	BrowserAgentTaskRunResult,
 	Provider,
 	ReasoningEffort,
+	ValidatorLifecycleMode,
 	UserTakeoverCategory,
 ];
 type _Keep = PublicTypes;

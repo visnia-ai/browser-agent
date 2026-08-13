@@ -234,6 +234,50 @@ describe("runTrainingRollout", () => {
 		);
 	});
 
+	it("accepts completion without calling the validator when disabled", async () => {
+		let verificationCalls = 0;
+		const deps = createMockCoreDeps({
+			executeActions: async () => ({
+				pendingMemoryRead: false,
+				interactionErrors: [],
+				returnedResult: "Unverified result",
+			}),
+			verifyTaskSuccess: async () => {
+				verificationCalls += 1;
+				throw new Error("validator should not run");
+			},
+		});
+
+		const result = await runTrainingRollout(deps, {
+			session: { port: 9334, headless: true, forceRestart: true },
+			task: "Report completion",
+			stageLLMs: {
+				findTargetURL: { provider: "openai", model: "gpt-test" },
+				createChecklist: { provider: "openai", model: "gpt-test" },
+				runAgent: { provider: "openai", model: "gpt-test" },
+			},
+			dataExtraction: { provider: "openai", model: "gpt-test" },
+			featureFlags: deps.featureFlags,
+			maxSteps: 2,
+			validatorLifecycle: { mode: "disabled", maxFailures: 3 },
+			generateStep: async () => ({
+				data: {
+					thinking: "Return the result",
+					actions: [{ type: "return_results" }],
+					done: false,
+				},
+				usage: { input_tokens: 7, output_tokens: 2, total_tokens: 9 },
+				reasoning_tokens: "",
+				rawModelOutputText: "thinking: Return the result",
+			}),
+		});
+
+		assert.strictEqual(verificationCalls, 0);
+		assert.isTrue(result.run.completed);
+		assert.isTrue(result.run.successful);
+		assert.isUndefined(result.run.successVerification);
+	});
+
 	it("uses default retry verification and accepts a corrected result", async () => {
 		let resultCalls = 0;
 		let verificationCalls = 0;

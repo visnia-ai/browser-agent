@@ -98,14 +98,20 @@ function resolveValidatorLifecycle(
 ): ValidatorLifecycleOptions {
 	if (!value) return DEFAULT_VALIDATOR_LIFECYCLE;
 	if (
-		(value.mode !== "terminal" && value.mode !== "retry") ||
+		value.mode !== "terminal" &&
+		value.mode !== "retry" &&
+		value.mode !== "disabled"
+	) {
+		throw new Error(
+			"validatorLifecycle must use mode terminal|retry|disabled.",
+		);
+	}
+	if (
 		!Number.isInteger(value.maxFailures) ||
 		value.maxFailures < 1 ||
 		value.maxFailures > 3
 	) {
-		throw new Error(
-			"validatorLifecycle must use mode terminal|retry and maxFailures between 1 and 3.",
-		);
+		throw new Error("validatorLifecycle maxFailures must be between 1 and 3.");
 	}
 	if (
 		value.context !== undefined &&
@@ -737,11 +743,14 @@ export async function runAgent(
 	if (!rawInput) {
 		throw new Error("runAgent input is required.");
 	}
+	const validatorLifecycle = resolveValidatorLifecycle(
+		rawInput.validatorLifecycle,
+	);
 	const successVerifierLLMOptions = isCoreDeps(depsOrInput)
 		? (depsOrInput.defaultSuccessVerifierLLMOptions ??
 			rawInput.stageLLMs.verifySuccess)
 		: rawInput.stageLLMs.verifySuccess;
-	if (!successVerifierLLMOptions) {
+	if (validatorLifecycle.mode !== "disabled" && !successVerifierLLMOptions) {
 		throw new Error(
 			"Browser success verification requires an explicit stageLLMs.verifySuccess model configuration.",
 		);
@@ -786,9 +795,6 @@ export async function runAgent(
 	const stepRuntimeMetrics: StepRuntimeMetrics[] = [];
 	const stepArtifacts: RunAgentStepArtifact[] = [];
 	const maxSteps = input.maxSteps ?? MAX_STEPS;
-	const validatorLifecycle = resolveValidatorLifecycle(
-		input.validatorLifecycle,
-	);
 	const generateStep = input.generateStep ?? createDefaultGenerateStep();
 	const executorContextPolicy = resolveExecutorContextPolicy(
 		input.stageLLMs.runAgent,
@@ -824,6 +830,7 @@ export async function runAgent(
 			: undefined;
 	const verificationPromptCache =
 		input.featureFlags.openAIExplicitPromptCaching &&
+		successVerifierLLMOptions !== undefined &&
 		supportsOpenAIExplicitPromptCaching(
 			successVerifierLLMOptions.provider,
 			successVerifierLLMOptions.model,
@@ -1218,6 +1225,8 @@ export async function runAgent(
 												? "completion_verifier"
 												: "terminal_judge",
 										validatorContext: validatorLifecycle.context ?? "full",
+										skipSuccessVerification:
+											validatorLifecycle.mode === "disabled",
 										allowFatalActionErrors: true,
 										autoSwitchToNewTab: input.autoSwitchToNewTab,
 									}),
@@ -1380,7 +1389,10 @@ export async function runAgent(
 							stepResult = {
 								status: "done",
 								result: finalResult,
-								successful: processResult.successful,
+								successful:
+									validatorLifecycle.mode === "disabled"
+										? true
+										: processResult.successful,
 								successVerification: processResult.successVerification,
 							};
 						}

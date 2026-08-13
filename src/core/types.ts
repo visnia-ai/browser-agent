@@ -61,7 +61,7 @@ export interface RunTaskStageLLMs extends PreprocessStageLLMs {
 }
 
 export interface ValidatorLifecycleOptions {
-	mode: "terminal" | "retry";
+	mode: "terminal" | "retry" | "disabled";
 	maxFailures: number;
 	context?: "full" | "compact";
 }
@@ -356,6 +356,7 @@ export interface ProcessModelStepOutputInput {
 	sessionChecklist?: import("../agents/types.js").ChecklistItem[];
 	verificationPurpose?: "terminal_judge" | "completion_verifier";
 	validatorContext?: "full" | "compact";
+	skipSuccessVerification?: boolean;
 	allowModelResultCompletion?: boolean;
 	allowFatalActionErrors?: boolean;
 	autoSwitchToNewTab?: boolean;

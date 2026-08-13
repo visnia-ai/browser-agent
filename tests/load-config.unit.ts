@@ -1163,6 +1163,29 @@ tasks:
 		});
 	});
 
+	it("parses a disabled validator lifecycle from config", () => {
+		const configPath = writeTempConfig(`
+stage_llms:
+  findTargetURL: { provider: openai, model: gpt-5.2 }
+  createChecklist: { provider: openai, model: gpt-5.2 }
+  runAgent: { provider: openai, model: gpt-5.2 }
+  verifySuccess: { provider: openai, model: gpt-5.2 }
+validator_lifecycle:
+  mode: disabled
+concurrency: 1
+tasks:
+  - "test task"
+`);
+
+		const config = loadConfig(configPath);
+
+		assert.deepEqual(config.validatorLifecycle, {
+			mode: "disabled",
+			maxFailures: 3,
+			context: "full",
+		});
+	});
+
 	it("resolves task checklist stage from global defaults", () => {
 		const configPath = writeTempConfig(`
 provider: openai

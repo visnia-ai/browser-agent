@@ -16,6 +16,7 @@ export type ReasoningEffort =
 	| "xhigh"
 	| "max"
 	| "enabled";
+export type ValidatorLifecycleMode = "retry" | "disabled";
 export interface BrowserAgentOptions {
 	provider: Provider;
 	model: string;
@@ -35,6 +36,7 @@ export interface BrowserAgentOptions {
 	concurrency?: number;
 	runsPerTask?: number;
 	retryCount?: number;
+	validatorLifecycle?: ValidatorLifecycleMode;
 	onLog?: (entry: BrowserAgentLogEntry) => void;
 }
 export type BrowserAgentCredential = {
