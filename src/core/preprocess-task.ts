@@ -10,6 +10,7 @@ import {
 	normalizeChecklistDraft,
 } from "./checklist-state.js";
 import type { ChecklistItem } from "../agents/types.js";
+import { isPdfViewerTab } from "../browser/download-current-pdf.js";
 
 const CREATE_CHECKLIST_MAX_ATTEMPTS = 2;
 
@@ -131,7 +132,8 @@ export async function preprocessTask(
 	const checklist = await checklistPromise;
 
 	const finalUrl = await deps.getCurrentURL(session.browser);
-	const openTabs = await deps.listTabs(session.browser);
+	const rawOpenTabs = await deps.listTabs(session.browser);
+	const openTabs = rawOpenTabs.filter((tab) => !isPdfViewerTab(tab));
 	const currentTab = await deps.resolveCurrentTabIndex({
 		b: session.browser,
 		openTabs,
@@ -143,7 +145,7 @@ export async function preprocessTask(
 	session.pendingMemoryRead = false;
 	session.previousInteractionErrors = [];
 	session.previousToolObservations = [];
-	session.previousStepTabs = openTabs;
+	session.previousStepTabs = rawOpenTabs;
 	session.downloadedFileSignatures = null;
 	session.lastActionSignatureWithUrl = null;
 	session.lastProgressSignature = null;

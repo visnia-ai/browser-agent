@@ -433,12 +433,17 @@ describe("core-api", () => {
 		assert.strictEqual(currentTargetId, "tab-2");
 	});
 
-	it("step(create_prompt_for_step) auto-switches tabs by default", async () => {
+	it("step(create_prompt_for_step) skips a new PDF and auto-switches to a normal new tab", async () => {
 		const tabs = [
 			{
 				targetId: "tab-1",
 				title: "Search Form",
 				url: "https://example.com/search",
+			},
+			{
+				targetId: "tab-pdf",
+				title: "report.pdf",
+				url: "https://example.com/report.pdf",
 			},
 			{
 				targetId: "tab-2",
@@ -447,6 +452,7 @@ describe("core-api", () => {
 			},
 		];
 		let currentTargetId = "tab-1";
+		const downloadedUrls: string[] = [];
 		const deps = createMockCoreDeps({
 			getCurrentURL: async () =>
 				tabs.find((tab) => tab.targetId === currentTargetId)?.url ?? "",
@@ -463,8 +469,12 @@ describe("core-api", () => {
 					(tab) => !previousTargetIds.has(tab.targetId),
 				);
 			},
-			resolveCurrentTabIndex: async () =>
-				tabs.findIndex((tab) => tab.targetId === currentTargetId),
+			resolveCurrentTabIndex: async ({ openTabs }) =>
+				openTabs.findIndex((tab) => tab.targetId === currentTargetId),
+			downloadFileFromUrl: async (_browser, url) => {
+				downloadedUrls.push(url);
+				return "/tmp/report.pdf";
+			},
 			switchTab: async (_browser, targetId) => {
 				currentTargetId = targetId;
 			},
@@ -482,12 +492,16 @@ describe("core-api", () => {
 
 		assert.strictEqual(result.mode, "create_prompt_for_step");
 		if (result.mode === "create_prompt_for_step") {
-			assert.strictEqual(result.prompt.payload.currentURL, tabs[1].url);
+			assert.strictEqual(result.prompt.payload.currentURL, tabs[2].url);
 			assert.strictEqual(result.prompt.payload.currentTab, 1);
 			assert.strictEqual(
 				result.prompt.payload.autoTabSwitchNote,
 				"Auto-switched to first newly opened tab.",
 			);
+			assert.deepEqual(result.prompt.payload.openTabs, [
+				"Search Form",
+				"Results",
+			]);
 			assert.deepEqual(result.prompt.payload.newlyOpenedTabs, ["Results"]);
 			assert.strictEqual(
 				result.prompt.payload.projection,
@@ -495,6 +509,8 @@ describe("core-api", () => {
 			);
 		}
 		assert.strictEqual(currentTargetId, "tab-2");
+		assert.deepEqual(downloadedUrls, ["https://example.com/report.pdf"]);
+		assert.deepEqual(session.previousStepTabs, tabs);
 	});
 
 	it("step(create_prompt_for_step) skips auto-switch when explicitly disabled", async () => {
@@ -614,6 +630,9 @@ describe("core-api", () => {
 				result.prompt.payload.currentURL,
 				"https://example.com/search",
 			);
+			assert.deepEqual(result.prompt.payload.openTabs, ["Search"]);
+			assert.isUndefined(result.prompt.payload.newlyOpenedTabs);
+			assert.deepEqual(result.context.open_tabs, ["Search"]);
 			assert.include(
 				result.prompt.payload.interactionErrors,
 				"Downloaded newly opened PDF; stayed on source tab.",
@@ -622,6 +641,15 @@ describe("core-api", () => {
 		assert.deepEqual(downloadedUrls, ["https://example.com/report.pdf"]);
 		assert.deepEqual(switchedTargets, []);
 		assert.strictEqual(currentTargetId, "tab-1");
+		assert.deepEqual(session.previousStepTabs, tabs);
+
+		await step(deps, {
+			mode: "create_prompt_for_step",
+			port: 9222,
+			userTask: "read the report",
+			stepsHistory: [],
+		});
+		assert.deepEqual(downloadedUrls, ["https://example.com/report.pdf"]);
 	});
 
 	it("step(create_prompt_for_step) retries a blank semantic projection before continuing", async () => {
@@ -892,10 +920,9 @@ describe("core-api", () => {
 					result.context.current_url,
 					"https://example.com/search",
 				);
-				assert.strictEqual(
-					result.context.projection,
-					'a ref="1": Open report',
-				);
+				assert.deepEqual(result.context.open_tabs, ["Search"]);
+				assert.strictEqual(result.context.current_tab, 0);
+				assert.strictEqual(result.context.projection, 'a ref="1": Open report');
 				assert.deepEqual(result.context.downloaded_files, [
 					"[NEW] ./report.pdf",
 				]);
@@ -906,9 +933,88 @@ describe("core-api", () => {
 			}
 			assert.deepEqual(switchedTargets, []);
 			assert.strictEqual(currentTargetId, "tab-1");
+			assert.deepEqual(session.previousStepTabs, tabs);
 		} finally {
 			fs.rmSync(downloadDir, { recursive: true, force: true });
 		}
+	});
+
+	it("step(browse) keeps switch_tab indices stable when a PDF is between visible tabs", async () => {
+		const tabs = [
+			{
+				targetId: "tab-1",
+				title: "Search",
+				url: "https://example.com/search",
+			},
+			{
+				targetId: "tab-pdf",
+				title: "report.pdf",
+				url: "https://example.com/report.pdf",
+			},
+			{
+				targetId: "tab-2",
+				title: "Results",
+				url: "https://example.com/results",
+			},
+		];
+		let currentTargetId = "tab-1";
+		let selectedTargetId = "";
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () =>
+				tabs.find((tab) => tab.targetId === currentTargetId)?.url ?? "",
+			getPageProjection: async () =>
+				currentTargetId === "tab-2"
+					? 'div ref="2": results'
+					: 'div ref="1": search',
+			listTabs: async () => tabs,
+			getNewlyOpenedTabs: (previousTabs, currentTabs) => {
+				const previousTargetIds = new Set(
+					(previousTabs ?? []).map((tab) => tab.targetId),
+				);
+				return currentTabs.filter(
+					(tab) => !previousTargetIds.has(tab.targetId),
+				);
+			},
+			resolveCurrentTabIndex: async ({ openTabs }) =>
+				openTabs.findIndex((tab) => tab.targetId === currentTargetId),
+			executeActions: async ({ actions, openTabs }) => {
+				const action = actions[0];
+				assert.strictEqual(action?.type, "switch_tab");
+				assert.deepEqual(
+					openTabs.map((tab) => tab.targetId),
+					["tab-1", "tab-2"],
+				);
+				selectedTargetId =
+					openTabs[(action as { index: number }).index].targetId;
+				currentTargetId = selectedTargetId;
+				return {
+					pendingMemoryRead: false,
+					interactionErrors: [],
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		const session = deps.registry.get(9222)!;
+		session.previousStepTabs = tabs;
+		session.browser.currentTargetId = currentTargetId;
+
+		const result = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [{ type: "switch_tab", index: 1 }],
+		});
+
+		assert.strictEqual(result.mode, "browse");
+		if (result.mode === "browse") {
+			assert.deepEqual(result.context.open_tabs, ["Search", "Results"]);
+			assert.strictEqual(result.context.current_tab, 1);
+			assert.strictEqual(
+				result.context.current_url,
+				"https://example.com/results",
+			);
+		}
+		assert.strictEqual(selectedTargetId, "tab-2");
+		assert.deepEqual(session.previousStepTabs, tabs);
 	});
 
 	it("step(browse) ignores blank download tabs and restores source tab context", async () => {
@@ -1454,9 +1560,10 @@ describe("core-api", () => {
 		assert.isFalse(result.successful);
 		assert.isUndefined(result.step.result);
 		assert.isDefined(result.browse);
-		const assistant = yaml.load(
-			String(stepsHistory[0]?.assistant),
-		) as Record<string, unknown>;
+		const assistant = yaml.load(String(stepsHistory[0]?.assistant)) as Record<
+			string,
+			unknown
+		>;
 		assert.strictEqual(assistant.thinking, "Done");
 		assert.strictEqual(assistant.done, true);
 		assert.strictEqual(assistant.result, "Success");
@@ -2119,9 +2226,10 @@ describe("core-api", () => {
 		]);
 		assert.isTrue(result.steps.at(-1)?.model.done);
 		for (const historyEntry of result.stepsHistory) {
-			const assistant = yaml.load(
-				String(historyEntry.assistant),
-			) as Record<string, unknown>;
+			const assistant = yaml.load(String(historyEntry.assistant)) as Record<
+				string,
+				unknown
+			>;
 			assert.property(assistant, "thinking");
 			assert.property(assistant, "actions");
 			assert.strictEqual(assistant.done, false);

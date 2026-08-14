@@ -8,6 +8,8 @@ import {
 	downloadFileFromUrl,
 	extractFileUrlFromViewerUrl,
 	extractPdfUrlFromViewerUrl,
+	getPdfUrlForTab,
+	isPdfViewerTab,
 } from "../src/browser/download-current-pdf.js";
 
 describe("download current pdf helpers", () => {
@@ -46,6 +48,87 @@ describe("download current pdf helpers", () => {
 				"https://example.com/viewer?src=https://example.com/file.txt",
 			),
 		);
+	});
+
+	it("classifies direct PDF tabs", () => {
+		const tab = {
+			url: "https://example.com/files/report.pdf?download=0#page=2",
+			title: "Report",
+		};
+
+		assert.strictEqual(
+			getPdfUrlForTab(tab),
+			"https://example.com/files/report.pdf?download=0#page=2",
+		);
+		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("classifies PDF tabs opened through viewer URL parameters", () => {
+		const tab = {
+			url: "chrome-extension://viewer/index.html?file=https%3A%2F%2Fexample.com%2Freport.pdf",
+			title: "report.pdf",
+		};
+
+		assert.strictEqual(
+			getPdfUrlForTab(tab),
+			"https://example.com/report.pdf",
+		);
+		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("classifies blob PDF viewer tabs", () => {
+		const tab = {
+			url: "chrome-extension://viewer/index.html#src=blob%3Ahttps%3A%2F%2Fexample.com%2F1234",
+			title: "report.pdf",
+		};
+
+		assert.strictEqual(
+			getPdfUrlForTab(tab),
+			"blob:https://example.com/1234",
+		);
+		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("classifies application/pdf data tabs", () => {
+		const tab = {
+			url: "data:application/pdf;base64,JVBERi0xLjQ=",
+			title: "Document",
+		};
+
+		assert.strictEqual(getPdfUrlForTab(tab), tab.url);
+		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("uses a PDF filename title for opaque viewer URLs", () => {
+		const tab = {
+			url: "https://example.com/download?id=42",
+			title: "quarterly-report.pdf",
+		};
+
+		assert.strictEqual(getPdfUrlForTab(tab), tab.url);
+		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("does not classify ordinary HTML or non-PDF viewer tabs", () => {
+		const tabs = [
+			{
+				url: "https://example.com/guides/pdf-documentation",
+				title: "PDF documentation",
+			},
+			{
+				url: "chrome-extension://viewer/index.html?file=https%3A%2F%2Fexample.com%2Fdata.csv",
+				title: "data.csv",
+			},
+			{
+				url: "data:text/plain,not-a-pdf",
+				title: "Text document",
+			},
+		];
+
+		for (const tab of tabs) {
+			assert.isNull(getPdfUrlForTab(tab));
+			assert.isFalse(isPdfViewerTab(tab));
+		}
 	});
 
 	it("downloads a PDF URL through the active source tab's browser context", async () => {

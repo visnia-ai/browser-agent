@@ -34,7 +34,10 @@ import type {
 import { SessionNotFoundError } from "./session.js";
 import type { BrowserSession } from "./session-registry.js";
 import type { Tab } from "../browser/types.js";
-import { extractPdfUrlFromViewerUrl } from "../browser/download-current-pdf.js";
+import {
+	getPdfUrlForTab,
+	isPdfViewerTab,
+} from "../browser/download-current-pdf.js";
 import {
 	ModelStepActionContractError,
 	processModelStepOutput,
@@ -162,24 +165,8 @@ function isBlankDownloadArtifactTab(tab: Tab): boolean {
 	);
 }
 
-function getPdfUrlForTab(tab: Tab): string | null {
-	const extracted = extractPdfUrlFromViewerUrl(tab.url);
-	if (extracted) {
-		return extracted;
-	}
-	const normalizedTitle = tab.title.trim().toLowerCase();
-	const normalizedUrl = tab.url.trim();
-	if (
-		normalizedTitle.endsWith(".pdf") &&
-		/^(https?:|blob:|data:)/i.test(normalizedUrl)
-	) {
-		return normalizedUrl;
-	}
-	return null;
-}
-
-function isPdfViewerTab(tab: Tab): boolean {
-	return getPdfUrlForTab(tab) !== null;
+function visibleTabs(tabs: Tab[]): Tab[] {
+	return tabs.filter((tab) => !isPdfViewerTab(tab));
 }
 
 function firstMeaningfulNewTab(tabs: Tab[]): Tab | undefined {
@@ -534,7 +521,7 @@ async function createPromptForStepImpl(
 		}
 	};
 	await refreshProjectionContext();
-	let openTabs = await timeStateExtractionPhase(
+	let rawOpenTabs = await timeStateExtractionPhase(
 		{
 			stepNumber: input.stepNumber,
 			phase: "listTabs",
@@ -545,18 +532,20 @@ async function createPromptForStepImpl(
 		stepNumber: input.stepNumber,
 		phase: "listTabs:value",
 		durationMs: 0,
-		detail: `tabs=${openTabs.length}`,
+		detail: `tabs=${rawOpenTabs.length}`,
 	});
-	let newlyOpenedTabs = deps.getNewlyOpenedTabs(
+	let rawNewlyOpenedTabs = deps.getNewlyOpenedTabs(
 		session.previousStepTabs,
-		openTabs,
+		rawOpenTabs,
 	);
 	await downloadNewPdfTabs({
 		deps,
 		session,
-		tabs: newlyOpenedTabs,
+		tabs: rawNewlyOpenedTabs,
 		contextMessages: promptInteractionErrors,
 	});
+	let openTabs = visibleTabs(rawOpenTabs);
+	let newlyOpenedTabs = visibleTabs(rawNewlyOpenedTabs);
 	let autoTabSwitchNote: string | undefined;
 	if ((input.autoSwitchToNewTab ?? true) && newlyOpenedTabs.length > 0) {
 		await timeStateExtractionPhase(
@@ -596,7 +585,7 @@ async function createPromptForStepImpl(
 						detail: currentUrl,
 					});
 					await refreshProjectionContext();
-					openTabs = await timeStateExtractionPhase(
+					rawOpenTabs = await timeStateExtractionPhase(
 						{
 							stepNumber: input.stepNumber,
 							phase: "listTabs:autoSwitch",
@@ -607,12 +596,14 @@ async function createPromptForStepImpl(
 						stepNumber: input.stepNumber,
 						phase: "listTabs:autoSwitch:value",
 						durationMs: 0,
-						detail: `tabs=${openTabs.length}`,
+						detail: `tabs=${rawOpenTabs.length}`,
 					});
-					newlyOpenedTabs = deps.getNewlyOpenedTabs(
+					rawNewlyOpenedTabs = deps.getNewlyOpenedTabs(
 						session.previousStepTabs,
-						openTabs,
+						rawOpenTabs,
 					);
+					openTabs = visibleTabs(rawOpenTabs);
+					newlyOpenedTabs = visibleTabs(rawNewlyOpenedTabs);
 					autoTabSwitchNote = "Auto-switched to first newly opened tab.";
 				}
 			},
@@ -930,7 +921,7 @@ async function createPromptForStepImpl(
 		};
 	}
 
-	session.previousStepTabs = openTabs;
+	session.previousStepTabs = rawOpenTabs;
 	const latestUserPromptTokenCount = Number(
 		payloadState.payload.latestUserPromptTokenCount ?? 0,
 	);
@@ -1016,14 +1007,15 @@ export async function browse(
 		additionalInteractionErrors.push(`action_normalization: ${diagnostic}`);
 	}
 
-	let openTabs: Tab[] = session.previousStepTabs ?? [];
+	let rawOpenTabs: Tab[] = session.previousStepTabs ?? [];
 	try {
-		openTabs = await deps.listTabs(session.browser);
+		rawOpenTabs = await deps.listTabs(session.browser);
 	} catch (error) {
 		additionalInteractionErrors.push(
 			`context(open_tabs:before): ${toErrorMessage(error)}`,
 		);
 	}
+	const openTabs = visibleTabs(rawOpenTabs);
 	let currentUrlBeforeActions = "";
 	try {
 		currentUrlBeforeActions = await deps.getCurrentURL(session.browser);
@@ -1134,25 +1126,27 @@ export async function browse(
 		);
 	}
 
-	let nextOpenTabs: Tab[] = openTabs;
+	let nextRawOpenTabs: Tab[] = rawOpenTabs;
 	try {
-		nextOpenTabs = await deps.listTabs(session.browser);
+		nextRawOpenTabs = await deps.listTabs(session.browser);
 	} catch (error) {
 		additionalInteractionErrors.push(
 			`context(open_tabs:after): ${toErrorMessage(error)}`,
 		);
 	}
 
-	let newlyOpenedTabs = deps.getNewlyOpenedTabs(
+	let rawNewlyOpenedTabs = deps.getNewlyOpenedTabs(
 		session.previousStepTabs,
-		nextOpenTabs,
+		nextRawOpenTabs,
 	);
 	await downloadNewPdfTabs({
 		deps,
 		session,
-		tabs: newlyOpenedTabs,
+		tabs: rawNewlyOpenedTabs,
 		contextMessages: additionalInteractionErrors,
 	});
+	let nextOpenTabs = visibleTabs(nextRawOpenTabs);
+	let newlyOpenedTabs = visibleTabs(rawNewlyOpenedTabs);
 	let skippedBlankDownloadTab = false;
 	if ((input.autoSwitchToNewTab ?? true) && newlyOpenedTabs.length > 0) {
 		const firstNewTab = firstMeaningfulNewTab(newlyOpenedTabs);
@@ -1166,11 +1160,13 @@ export async function browse(
 				);
 				await deps.switchTab(session.browser, firstNewTab.targetId);
 				currentUrl = await deps.getCurrentURL(session.browser);
-				nextOpenTabs = await deps.listTabs(session.browser);
-				newlyOpenedTabs = deps.getNewlyOpenedTabs(
+				nextRawOpenTabs = await deps.listTabs(session.browser);
+				rawNewlyOpenedTabs = deps.getNewlyOpenedTabs(
 					session.previousStepTabs,
-					nextOpenTabs,
+					nextRawOpenTabs,
 				);
+				nextOpenTabs = visibleTabs(nextRawOpenTabs);
+				newlyOpenedTabs = visibleTabs(rawNewlyOpenedTabs);
 			}
 		} else {
 			const restored = await restoreSourceTabAfterBlankDownloadTab({
@@ -1183,11 +1179,13 @@ export async function browse(
 			currentUrl = restored.currentUrl;
 			skippedBlankDownloadTab = restored.restored;
 			if (restored.restored) {
-				nextOpenTabs = await deps.listTabs(session.browser);
-				newlyOpenedTabs = deps.getNewlyOpenedTabs(
+				nextRawOpenTabs = await deps.listTabs(session.browser);
+				rawNewlyOpenedTabs = deps.getNewlyOpenedTabs(
 					session.previousStepTabs,
-					nextOpenTabs,
+					nextRawOpenTabs,
 				);
+				nextOpenTabs = visibleTabs(nextRawOpenTabs);
+				newlyOpenedTabs = visibleTabs(rawNewlyOpenedTabs);
 			}
 		}
 	}
@@ -1262,7 +1260,7 @@ export async function browse(
 			}
 		: undefined;
 	session.previousInteractionErrors = interactionErrors;
-	session.previousStepTabs = nextOpenTabs;
+	session.previousStepTabs = nextRawOpenTabs;
 	session.downloadedFileSignatures = downloadedFilesState.fileSignatures;
 	session.downloadedNewFilePaths = downloadedFilesState.newFilePaths;
 

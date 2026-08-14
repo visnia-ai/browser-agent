@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import type { Browser } from "./types.js";
+import type { Browser, Tab } from "./types.js";
 
 interface RuntimeFileInspection {
 	contentType?: string;
@@ -77,6 +77,10 @@ function tryDecodeURIComponent(value: string): string {
 
 function looksLikePdfPathname(value: string): boolean {
 	return /\.pdf(?:$|[?#])/i.test(value);
+}
+
+function isPdfDataUrl(value: string): boolean {
+	return /^data:application\/pdf(?:[;,]|$)/i.test(value.trim());
 }
 
 function extensionFromPathname(value: string): string {
@@ -159,9 +163,41 @@ export function extractFileUrlFromViewerUrl(viewerUrl: string): string | null {
 export function extractPdfUrlFromViewerUrl(viewerUrl: string): string | null {
 	const extracted = extractFileUrlFromViewerUrl(viewerUrl);
 	if (!extracted) return null;
-	return looksLikePdfPathname(extracted) || extracted.startsWith("blob:")
+	return (
+		looksLikePdfPathname(extracted) ||
+		extracted.startsWith("blob:") ||
+		isPdfDataUrl(extracted)
+	)
 		? extracted
 		: null;
+}
+
+export function getPdfUrlForTab(
+	tab: Pick<Tab, "url" | "title">,
+): string | null {
+	const normalizedUrl = tab.url.trim();
+	const extracted = extractPdfUrlFromViewerUrl(normalizedUrl);
+	if (extracted) {
+		return extracted;
+	}
+	if (isPdfDataUrl(normalizedUrl)) {
+		return normalizedUrl;
+	}
+
+	const normalizedTitle = tab.title.trim().toLowerCase();
+	if (
+		normalizedTitle.endsWith(".pdf") &&
+		/^(https?:|blob:|data:|file:|chrome-extension:)/i.test(normalizedUrl)
+	) {
+		return normalizedUrl;
+	}
+	return null;
+}
+
+export function isPdfViewerTab(
+	tab: Pick<Tab, "url" | "title">,
+): boolean {
+	return getPdfUrlForTab(tab) !== null;
 }
 
 function sanitizeFileName(input: string): string {
