@@ -51,11 +51,11 @@ class AgentTests(unittest.TestCase):
         }
         agent = create_agent(custom_tools=[BrowserAgentCustomTool(
             "read_heading", " Read a heading. ", MappingProxyType(schema),
-            " async (args) => document.querySelector(args.selector)?.textContent ",
+            " async ({ args, cdp }) => cdp.send('Runtime.evaluate', { expression: args.selector }) ",
         )])
         self.assertEqual(agent._custom_tools, (BrowserAgentCustomTool(
             "read_heading", "Read a heading.", schema,
-            "async (args) => document.querySelector(args.selector)?.textContent",
+            "async ({ args, cdp }) => cdp.send('Runtime.evaluate', { expression: args.selector })",
         ),))
         self.assertIsNot(agent._custom_tools[0].arguments, schema)
 

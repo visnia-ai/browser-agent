@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as vm from "node:vm";
 import yaml from "js-yaml";
 import type { Browser, Tab } from "../../browser/types.js";
 import {
@@ -39,6 +40,7 @@ import {
 	appendMemoryFile,
 	appendMemoryResultItems,
 	clearMemoryFile,
+	readMemoryFile,
 } from "./memory-file.js";
 import { extractMemoryResults } from "./memory-results.js";
 import { readLocalFile } from "./read-file.js";
@@ -59,6 +61,22 @@ export interface StepPartTimingEntry {
 const MAX_EVALUATE_OBSERVATION_CHARACTERS = 4_000;
 const CUSTOM_TOOL_TIMEOUT_MS = 30_000;
 
+interface CustomToolMemoryReadResult {
+	memory: string;
+	memory_result: string;
+}
+
+interface CustomToolRuntimeContext {
+	args: Record<string, unknown>;
+	cdp: Browser["client"];
+	memory_read: () => Promise<CustomToolMemoryReadResult>;
+	memory_write: (content: string) => void;
+	memory_result_write: (items: unknown) => Promise<void>;
+	return_results: (results?: unknown) => Promise<never>;
+}
+
+const CUSTOM_TOOL_RETURNED_RESULTS = Symbol("custom tool returned results");
+
 function formatCustomToolObservation(name: string, value: unknown): string {
 	const serialized = JSON.stringify(value);
 	const truncated = serialized.length > MAX_EVALUATE_OBSERVATION_CHARACTERS;
@@ -69,40 +87,56 @@ function formatCustomToolObservation(name: string, value: unknown): string {
 }
 
 async function executeCustomTool(params: {
-	browser: Browser;
 	name: string;
-	arguments: Record<string, unknown>;
 	customTools: CustomToolRegistry;
-}): Promise<unknown> {
+	context: CustomToolRuntimeContext;
+	didReturnResults: () => boolean;
+}): Promise<unknown | typeof CUSTOM_TOOL_RETURNED_RESULTS> {
 	const definition = params.customTools.get(params.name);
-	if (!definition) throw new Error(`custom tool \"${params.name}\" is unavailable`);
-	const expression = `(async () => {
+	if (!definition)
+		throw new Error(`custom tool \"${params.name}\" is unavailable`);
+	const context = vm.createContext({
+		__browserAgentCustomToolContext: params.context,
+	});
+	const script = new vm.Script(
+		`(async () => {
 		const tool = (${definition.javascript});
 		if (typeof tool !== "function") throw new Error("custom tool source must evaluate to a function");
-		const value = await tool(${JSON.stringify(params.arguments)});
+		return await tool(__browserAgentCustomToolContext);
+	})()`,
+		{
+			filename: `browser-agent-custom-tool:${definition.name}`,
+		},
+	);
+	const execution = Promise.resolve(
+		script.runInContext(context, { timeout: CUSTOM_TOOL_TIMEOUT_MS }),
+	);
+	let timeout: NodeJS.Timeout | undefined;
+	try {
+		const value = await Promise.race([
+			execution,
+			new Promise<never>((_, reject) => {
+				timeout = setTimeout(
+					() =>
+						reject(new Error(`Timed out after ${CUSTOM_TOOL_TIMEOUT_MS}ms`)),
+					CUSTOM_TOOL_TIMEOUT_MS,
+				);
+			}),
+		]);
+		if (params.didReturnResults()) return CUSTOM_TOOL_RETURNED_RESULTS;
 		const serialized = JSON.stringify(value);
-		if (serialized === undefined) throw new Error("custom tool must return a JSON-serializable value");
-		return serialized;
-	})()`;
-	const { result, exceptionDetails } = await params.browser.Runtime.evaluate({
-		expression,
-		returnByValue: true,
-		awaitPromise: true,
-		timeout: CUSTOM_TOOL_TIMEOUT_MS,
-	});
-	if (exceptionDetails) {
+		if (serialized === undefined) {
+			throw new Error("custom tool must return a JSON-serializable value");
+		}
+		return JSON.parse(serialized);
+	} catch (error) {
+		if (params.didReturnResults()) return CUSTOM_TOOL_RETURNED_RESULTS;
 		const rawMessage =
-			exceptionDetails.exception?.description ||
-			exceptionDetails.text ||
-			"custom tool execution failed";
-		throw new Error(
-			rawMessage.split("\n", 1)[0].slice(0, 1_000),
-		);
+			error instanceof Error ? error.message : "custom tool execution failed";
+		throw new Error(rawMessage.split("\n", 1)[0].slice(0, 1_000));
+	} finally {
+		if (timeout) clearTimeout(timeout);
 	}
-	if (typeof result.value !== "string") {
-		throw new Error("custom tool did not return a JSON-serializable value");
-	}
-	return JSON.parse(result.value);
 }
 
 function formatEvaluateObservation(result: string): string {
@@ -252,6 +286,53 @@ function formatExplicitResults(
 		};
 	});
 	return yaml.dump(normalized, { lineWidth: -1 }).trim();
+}
+
+function normalizeCustomToolResultItems(
+	value: unknown,
+	options: { allowDownloadedFilePath: boolean },
+): ExecutorResultItem[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		throw new Error("result items must be a non-empty array");
+	}
+	return value.map((entry, index) => {
+		if (!isRecord(entry)) {
+			throw new Error(`result item ${index + 1} must be an object`);
+		}
+		const supportedKeys = options.allowDownloadedFilePath
+			? new Set(["link", "summary", "downloaded_file_path"])
+			: new Set(["link", "summary"]);
+		for (const key of Object.keys(entry)) {
+			if (!supportedKeys.has(key)) {
+				throw new Error(`result item ${index + 1}.${key} is not supported`);
+			}
+		}
+		if (typeof entry.link !== "string" || typeof entry.summary !== "string") {
+			throw new Error(
+				`result item ${index + 1} requires string link and summary`,
+			);
+		}
+		if (!entry.link.trim() || !entry.summary.trim()) {
+			throw new Error(
+				`result item ${index + 1} requires non-empty link and summary`,
+			);
+		}
+		if (
+			entry.downloaded_file_path !== undefined &&
+			typeof entry.downloaded_file_path !== "string"
+		) {
+			throw new Error(
+				`result item ${index + 1}.downloaded_file_path must be a string`,
+			);
+		}
+		return {
+			link: entry.link,
+			summary: entry.summary,
+			...(typeof entry.downloaded_file_path === "string"
+				? { downloaded_file_path: entry.downloaded_file_path }
+				: {}),
+		};
+	});
 }
 
 function normalizeAuthTakeoverAttemptEvent(
@@ -497,6 +578,16 @@ export async function executeActions(params: {
 		}
 		return false;
 	};
+	const flushCustomToolResultMemory = async (): Promise<void> => {
+		const barrier = await dataExtractionCoordinator.waitForAllAndFlush({
+			filePath: extractDataMemoryFile,
+		});
+		toolObservations.push(...barrier.observations);
+		if (barrier.errors.length > 0) {
+			dataExtractionBarrierFailed = true;
+			throw new Error(barrier.errors.join("; "));
+		}
+	};
 
 	for (const [actionIndex, action] of actions.entries()) {
 		await params.waitForAutomationPermission?.();
@@ -508,16 +599,83 @@ export async function executeActions(params: {
 					if (!params.customTools) {
 						throw new Error("custom tools are unavailable");
 					}
-					console.log(`    -> ${action.name}(${JSON.stringify(action.arguments)})`);
-					const customResult = await executeCustomTool({
-						browser: params.b,
-						name: action.name,
-						arguments: action.arguments,
-						customTools: params.customTools,
-					});
-					toolObservations.push(
-						formatCustomToolObservation(action.name, customResult),
+					console.log(
+						`    -> ${action.name}(${JSON.stringify(action.arguments)})`,
 					);
+					let customToolReturnedResults = false;
+					const ensureCustomToolNotCompleted = () => {
+						if (customToolReturnedResults) {
+							throw new Error(
+								"return_results already completed this custom tool",
+							);
+						}
+					};
+					const context: CustomToolRuntimeContext = Object.freeze({
+						args: Object.freeze({ ...action.arguments }),
+						cdp: params.b.client,
+						memory_read: async () => {
+							ensureCustomToolNotCompleted();
+							await flushCustomToolResultMemory();
+							pendingMemoryRead = true;
+							return Object.freeze({
+								memory: readMemoryFile(params.memoryFile).trim(),
+								memory_result: readMemoryFile(extractDataMemoryFile).trim(),
+							});
+						},
+						memory_write: (content: string) => {
+							ensureCustomToolNotCompleted();
+							if (typeof content !== "string") {
+								throw new Error("memory_write content must be a string");
+							}
+							appendMemoryFile({ filePath: params.memoryFile, content });
+						},
+						memory_result_write: async (items: unknown) => {
+							ensureCustomToolNotCompleted();
+							const normalized = normalizeCustomToolResultItems(items, {
+								allowDownloadedFilePath: false,
+							});
+							await flushCustomToolResultMemory();
+							appendMemoryResultItems({
+								filePath: extractDataMemoryFile,
+								items: normalized.map(({ link, summary }) => ({
+									link: link.trim(),
+									summary: summary.trim(),
+								})),
+							});
+							pendingMemoryRead = true;
+						},
+						return_results: async (results?: unknown): Promise<never> => {
+							ensureCustomToolNotCompleted();
+							let nextResult: string;
+							if (results !== undefined) {
+								nextResult = formatExplicitResults(
+									normalizeCustomToolResultItems(results, {
+										allowDownloadedFilePath: true,
+									}),
+									params.downloadedFiles,
+								);
+							} else {
+								await flushCustomToolResultMemory();
+								nextResult = extractMemoryResults(
+									readMemoryFile(extractDataMemoryFile),
+								);
+							}
+							returnedResult = nextResult;
+							customToolReturnedResults = true;
+							throw new Error("return_results completed");
+						},
+					});
+					const customResult = await executeCustomTool({
+						name: action.name,
+						customTools: params.customTools,
+						context,
+						didReturnResults: () => customToolReturnedResults,
+					});
+					if (customResult !== CUSTOM_TOOL_RETURNED_RESULTS) {
+						toolObservations.push(
+							formatCustomToolObservation(action.name, customResult),
+						);
+					}
 					break;
 				}
 				case "click":

@@ -64,7 +64,7 @@ test("includes custom tools in the initial request only when provided", () => {
 				name: "page_title",
 				description: "Read the page title.",
 				arguments: { type: "object", properties: {} },
-				javascript: "async () => document.title",
+				javascript: "async ({ cdp }) => cdp.send('Runtime.evaluate')",
 			},
 		],
 	);
@@ -87,7 +87,7 @@ test("includes custom tools in the initial request only when provided", () => {
 				name: "page_title",
 				description: "Read the page title.",
 				arguments: { type: "object", properties: {} },
-				javascript: "async () => document.title",
+				javascript: "async ({ cdp }) => cdp.send('Runtime.evaluate')",
 			},
 		],
 	});

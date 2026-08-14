@@ -29,7 +29,8 @@ const options: BrowserAgentOptions = {
 			name: "page_title",
 			description: "Read the page title.",
 			arguments: { type: "object", properties: {} },
-			javascript: "() => document.title",
+			javascript:
+				"async ({ cdp }) => (await cdp.Runtime.evaluate({ expression: 'document.title', returnByValue: true })).result.value",
 		},
 	],
 };

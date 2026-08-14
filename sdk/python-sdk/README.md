@@ -56,7 +56,7 @@ All `BrowserAgent` constructor arguments are keyword-only.
 | `workspace_directory`       | Temporary directory           | Agent file workspace; relative paths resolve from the current working directory. |
 | `browser_profile_directory` | —                             | Seed Chrome user-data directory copied into isolated worker profiles.            |
 | `user_takeover_tool`        | `False`                       | Allow the agent to request user intervention.                                    |
-| `custom_tools`              | `()`                          | Trusted page-context JavaScript tools available to every task and retry run.      |
+| `custom_tools`              | `()`                          | Trusted host-side JavaScript tools available to every task and retry run.         |
 | `max_steps`                 | `50`                          | Positive integer maximum step count.                                             |
 | `concurrency`               | `8`                           | Positive integer maximum concurrent task count.                                  |
 | `runs_per_task`             | `1`                           | Positive integer number of executions per task.                                  |
@@ -154,9 +154,9 @@ Exact endpoint IDs such as `baseten/fp8` are passed through unchanged.
 ### Custom tools
 
 Use `BrowserAgentCustomTool` to give the agent trusted JavaScript functions that
-run in the active page. Each tool accepts one JSON object and may return any
-JSON-serializable value. Its argument schema must be a JSON Schema Draft 2020-12
-object schema.
+run in the browser-agent CLI host. Each tool receives one runtime object and may
+return any JSON-serializable value. Its argument schema must be a JSON Schema
+Draft 2020-12 object schema.
 
 ```python
 from browser_agent import BrowserAgent, BrowserAgentCustomTool
@@ -175,8 +175,13 @@ agent = BrowserAgent(
                 "required": ["selector"],
                 "additionalProperties": False,
             },
-            javascript="""async (args) =>
-                document.querySelector(args.selector)?.textContent ?? null""",
+            javascript="""async ({ args, cdp }) => {
+                const { result } = await cdp.Runtime.evaluate({
+                    expression: `document.querySelector(${JSON.stringify(args.selector)})?.textContent ?? null`,
+                    returnByValue: true,
+                });
+                return result.value;
+            }""",
         ),
     ),
 )
@@ -186,8 +191,12 @@ Names must match `^[a-z][a-z0-9_]{0,63}$` and cannot duplicate another custom
 tool or a built-in tool. Definitions are sent only in the initial run request;
 when the sequence is empty, the request and agent system prompt are unchanged.
 JavaScript source is not placed in temporary config files or shown to the model.
-It is trusted SDK-user code with access to the active page DOM and same-origin
-browser APIs, so do not pass untrusted source.
+The runtime object contains validated `args`, the current active-target `cdp`
+client, `memory_read()`, `memory_write(content)`,
+`memory_result_write([{link, summary}, ...])`, and terminal
+`return_results(items?)`. Direct page globals are unavailable; use CDP Runtime
+methods for page JavaScript. No filesystem or workspace binding is provided.
+Do not pass untrusted source.
 
 ## Task configuration
 

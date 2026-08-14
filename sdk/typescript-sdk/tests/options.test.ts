@@ -330,7 +330,8 @@ test("normalizes custom tools and rejects invalid definitions", () => {
 				name: "read_heading",
 				description: " Read a heading. ",
 				arguments: schema,
-				javascript: " async (args) => document.querySelector(args.selector)?.textContent ",
+				javascript:
+					" async ({ args, cdp }) => cdp.send('Runtime.evaluate', { expression: args.selector }) ",
 			},
 		],
 	});
@@ -340,7 +341,7 @@ test("normalizes custom tools and rejects invalid definitions", () => {
 			description: "Read a heading.",
 			arguments: schema,
 			javascript:
-				"async (args) => document.querySelector(args.selector)?.textContent",
+				"async ({ args, cdp }) => cdp.send('Runtime.evaluate', { expression: args.selector })",
 		},
 	]);
 	assert.notEqual(resolved.customTools[0]?.arguments, schema);

@@ -4,10 +4,10 @@ import { close, launch, navigate } from "../src/browser/index.js";
 import type { Browser } from "../src/browser/types.js";
 import { compileCustomTools } from "../src/custom-tools.js";
 
-describe("custom tool page execution e2e", function () {
+describe("custom tool host execution e2e", function () {
 	this.timeout(90_000);
 
-	it("runs an SDK-injected async function in the active page", async () => {
+	it("runs an SDK-injected async function with the active CDP client", async () => {
 		let browser: Browser | null = null;
 		try {
 			const debuggingPort = 44_000 + (process.pid % 1_000);
@@ -26,7 +26,7 @@ describe("custom tool page execution e2e", function () {
 						required: ["value"],
 					},
 					javascript:
-						"async (args) => { document.querySelector('#value').textContent = args.value; return { value: document.querySelector('#value').textContent, title: document.title }; }",
+						"async ({ args, cdp }) => { await cdp.Runtime.evaluate({ expression: `document.querySelector('#value').textContent = ${JSON.stringify(args.value)}` }); const { result } = await cdp.Runtime.evaluate({ expression: `({ value: document.querySelector('#value').textContent, title: document.title })`, returnByValue: true }); return result.value; }",
 				},
 			]);
 			const execution = await executeActions({
@@ -43,10 +43,7 @@ describe("custom tool page execution e2e", function () {
 				customTools: tools,
 			});
 			assert.deepEqual(execution.interactionErrors, []);
-			assert.include(
-				execution.toolObservations[0],
-				'"value":"after"',
-			);
+			assert.include(execution.toolObservations[0], '"value":"after"');
 			const { result } = await browser.Runtime.evaluate({
 				expression: "document.querySelector('#value').textContent",
 				returnByValue: true,

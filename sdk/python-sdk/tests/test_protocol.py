@@ -80,7 +80,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
             (BrowserAgentCustomTool(
                 "page_title", "Read the page title.",
                 {"type": "object", "properties": {}},
-                "async () => document.title",
+                "async ({ cdp }) => cdp.send('Runtime.evaluate')",
             ),),
         )
         first, second = [json.loads(value) for value in stdin.writes]
@@ -93,7 +93,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                 "name": "page_title",
                 "description": "Read the page title.",
                 "arguments": {"type": "object", "properties": {}},
-                "javascript": "async () => document.title",
+                "javascript": "async ({ cdp }) => cdp.send('Runtime.evaluate')",
             }],
         })
 

@@ -79,7 +79,7 @@ interface BrowserAgentCustomTool {
 | `workspaceDirectory`      | Temporary directory           | Agent file workspace; relative paths resolve from the current working directory. |
 | `browserProfileDirectory` | —                             | Seed Chrome user-data directory copied into isolated worker profiles.            |
 | `userTakeoverTool`        | `false`                       | Allow the agent to request user intervention.                                    |
-| `customTools`             | `[]`                          | Trusted page-context JavaScript tools available to every task and retry.          |
+| `customTools`             | `[]`                          | Trusted host-side JavaScript tools available to every task and retry.             |
 | `maxSteps`                | `50`                          | Positive integer maximum step count.                                             |
 | `concurrency`             | `8`                           | Positive integer maximum concurrent task count.                                  |
 | `runsPerTask`             | `1`                           | Positive integer number of executions per task.                                  |
@@ -88,10 +88,10 @@ interface BrowserAgentCustomTool {
 
 ### Custom tools
 
-Custom tools let the agent call application-specific JavaScript in the active
-page. Each tool has a lowercase name, a model-facing description, a JSON Schema
-Draft 2020-12 object schema for its arguments, and a sync or async function
-expression. For example:
+Custom tools let the agent call trusted application-specific JavaScript in the
+browser-agent CLI host. Each tool has a lowercase name, a model-facing
+description, a JSON Schema Draft 2020-12 object schema for its arguments, and a
+sync or async function expression. For example:
 
 ```ts
 const agent = new BrowserAgent({
@@ -108,19 +108,37 @@ const agent = new BrowserAgent({
 				required: ["selector"],
 				additionalProperties: false,
 			},
-			javascript: `async (args) =>
-				document.querySelector(args.selector)?.textContent ?? null`,
+			javascript: `async ({ args, cdp }) => {
+				const { result } = await cdp.Runtime.evaluate({
+					expression: \`document.querySelector(\${JSON.stringify(args.selector)})?.textContent ?? null\`,
+					returnByValue: true,
+				});
+				return result.value;
+			}`,
 		},
 	],
 });
 ```
 
 Names must match `^[a-z][a-z0-9_]{0,63}$` and cannot duplicate another custom
-tool or a built-in tool. JavaScript runs as trusted SDK-user code in the active
-page's main world, with access to its DOM and same-origin browser APIs. Its
-return value must be JSON-serializable. Tool metadata is included in the agent's
-system prompt only when at least one custom tool is configured; JavaScript
-source is not shown to the model.
+tool or a built-in tool. The function receives one object with these bindings:
+
+- `args`: validated tool arguments.
+- `cdp`: the current active-target `chrome-remote-interface` client. Use CDP
+  Runtime methods for page JavaScript; direct `document` and `window` globals are
+  unavailable.
+- `memory_read()`: flush pending extraction and return
+  `{ memory, memory_result }` strings.
+- `memory_write(content)`: append text to scratch memory.
+- `memory_result_write(items)`: append a non-empty list of `{ link, summary }`
+  items to result memory.
+- `return_results(items?)`: finish the task from result memory, or from an
+  explicit non-empty result list.
+
+No filesystem or workspace binding is provided. A normal return value must be
+JSON-serializable. Tool metadata is included in the agent's system prompt only
+when at least one custom tool is configured; JavaScript source and runtime
+bindings are not shown to the model.
 
 ### Providers and reasoning
 
