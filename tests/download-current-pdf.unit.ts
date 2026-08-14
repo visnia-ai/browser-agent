@@ -69,11 +69,30 @@ describe("download current pdf helpers", () => {
 			title: "report.pdf",
 		};
 
-		assert.strictEqual(
-			getPdfUrlForTab(tab),
-			"https://example.com/report.pdf",
-		);
+		assert.strictEqual(getPdfUrlForTab(tab), "https://example.com/report.pdf");
 		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("classifies Chrome's PDF viewer when its source URL is extensionless", () => {
+		const sourceUrl =
+			"https://www.jadrolinija.hr/download/07695fb38c8f4df184eeb50c2e089a31";
+		const tab = {
+			url: `chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html?file=${encodeURIComponent(sourceUrl)}`,
+			title: "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html",
+		};
+
+		assert.strictEqual(getPdfUrlForTab(tab), sourceUrl);
+		assert.isTrue(isPdfViewerTab(tab));
+	});
+
+	it("does not classify an unknown extension viewer with an extensionless source", () => {
+		const tab = {
+			url: "chrome-extension://not-the-pdf-viewer/index.html?file=https%3A%2F%2Fexample.com%2Fdownload%2F1234",
+			title: "Extension viewer",
+		};
+
+		assert.isNull(getPdfUrlForTab(tab));
+		assert.isFalse(isPdfViewerTab(tab));
 	});
 
 	it("classifies blob PDF viewer tabs", () => {
@@ -82,10 +101,7 @@ describe("download current pdf helpers", () => {
 			title: "report.pdf",
 		};
 
-		assert.strictEqual(
-			getPdfUrlForTab(tab),
-			"blob:https://example.com/1234",
-		);
+		assert.strictEqual(getPdfUrlForTab(tab), "blob:https://example.com/1234");
 		assert.isTrue(isPdfViewerTab(tab));
 	});
 
@@ -171,14 +187,8 @@ describe("download current pdf helpers", () => {
 				fs.readFileSync(destination, "utf8"),
 				"%PDF-1.7\nfixture",
 			);
-			assert.strictEqual(
-				requestHeaders?.get("cookie"),
-				"session=secret",
-			);
-			assert.strictEqual(
-				requestHeaders?.get("user-agent"),
-				"BrowserAgent/1.0",
-			);
+			assert.strictEqual(requestHeaders?.get("cookie"), "session=secret");
+			assert.strictEqual(requestHeaders?.get("user-agent"), "BrowserAgent/1.0");
 		} finally {
 			globalThis.fetch = originalFetch;
 			fs.rmSync(downloadDir, { recursive: true, force: true });

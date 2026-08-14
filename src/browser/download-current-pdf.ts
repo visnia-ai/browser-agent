@@ -83,6 +83,48 @@ function isPdfDataUrl(value: string): boolean {
 	return /^data:application\/pdf(?:[;,]|$)/i.test(value.trim());
 }
 
+const CHROME_PDF_VIEWER_EXTENSION_ID = "mhjfbmdgcfjbbpaeojofohoefgiehjai";
+
+function extractChromePdfViewerSourceUrl(viewerUrl: string): string | null {
+	let parsed: URL;
+	try {
+		parsed = new URL(viewerUrl);
+	} catch {
+		return null;
+	}
+	if (
+		parsed.protocol !== "chrome-extension:" ||
+		parsed.hostname !== CHROME_PDF_VIEWER_EXTENSION_ID
+	) {
+		return null;
+	}
+
+	const candidateValues: string[] = [];
+	for (const key of CANDIDATE_PARAM_KEYS) {
+		const value = parsed.searchParams.get(key);
+		if (value) candidateValues.push(value);
+	}
+	const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
+	if (hash) {
+		const hashParams = new URLSearchParams(hash);
+		for (const key of CANDIDATE_PARAM_KEYS) {
+			const value = hashParams.get(key);
+			if (value) candidateValues.push(value);
+		}
+	}
+
+	for (const rawValue of candidateValues) {
+		const decodedValue = tryDecodeURIComponent(rawValue);
+		try {
+			const resolved = new URL(decodedValue, parsed.href).toString();
+			if (isSupportedDownloadUrl(resolved)) return resolved;
+		} catch {
+			if (isSupportedDownloadUrl(decodedValue)) return decodedValue;
+		}
+	}
+	return parsed.href;
+}
+
 function extensionFromPathname(value: string): string {
 	try {
 		const parsed = new URL(value, "https://browser-agent.local");
@@ -122,9 +164,7 @@ export function extractFileUrlFromViewerUrl(viewerUrl: string): string | null {
 		const value = parsed.searchParams.get(key);
 		if (value) candidateValues.push(value);
 	}
-	const hash = parsed.hash.startsWith("#")
-		? parsed.hash.slice(1)
-		: parsed.hash;
+	const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
 	if (hash) {
 		const hashParams = new URLSearchParams(hash);
 		for (const key of CANDIDATE_PARAM_KEYS) {
@@ -163,11 +203,9 @@ export function extractFileUrlFromViewerUrl(viewerUrl: string): string | null {
 export function extractPdfUrlFromViewerUrl(viewerUrl: string): string | null {
 	const extracted = extractFileUrlFromViewerUrl(viewerUrl);
 	if (!extracted) return null;
-	return (
-		looksLikePdfPathname(extracted) ||
+	return looksLikePdfPathname(extracted) ||
 		extracted.startsWith("blob:") ||
 		isPdfDataUrl(extracted)
-	)
 		? extracted
 		: null;
 }
@@ -176,6 +214,10 @@ export function getPdfUrlForTab(
 	tab: Pick<Tab, "url" | "title">,
 ): string | null {
 	const normalizedUrl = tab.url.trim();
+	const chromePdfViewerSource = extractChromePdfViewerSourceUrl(normalizedUrl);
+	if (chromePdfViewerSource) {
+		return chromePdfViewerSource;
+	}
 	const extracted = extractPdfUrlFromViewerUrl(normalizedUrl);
 	if (extracted) {
 		return extracted;
@@ -194,9 +236,7 @@ export function getPdfUrlForTab(
 	return null;
 }
 
-export function isPdfViewerTab(
-	tab: Pick<Tab, "url" | "title">,
-): boolean {
+export function isPdfViewerTab(tab: Pick<Tab, "url" | "title">): boolean {
 	return getPdfUrlForTab(tab) !== null;
 }
 
@@ -298,10 +338,7 @@ function deriveFileName(params: {
 	}
 	const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
 	if (plainMatch?.[1]) {
-		return ensureExtension(
-			sanitizeFileName(plainMatch[1]),
-			preferredExtension,
-		);
+		return ensureExtension(sanitizeFileName(plainMatch[1]), preferredExtension);
 	}
 
 	const fromUrl = deriveFileNameFromUrl(params.fileUrl);
@@ -482,8 +519,7 @@ async function getCookieHeader(browser: Browser, url: string): Promise<string> {
 		const pairs = (response.cookies || [])
 			.filter(
 				(cookie): cookie is { name: string; value: string } =>
-					typeof cookie.name === "string" &&
-					typeof cookie.value === "string",
+					typeof cookie.name === "string" && typeof cookie.value === "string",
 			)
 			.map((cookie) => `${cookie.name}=${cookie.value}`);
 		return pairs.join("; ");

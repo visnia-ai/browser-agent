@@ -65,7 +65,7 @@ async function startFixtureServer(): Promise<{
 			res.end(html);
 			return;
 		}
-		if (requestUrl.pathname === "/generated.pdf") {
+		if (requestUrl.pathname === "/download/timetable") {
 			res.writeHead(200, {
 				"content-type": "application/pdf",
 				"content-disposition": 'inline; filename="generated.pdf"',
@@ -121,7 +121,7 @@ async function waitForTab(
 describe("PDF tabs e2e", function () {
 	this.timeout(60_000);
 
-	it("downloads a real PDF viewer tab but excludes it from openTabs", async () => {
+	it("excludes Chrome's PDF viewer when its source URL is extensionless", async () => {
 		const { server, baseUrl } = await startFixtureServer();
 		const testRoot = fs.mkdtempSync(
 			path.join(os.tmpdir(), "browser-agent-pdf-tabs-e2e-"),
@@ -194,16 +194,16 @@ describe("PDF tabs e2e", function () {
 			assert.isDefined(sourceTab);
 			session.previousStepTabs = sourceTabs;
 
-			await session.browser.Target.createTarget({
-				url: `${baseUrl}/generated.pdf`,
-			});
+			const pdfSourceUrl = `${baseUrl}/download/timetable`;
+			const pdfViewerUrl =
+				`chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html?file=` +
+				encodeURIComponent(pdfSourceUrl);
+			await session.browser.Target.createTarget({ url: pdfViewerUrl });
 			const pdfTab = await waitForTab(
 				() => deps.listTabs(session.browser),
-				(tab) =>
-					tab.url === `${baseUrl}/generated.pdf` &&
-					/generated\.pdf/i.test(tab.title),
+				(tab) => tab.url === pdfViewerUrl,
 			);
-			assert.match(pdfTab.title, /generated\.pdf/i);
+			assert.strictEqual(pdfTab.url, pdfViewerUrl);
 			assert.isTrue(isPdfViewerTab(pdfTab));
 
 			const result = await step(deps, {
