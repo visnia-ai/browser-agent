@@ -3,16 +3,10 @@ import type { ModelMessage } from "ai";
 import yaml from "js-yaml";
 import { MAX_STEPS } from "../agents/constants.js";
 import { MAX_STEP_FINALIZATION_INSTRUCTION } from "../agents/prompts.js";
-import {
-	chatYAML,
-	isOpenAIContinuationError,
-} from "../agents/providers/router.js";
+import { chatYAML } from "../agents/providers/router.js";
 import type {
 	ChatJSONResult,
-	LLMOptions,
 	MainLoopStepEntry,
-	Message,
-	OpenAIEncryptedReasoningState,
 	StepResult as ModelStepResult,
 	StepTokenUsage,
 	TokenUsage,
@@ -25,7 +19,6 @@ import {
 	saveStepContextIfNeeded,
 	serializeMessagesForDisk,
 } from "../agents/executor-utils/step-execution.js";
-import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
 import { configFeatureFlags } from "../config-feature-flags.js";
 import { supportsOpenAIExplicitPromptCaching } from "../llm-capabilities.js";
 import { resolveExecutorContextPolicy } from "../agents/executor-context-policy.js";
@@ -54,10 +47,6 @@ import {
 	ModelStepActionContractError,
 	processModelStepOutput,
 } from "./process-model-step-output.js";
-import {
-	estimateMessagesTokenCount,
-	resolveMaxInputTokens,
-} from "./prompt-budget.js";
 import {
 	createPromptForStep,
 	processModelOutputAndBrowse,
@@ -308,7 +297,7 @@ function createDefaultGenerateStep(): RunAgentGenerateStep {
 		llmOptions,
 		caller,
 		abortSignal,
-		providerContinuation,
+		openAIEncryptedResponses,
 		openAIPromptCache,
 	}): Promise<ChatJSONResult<ModelStepResult>> =>
 		await chatYAML<ModelStepResult>(
@@ -318,49 +307,27 @@ function createDefaultGenerateStep(): RunAgentGenerateStep {
 			undefined,
 			abortSignal,
 			undefined,
-			providerContinuation,
+			openAIEncryptedResponses,
 			openAIPromptCache,
 		);
 }
 
-function redactMessageContentForDisk(content: Message["content"]): unknown {
-	if (typeof content === "string") return content;
-	return content.map((part) => {
-		if (part.type !== "image_url") return part;
-		return {
-			type: "image_url",
-			image_url: {
-				detail: part.image_url.detail || "auto",
-				url: "(base64 omitted)",
-			},
-		};
-	});
-}
-
 function serializeStepContextForDisk(
-	messages: Message[],
+	messages: ModelMessage[],
 ): RunAgentStepArtifact["contextJson"] {
-	return messages.map((message) => ({
-		role: message.role,
-		content: redactMessageContentForDisk(message.content),
-		...(message.providerOptions
-			? { providerOptions: message.providerOptions }
-			: {}),
-		...(typeof message.reasoning_tokens === "string"
-			? { reasoning_tokens: message.reasoning_tokens }
-			: {}),
-	}));
+	return serializeMessagesForDisk(messages);
 }
 
-function isSerializableAuthMessage(value: unknown): value is {
-	role: "system" | "user" | "assistant";
-	content: string | Message["content"];
-	reasoning_tokens?: string;
-} {
+function isSerializableAuthMessage(value: unknown): value is ModelMessage {
 	if (!value || typeof value !== "object") return false;
 	const record = value as Record<string, unknown>;
 	const role = record.role;
-	if (role !== "system" && role !== "user" && role !== "assistant") {
+	if (
+		role !== "system" &&
+		role !== "user" &&
+		role !== "assistant" &&
+		role !== "tool"
+	) {
 		return false;
 	}
 	const content = record.content;
@@ -372,14 +339,7 @@ function isSerializableAuthMessage(value: unknown): value is {
 		if (contentPart.type === "text") {
 			return typeof contentPart.text === "string";
 		}
-		if (contentPart.type === "image_url") {
-			if (!contentPart.image_url || typeof contentPart.image_url !== "object") {
-				return false;
-			}
-			const imageUrl = contentPart.image_url as Record<string, unknown>;
-			return typeof imageUrl.url === "string";
-		}
-		return false;
+		return typeof contentPart.type === "string";
 	});
 }
 
@@ -527,46 +487,6 @@ function authProtectedProjectionOptions(session: BrowserSession): {
 		redactInputRefs: [...session.authTakeover.protectedRefs],
 		redactPasswordInputs: true,
 	};
-}
-
-function fitCurrentOpenAIReasoningStateToPrompt(params: {
-	messages: Message[];
-	reasoningStateByStep: OpenAIEncryptedReasoningState[];
-	llmOptions: LLMOptions;
-	estimateTokenCount: (text: string) => number;
-}): OpenAIEncryptedReasoningState[] {
-	const assistantCount = params.messages.filter(
-		(message) => message.role === "assistant",
-	).length;
-	let retainedState =
-		assistantCount === 0
-			? []
-			: params.reasoningStateByStep.slice(-assistantCount);
-	const maxInputTokens = resolveMaxInputTokens(params.llmOptions);
-	if (maxInputTokens === null || retainedState.length === 0) {
-		return retainedState;
-	}
-	const messagesWithoutPlaintextReasoning = params.messages.map((message) =>
-		message.role === "assistant"
-			? { ...message, reasoning_tokens: undefined }
-			: message,
-	);
-	const baseInputTokens = estimateMessagesTokenCount(
-		messagesWithoutPlaintextReasoning,
-		params.estimateTokenCount,
-	);
-	let replayedReasoningTokens = retainedState.reduce(
-		(total, state) => total + state.reasoningTokenCount,
-		0,
-	);
-	while (
-		retainedState.length > 0 &&
-		baseInputTokens + replayedReasoningTokens > maxInputTokens
-	) {
-		replayedReasoningTokens -= retainedState[0]?.reasoningTokenCount ?? 0;
-		retainedState = retainedState.slice(1);
-	}
-	return retainedState;
 }
 
 async function regenerateChecklistAfterVerification(params: {
@@ -838,24 +758,6 @@ export async function runAgent(
 		)
 			? buildOpenAIExplicitNoCacheRequest()
 			: undefined;
-	let committedOpenAIContinuationMessages: ModelMessage[] = [];
-	let committedOpenAIReasoningStateByStep: OpenAIEncryptedReasoningState[] = [];
-	const commitOpenAIProviderState = (
-		candidate: ChatJSONResult<ModelStepResult>["providerContinuation"],
-		usage: TokenUsage,
-	): void => {
-		if (!openAIEncryptedResponsesEnabled) return;
-		if (openAIProjectionStrategy === "current") {
-			committedOpenAIReasoningStateByStep.push({
-				messages:
-					candidate?.strategy === "current" ? candidate.reasoningMessages : [],
-				reasoningTokenCount: usage.reasoning_tokens ?? 0,
-			});
-			return;
-		}
-		committedOpenAIContinuationMessages =
-			candidate?.strategy === "cumulative" ? candidate.messages : [];
-	};
 	let validatorFailureCount = 0;
 	let pendingValidatorFeedback: ValidatorFeedback | undefined;
 	let sessionStarted = false;
@@ -968,62 +870,12 @@ export async function runAgent(
 										forceMemoryContent: isMaxStepFinalization,
 										validatorFeedback: pendingValidatorFeedback,
 										modelOutputErrors,
-										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
 										openAIExplicitPromptCaching:
 											openAIExplicitPromptCachingEnabled,
 										executorContextPolicy,
 										customTools: input.customTools,
 									}),
 							}),
-					);
-					const continuationCheckpoint =
-						promptResult.context.prompt_budget_reductions.includes(
-							"checkpoint_cumulative_projection_history",
-						);
-					if (
-						openAIEncryptedResponsesEnabled &&
-						openAIProjectionStrategy === "current"
-					) {
-						committedOpenAIReasoningStateByStep =
-							fitCurrentOpenAIReasoningStateToPrompt({
-								messages: promptResult.prompt.messages as Message[],
-								reasoningStateByStep: committedOpenAIReasoningStateByStep,
-								llmOptions: input.stageLLMs.runAgent,
-								estimateTokenCount: deps.estimateTokenCount,
-							});
-					}
-					const continuationMessages = continuationCheckpoint
-						? []
-						: committedOpenAIContinuationMessages;
-					const providerContinuation =
-						openAIEncryptedResponsesEnabled
-							? openAIProjectionStrategy === "current"
-								? {
-										provider: "openai" as const,
-										strategy: "current" as const,
-										reasoningStateByStep: committedOpenAIReasoningStateByStep,
-									}
-								: {
-										provider: "openai" as const,
-										strategy: "cumulative" as const,
-										messages: continuationMessages,
-										inputMode:
-											continuationMessages.length > 0
-												? ("incremental" as const)
-												: ("full" as const),
-										newMessageStartIndex: 1 + stepsHistory.length * 2,
-									}
-							: undefined;
-					console.log(
-						`[runAgent] openai_continuation=${
-							providerContinuation
-								? providerContinuation.strategy === "current"
-									? "current_reconstructed"
-									: providerContinuation.inputMode
-								: openAIEncryptedResponsesEnabled
-									? "disabled"
-									: "not_applicable"
-						}`,
 					);
 					if (isMaxStepFinalization) {
 						console.log(
@@ -1035,7 +887,7 @@ export async function runAgent(
 							stepNumber,
 							projectionYaml: promptResult.artifacts.canonicalProjection,
 							contextJson: serializeStepContextForDisk(
-								promptResult.prompt.messages as Message[],
+								promptResult.prompt.messages,
 							),
 						});
 					}
@@ -1048,7 +900,7 @@ export async function runAgent(
 								contextDir: artifactDirectories.contextDir,
 								stepsDir: artifactDirectories.stepsDir,
 								stepNumber,
-								messages: promptResult.prompt.messages as Message[],
+								messages: promptResult.prompt.messages,
 								pageProjection: promptResult.artifacts.canonicalProjection,
 								browser: session.browser,
 								memoryFile: session.memoryFile,
@@ -1067,7 +919,7 @@ export async function runAgent(
 								run: async () =>
 									await generateStep({
 										stepNumber,
-										messages: promptResult.prompt.messages as Message[],
+										messages: promptResult.prompt.messages,
 										llmOptions: input.stageLLMs.runAgent,
 										promptPayload: promptResult.prompt.payload,
 										stepsHistory,
@@ -1078,7 +930,8 @@ export async function runAgent(
 											? "max_step_finalization"
 											: "executor_step",
 										abortSignal,
-										providerContinuation,
+										openAIEncryptedResponses:
+											openAIEncryptedResponsesEnabled,
 										openAIPromptCache,
 									}),
 							}),
@@ -1086,10 +939,9 @@ export async function runAgent(
 					const {
 						data: rawStep,
 						usage,
-						accepted_usage: acceptedUsage,
 						reasoning_tokens,
+						responseMessages,
 						raw_response,
-						providerContinuation: candidateProviderContinuation,
 					} = generatedStep;
 					usages.push(usage);
 					stepAttemptUsages.push(usage);
@@ -1120,6 +972,9 @@ export async function runAgent(
 					modelOutputErrors = undefined;
 					const parsedRawStep = processedRawStep.step;
 					const rawAssistantContent = processedRawStep.assistant;
+					const acceptedResponseMessages = Array.isArray(responseMessages)
+						? responseMessages
+						: [{ role: "assistant" as const, content: rawAssistantContent }];
 					const accountedStepUsage =
 						combineStepAttemptUsage(stepAttemptUsages);
 					logStepActionContext(parsedRawStep, executorContextPolicy);
@@ -1132,12 +987,8 @@ export async function runAgent(
 							step: mainLoopStepIndex,
 							step_kind: "max_step_finalization",
 							messages: serializeMessagesForDisk([
-								...(promptResult.prompt.messages as Message[]),
-								{
-									role: "assistant",
-									content: rawAssistantContent,
-									reasoning_tokens,
-								},
+								...promptResult.prompt.messages,
+								...acceptedResponseMessages,
 							]),
 						});
 						stepTokenUsage.push(
@@ -1192,12 +1043,6 @@ export async function runAgent(
 							totalDurationMs: Date.now() - stepStartedAt,
 							usage: accountedStepUsage,
 						});
-						if (providerContinuation) {
-							commitOpenAIProviderState(
-								candidateProviderContinuation,
-								acceptedUsage ?? usage,
-							);
-						}
 						break;
 					}
 
@@ -1212,9 +1057,8 @@ export async function runAgent(
 										mode: "process_model_step_output",
 										rawStepOutput: rawStep,
 										rawAssistantOutputText: rawAssistantContent,
+										responseMessages: acceptedResponseMessages,
 										executorContextPolicy,
-										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
-										reasoningTokens: reasoning_tokens,
 										promptPayload: promptResult.prompt.payload,
 										stepsHistory,
 										stepNumber,
@@ -1244,12 +1088,8 @@ export async function runAgent(
 							? "max_step_finalization"
 							: "executor_step",
 						messages: serializeMessagesForDisk([
-							...(promptResult.prompt.messages as Message[]),
-							{
-								role: "assistant",
-								content: rawAssistantContent,
-								reasoning_tokens,
-							},
+							...promptResult.prompt.messages,
+							...acceptedResponseMessages,
 						]),
 					});
 					stepTokenUsage.push(
@@ -1324,7 +1164,7 @@ export async function runAgent(
 								contextDir: artifactDirectories.contextDir,
 								stepsDir: artifactDirectories.stepsDir,
 								stepNumber,
-								messages: promptResult.prompt.messages as Message[],
+								messages: promptResult.prompt.messages,
 								pageProjection: promptResult.artifacts.canonicalProjection,
 								browser: session.browser,
 								memoryFile: session.memoryFile,
@@ -1455,12 +1295,6 @@ export async function runAgent(
 						totalDurationMs: Date.now() - stepStartedAt,
 						usage: accountedStepUsage,
 					});
-					if (providerContinuation) {
-						commitOpenAIProviderState(
-							candidateProviderContinuation,
-							acceptedUsage ?? usage,
-						);
-					}
 					break;
 				} catch (error) {
 					if (isAbortError(error) || abortSignal?.aborted) {
@@ -1498,36 +1332,6 @@ export async function runAgent(
 					stepTokenUsage.length = lengths.stepTokenUsage;
 					stepRuntimeMetrics.length = lengths.stepRuntimeMetrics;
 					stepArtifacts.length = lengths.stepArtifacts;
-					if (isOpenAIContinuationError(error)) {
-						if (
-							error.reason === "context_length" &&
-							error.usedContinuationState
-						) {
-							if (openAIProjectionStrategy === "current") {
-								if (committedOpenAIReasoningStateByStep.length > 0) {
-									committedOpenAIReasoningStateByStep =
-										committedOpenAIReasoningStateByStep.slice(1);
-									console.warn(
-										"[runAgent] openai_continuation=drop_oldest_reasoning reason=context_length",
-									);
-									if (attempt === MAX_STEP_RETRIES) throw error;
-									continue;
-								}
-								throw error;
-							}
-							committedOpenAIContinuationMessages = [];
-							for (const entry of stepsHistory) {
-								stripProjectionContextFromHistoryPayload(entry.payload);
-							}
-							session.projectionHistory = {};
-							console.warn(
-								"[runAgent] openai_continuation=reset reason=context_length",
-							);
-							if (attempt === MAX_STEP_RETRIES) throw error;
-							continue;
-						}
-						throw error;
-					}
 					if (error instanceof ModelStepActionContractError) {
 						console.warn(
 							`[step ${stepNumber}] model action contract rejected (attempt ${attempt}/${MAX_STEP_RETRIES}): ${error.diagnostics.join("; ")}`,

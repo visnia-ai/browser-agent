@@ -54,7 +54,7 @@ describe("executor context policy", () => {
 		}
 	});
 
-	it("includes both reasoning history and action-context prompt fields for Codex when enabled", () => {
+	it("includes provider-agnostic reasoning history and action-context fields for Codex", () => {
 		const prompt = getExecutorSystem({
 			executorContextPolicy: resolveExecutorContextPolicy(
 				{ provider: "codex", model: "gpt-5.6" },
@@ -62,7 +62,7 @@ describe("executor context policy", () => {
 			),
 		});
 
-		assert.include(prompt, "reasoning_tokens field");
+		assert.include(prompt, "fallible reasoning from earlier executor steps");
 		assert.include(prompt, "previousStepStatus");
 	});
 
@@ -86,9 +86,9 @@ describe("executor context policy", () => {
 			),
 		]);
 
-		assert.include(openAI, "reasoning_tokens field");
+		assert.include(openAI, "fallible reasoning from earlier executor steps");
 		assert.notInclude(openAI, "previousStepStatus");
-		assert.notInclude(nonOpenAI, "reasoning_tokens field");
+		assert.include(nonOpenAI, "fallible reasoning from earlier executor steps");
 		assert.include(nonOpenAI, "previousStepStatus");
 	});
 });

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
+import type { UserContent } from "ai";
 import type { ConfigFeatureFlags } from "../config-feature-flags.js";
 import type {
-	ContentPart,
 	ExecutorContextPolicy,
 	Message,
 	MessageProviderOptions,
@@ -16,6 +16,8 @@ export const OPENAI_PROMPT_CACHE_SCHEMA_VERSION =
 	"executor-explicit-cache-v2";
 export const OPENAI_CURRENT_STEP_MARKER = "BEGIN CURRENT STEP";
 
+type UserContentPart = Exclude<UserContent, string>[number];
+
 export function createOpenAIPromptCacheBreakpointOptions(): MessageProviderOptions {
 	return {
 		openai: {
@@ -24,7 +26,7 @@ export function createOpenAIPromptCacheBreakpointOptions(): MessageProviderOptio
 	};
 }
 
-export function createOpenAICacheMarkerPart(): ContentPart {
+export function createOpenAICacheMarkerPart(): UserContentPart {
 	return {
 		type: "text",
 		text: OPENAI_CURRENT_STEP_MARKER,
@@ -32,7 +34,7 @@ export function createOpenAICacheMarkerPart(): ContentPart {
 	};
 }
 
-export function createOpenAIStableStepMarkerPart(): ContentPart {
+export function createOpenAIStableStepMarkerPart(): UserContentPart {
 	return {
 		type: "text",
 		text: OPENAI_CURRENT_STEP_MARKER,
@@ -41,8 +43,8 @@ export function createOpenAIStableStepMarkerPart(): ContentPart {
 
 export function createOpenAICachedUserContent(
 	text: string,
-	trailingParts: ContentPart[] = [],
-): ContentPart[] {
+	trailingParts: UserContentPart[] = [],
+): UserContent {
 	return [
 		createOpenAICacheMarkerPart(),
 		{ type: "text", text },
@@ -50,7 +52,7 @@ export function createOpenAICachedUserContent(
 	];
 }
 
-export function createOpenAIStableStepUserContent(text: string): ContentPart[] {
+export function createOpenAIStableStepUserContent(text: string): UserContent {
 	return [
 		createOpenAIStableStepMarkerPart(),
 		{ type: "text", text },
@@ -65,11 +67,21 @@ export function createOpenAICachedSystemMessage(content: string): Message {
 	};
 }
 
-export function isOpenAICacheMarkerPart(part: ContentPart): boolean {
+export function isOpenAICacheMarkerPart(part: unknown): boolean {
 	return (
+		typeof part === "object" &&
+		part !== null &&
+		"type" in part &&
 		part.type === "text" &&
+		"text" in part &&
 		part.text === OPENAI_CURRENT_STEP_MARKER &&
-		part.providerOptions?.openai?.promptCacheBreakpoint !== undefined
+		"providerOptions" in part &&
+		typeof part.providerOptions === "object" &&
+		part.providerOptions !== null &&
+		"openai" in part.providerOptions &&
+		typeof part.providerOptions.openai === "object" &&
+		part.providerOptions.openai !== null &&
+		"promptCacheBreakpoint" in part.providerOptions.openai
 	);
 }
 

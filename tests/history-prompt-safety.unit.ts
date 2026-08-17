@@ -1,13 +1,19 @@
 import { assert } from "chai";
 import { describe, it } from "mocha";
 import { stripPayloadForHistory } from "../src/agents/executor-utils/history-payload.js";
-import {
-	NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
-	OPENAI_EXECUTOR_CONTEXT_POLICY,
-} from "../src/agents/executor-context-policy.js";
+import { NON_OPENAI_EXECUTOR_CONTEXT_POLICY } from "../src/agents/executor-context-policy.js";
 import { configFeatureFlags } from "../src/config-feature-flags.js";
 import { buildHistoryMessagesFromFullStepHistory } from "../src/core/history-adapter.js";
-import { toCompletionPrompt } from "../src/agents/providers/message-serialization.js";
+import type { StepHistoryEntry } from "../src/core/types.js";
+
+function withNativeResponses(
+	steps: Array<Omit<StepHistoryEntry, "responseMessages">>,
+): StepHistoryEntry[] {
+	return steps.map((step) => ({
+		...step,
+		responseMessages: [{ role: "assistant", content: "raw response" }],
+	}));
+}
 
 describe("history prompt safety", () => {
 	it("strips prompt-only payload fields and legacy plans", () => {
@@ -52,6 +58,7 @@ describe("history prompt safety", () => {
 						projection: "old anchor",
 					},
 					assistant: {},
+					responseMessages: [],
 				},
 			];
 			const stripped = stripPayloadForHistory({
@@ -84,7 +91,7 @@ describe("history prompt safety", () => {
 	});
 
 	it("preserves accepted model assistant outputs without action normalization", () => {
-		const messages = buildHistoryMessagesFromFullStepHistory([
+		const messages = buildHistoryMessagesFromFullStepHistory(withNativeResponses([
 			{
 				payload: {
 					currentURL: "https://example.com/login",
@@ -161,7 +168,7 @@ describe("history prompt safety", () => {
 					result: "Finished",
 				},
 			},
-		]);
+		]));
 
 		assert.lengthOf(messages, 18);
 		assert.strictEqual(messages[0].role, "user");
@@ -198,7 +205,7 @@ describe("history prompt safety", () => {
 	});
 
 	it("preserves model-emitted action-context fields regardless of execution flags", () => {
-		const messages = buildHistoryMessagesFromFullStepHistory([
+		const messages = buildHistoryMessagesFromFullStepHistory(withNativeResponses([
 			{
 				payload: {
 					currentURL: "https://example.com/final",
@@ -213,7 +220,7 @@ describe("history prompt safety", () => {
 					done: false,
 				},
 			},
-		]);
+		]));
 		assert.strictEqual(messages[1].role, "assistant");
 		for (const field of [
 			"previousStepStatus",
@@ -231,7 +238,7 @@ describe("history prompt safety", () => {
 
 	it("preserves every model-emitted field when action context is enabled", () => {
 		const messages = buildHistoryMessagesFromFullStepHistory(
-			[
+			withNativeResponses([
 				{
 					payload: {
 						currentURL: "https://example.com/final",
@@ -247,7 +254,7 @@ describe("history prompt safety", () => {
 						result: "Finished",
 					},
 				},
-			],
+			]),
 			{ executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY },
 		);
 			assert.strictEqual(messages[1].role, "assistant");
@@ -273,10 +280,17 @@ describe("history prompt safety", () => {
 			assert.include(String(messages[1].content), "result: Finished");
 	});
 
-	it("includes reasoning tokens as assistant message fields when enabled", () => {
+	it("preserves native reasoning parts and provider metadata in every history mode", () => {
 		const originalCumulativeProjectionHistory =
 			configFeatureFlags.semanticProjectionHistory;
-		const stepsHistory = [
+		const reasoningPart = {
+			type: "reasoning" as const,
+			text: "Inspect page:\nstatus: ready",
+			providerOptions: {
+				anthropic: { signature: "signature-1" },
+			},
+		};
+		const stepsHistory: StepHistoryEntry[] = [
 			{
 				payload: { currentURL: "https://example.com/results" },
 				assistant: {
@@ -287,35 +301,39 @@ describe("history prompt safety", () => {
 					actions: [{ type: "click", ref: "2" }],
 					done: false,
 				},
-				reasoningTokens: "Inspect page:\nstatus: ready",
+				responseMessages: [
+					{
+						role: "assistant",
+						content: [
+							reasoningPart,
+							{ type: "text", text: "raw provider text" },
+						],
+					},
+				],
 			},
 		];
 
 		try {
 			for (const projectionHistory of ["current", "cumulative"] as const) {
 				configFeatureFlags.semanticProjectionHistory = projectionHistory;
-				const messages = buildHistoryMessagesFromFullStepHistory(
-					stepsHistory,
-					{ executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY },
-				);
-					const assistant = messages[1];
-					const assistantContent = String(assistant.content);
-					assert.strictEqual(
-						assistant.reasoning_tokens,
-						"Inspect page:\nstatus: ready",
-					);
-					assert.notInclude(assistantContent, "<think>");
-					assert.notInclude(assistantContent, "Inspect page:");
-					assert.include(assistantContent, "previousStepStatus");
-					assert.include(assistantContent, "nextActionRationale");
-					assert.include(assistantContent, "type: click");
-					assert.include(assistantContent, "done: false");
-					assert.notInclude(assistantContent, "result:");
-
-					const completionPrompt = toCompletionPrompt(messages);
-					assert.include(completionPrompt, "reasoning_tokens: |-\n");
-					assert.include(completionPrompt, "  Inspect page:");
-					assert.include(completionPrompt, "previousStepStatus:");
+				const messages = buildHistoryMessagesFromFullStepHistory(stepsHistory);
+				const assistant = messages[1];
+				assert.strictEqual(assistant?.role, "assistant");
+				assert.isArray(assistant?.content);
+				if (assistant?.role !== "assistant" || !Array.isArray(assistant.content)) {
+					throw new Error("Expected structured assistant history.");
+				}
+				assert.deepEqual(assistant.content[0], reasoningPart);
+				assert.strictEqual(assistant.content[1]?.type, "text");
+				if (assistant.content[1]?.type !== "text") {
+					throw new Error("Expected accepted assistant text.");
+				}
+				assert.include(assistant.content[1].text, "previousStepStatus");
+				assert.include(assistant.content[1].text, "nextActionRationale");
+				assert.include(assistant.content[1].text, "type: click");
+				assert.include(assistant.content[1].text, "done: false");
+				assert.notInclude(assistant.content[1].text, "raw provider text");
+				assert.notProperty(assistant, "reasoning_tokens");
 			}
 		} finally {
 			configFeatureFlags.semanticProjectionHistory =
@@ -323,24 +341,48 @@ describe("history prompt safety", () => {
 		}
 	});
 
-	it("omits reasoning tokens when disabled or empty", () => {
-		const historyEntry = {
-			payload: { currentURL: "https://example.com" },
-			assistant: { actions: [], done: false },
-			reasoningTokens: "reasoning trace",
-		};
-
-		const disabled = buildHistoryMessagesFromFullStepHistory(
-			[historyEntry],
-			{ executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY },
+	it("preserves empty redacted reasoning metadata but does not invent reasoning", () => {
+		const withoutReasoning = buildHistoryMessagesFromFullStepHistory([
+			{
+				payload: { currentURL: "https://example.com" },
+				assistant: { actions: [], done: false },
+				responseMessages: [
+					{ role: "assistant", content: [{ type: "text", text: "raw" }] },
+				],
+			},
+		]);
+		assert.isFalse(
+			Array.isArray(withoutReasoning[1]?.content) &&
+				withoutReasoning[1].content.some((part) => part.type === "reasoning"),
 		);
-			assert.notProperty(disabled[1], "reasoning_tokens");
-			assert.notInclude(toCompletionPrompt(disabled), "reasoning_tokens:");
 
-			const empty = buildHistoryMessagesFromFullStepHistory([
-				{ ...historyEntry, reasoningTokens: "  \n " },
-			], { executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY });
-			assert.notProperty(empty[1], "reasoning_tokens");
-			assert.notInclude(toCompletionPrompt(empty), "reasoning_tokens:");
+		const redactedReasoning = {
+			type: "reasoning" as const,
+			text: "",
+			providerOptions: {
+				anthropic: { redactedData: "encrypted-redacted-thinking" },
+			},
+		};
+		const withRedactedReasoning = buildHistoryMessagesFromFullStepHistory([
+			{
+				payload: { currentURL: "https://example.com" },
+				assistant: { actions: [], done: false },
+				responseMessages: [
+					{
+						role: "assistant",
+						content: [
+							redactedReasoning,
+							{ type: "text", text: "raw" },
+						],
+					},
+				],
+			},
+		]);
+		assert.deepEqual(
+			Array.isArray(withRedactedReasoning[1]?.content)
+				? withRedactedReasoning[1].content[0]
+				: undefined,
+			redactedReasoning,
+		);
 	});
 });

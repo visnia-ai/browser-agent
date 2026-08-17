@@ -1,9 +1,21 @@
 import { assert } from "chai";
 import { afterEach, describe, it } from "mocha";
+import type { ModelMessage } from "ai";
 import { extractDataResultsFromSnapshot } from "../src/agents/data-extraction.js";
 import { __setProviderOverrideForTests } from "../src/agents/providers/ai-sdk.js";
 
 const LLM_OPTIONS = { provider: "openai", model: "gpt-test" } as const;
+
+function collectMessageText(messages: ModelMessage[]): string {
+	return messages
+		.flatMap((message) => {
+			if (typeof message.content === "string") return [message.content];
+			return message.content.flatMap((part) =>
+				"text" in part && typeof part.text === "string" ? [part.text] : [],
+			);
+		})
+		.join("\n");
+}
 
 describe("extractDataResultsFromSnapshot", () => {
 	async function expectRejection(
@@ -26,6 +38,7 @@ describe("extractDataResultsFromSnapshot", () => {
 			content,
 			usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
 			reasoning_tokens: "",
+			responseMessages: [{ role: "assistant", content }],
 		}));
 	}
 
@@ -36,7 +49,7 @@ describe("extractDataResultsFromSnapshot", () => {
 	it("hides hrefs behind link IDs while preserving runtime URL resolution", async () => {
 		let prompt = "";
 		__setProviderOverrideForTests("openai", async (args) => {
-			prompt = args.prompt;
+			prompt = collectMessageText(args.messages);
 			return {
 				content: [
 					"items:",
@@ -47,6 +60,7 @@ describe("extractDataResultsFromSnapshot", () => {
 				].join("\n"),
 				usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
 				reasoning_tokens: "",
+				responseMessages: [{ role: "assistant", content: "items" }],
 			};
 		});
 
@@ -172,7 +186,7 @@ describe("extractDataResultsFromSnapshot", () => {
 	it("distinguishes semantic link roles from explicit link_id attributes", async () => {
 		let prompt = "";
 		__setProviderOverrideForTests("openai", async (args) => {
-			prompt = args.prompt;
+			prompt = collectMessageText(args.messages);
 			return {
 				content: [
 					"items:",
@@ -181,6 +195,7 @@ describe("extractDataResultsFromSnapshot", () => {
 				].join("\n"),
 				usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
 				reasoning_tokens: "",
+				responseMessages: [{ role: "assistant", content: "items" }],
 			};
 		});
 		const currentUrl = "https://www.google.com/travel/flights/search";

@@ -8,25 +8,25 @@ import { getExecutorSystem } from "../src/agents/prompts.js";
 import { featureFlags } from "../src/featureFlags.js";
 
 describe("executor reasoning prompts", () => {
-	it("uses the OpenAI reasoning-history policy without action context", () => {
+	it("uses native reasoning history without action context", () => {
 		const prompt = getExecutorSystem({
 			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
 		});
 
-		assert.include(prompt, "reasoning_tokens field");
-		assert.include(prompt, "do not copy reasoning_tokens");
+		assert.include(prompt, "fallible reasoning from earlier executor steps");
+		assert.include(prompt, "do not copy prior reasoning");
 		assert.notInclude(prompt, "previousStepStatus");
 		assert.notInclude(prompt, "nextActionRationale");
 		assert.isUndefined(featureFlags.maxThinkingTokenBudget);
 		assert.deepEqual(featureFlags.yamlOutputStopSequences, []);
 	});
 
-	it("uses the non-OpenAI action-context policy without reasoning history", () => {
+	it("uses non-OpenAI action context with native reasoning history", () => {
 		const prompt = getExecutorSystem({
 			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
 		});
 
-		assert.notInclude(prompt, "reasoning_tokens field");
+		assert.include(prompt, "fallible reasoning from earlier executor steps");
 		for (const field of [
 			"previousStepStatus",
 			"previousStepOutcome",

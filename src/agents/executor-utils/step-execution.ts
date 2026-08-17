@@ -1,15 +1,14 @@
 import * as fs from "fs";
 import * as path from "path";
 import yaml from "js-yaml";
+import type { FilePart, UserContent } from "ai";
 import { configFeatureFlags } from "../../config-feature-flags.js";
 import { getHTML } from "../../browser/browser.js";
 import type { Browser } from "../../browser/types.js";
-import { userMessage } from "../providers/router.js";
 import { stripPayloadForHistory } from "./history-payload.js";
 import { normalizeMemoryContentForRead } from "./memory-file.js";
 import type {
 	Action,
-	ContentPart,
 	ExecutorContextPolicy,
 	Message,
 	StepResult,
@@ -20,44 +19,62 @@ import {
 	createOpenAICachedUserContent,
 } from "../openai-prompt-cache.js";
 
-type MessageWithReasoningTokens = Message & {
-	reasoning_tokens?: string;
-};
-
 type SerializedMessageForDisk = {
 	role: Message["role"];
-	content: Message["content"];
+	content: unknown;
 	providerOptions?: Message["providerOptions"];
-	reasoning_tokens: string;
 };
 
-function redactContentForDisk(content: Message["content"]): unknown {
-	if (typeof content === "string") return content;
-	return content.map((part) => {
-		if (part.type !== "image_url") return part;
+function redactFilePartForDisk(part: Record<string, unknown>): unknown {
+	const mediaType =
+		typeof part.mediaType === "string" ? part.mediaType : undefined;
+	const omittedData = mediaType?.startsWith("image/")
+		? "(base64 omitted)"
+		: "(file data omitted)";
+	return { ...part, data: omittedData };
+}
+
+function redactContentPartForDisk(part: unknown): unknown {
+	if (!part || typeof part !== "object") return part;
+	const record = part as Record<string, unknown>;
+	if (record.type === "file" || record.type === "reasoning-file") {
+		return redactFilePartForDisk(record);
+	}
+	// Keep old saved trajectories readable while ensuring legacy screenshots
+	// are redacted during the migration to native AI SDK file parts.
+	if (record.type === "image_url") {
+		const imageUrl =
+			record.image_url && typeof record.image_url === "object"
+				? (record.image_url as Record<string, unknown>)
+				: {};
 		return {
-			type: "image_url",
+			...record,
 			image_url: {
-				detail: part.image_url.detail || "auto",
+				...imageUrl,
 				url: "(base64 omitted)",
 			},
 		};
-	});
+	}
+	if (record.type === "image") {
+		return { ...record, image: "(base64 omitted)" };
+	}
+	return part;
+}
+
+function redactContentForDisk(content: Message["content"]): unknown {
+	if (typeof content === "string") return content;
+	return content.map(redactContentPartForDisk);
 }
 
 export function serializeMessagesForDisk(
-	messages: MessageWithReasoningTokens[],
+	messages: Message[],
 ): SerializedMessageForDisk[] {
 	return messages.map((message) => ({
 		role: message.role,
-		content: message.content,
+		content: redactContentForDisk(message.content),
 		...(message.providerOptions
 			? { providerOptions: message.providerOptions }
 			: {}),
-		reasoning_tokens:
-			typeof message.reasoning_tokens === "string"
-				? message.reasoning_tokens
-				: "",
 	}));
 }
 
@@ -236,6 +253,21 @@ export function buildStepPayload(params: {
 	return { payload, pendingMemoryRead: nextPendingMemoryRead };
 }
 
+function screenshotFilePart(dataUrl: string): FilePart {
+	const match = dataUrl.match(/^data:([^;,]+);base64,([\s\S]*)$/i);
+	return {
+		type: "file",
+		mediaType: match?.[1] ?? "image/jpeg",
+		// Keep this clone-safe for training rollouts. AI SDK accepts a bare base64
+		// string as FilePart data; a URL instance is not structured-cloneable on
+		// the Node runtime used by the harness.
+		data: match?.[2] ?? dataUrl,
+		providerOptions: {
+			openai: { imageDetail: "low" },
+		},
+	};
+}
+
 export function buildStepMessages(params: {
 	systemPrompt: string;
 	history: Message[];
@@ -246,25 +278,23 @@ export function buildStepMessages(params: {
 	const payload = { ...params.payload };
 	delete payload.validRefs;
 	const payloadText = yaml.dump(payload);
-	const contentParts: ContentPart[] = [{ type: "text", text: payloadText }];
+	const contentParts: UserContent = [{ type: "text", text: payloadText }];
 
 	if (params.currentPageScreenshotDataUrl) {
-		contentParts.push({
-			type: "image_url",
-			image_url: {
-				url: params.currentPageScreenshotDataUrl,
-				detail: "low",
-			},
-		});
+		contentParts.push(screenshotFilePart(params.currentPageScreenshotDataUrl));
 	}
 
 	const currentMsg = params.openAIExplicitPromptCaching
-		? userMessage(
-				createOpenAICachedUserContent(payloadText, contentParts.slice(1)),
-			)
+		? {
+				role: "user" as const,
+				content: createOpenAICachedUserContent(
+					payloadText,
+					contentParts.slice(1),
+				),
+			}
 		: contentParts.length === 1
-			? userMessage(payloadText)
-			: userMessage(contentParts);
+			? { role: "user" as const, content: payloadText }
+			: { role: "user" as const, content: contentParts };
 	return [
 		params.openAIExplicitPromptCaching
 			? createOpenAICachedSystemMessage(params.systemPrompt)
@@ -278,7 +308,10 @@ export function buildMaxStepFinalizationMessages(params: {
 	messages: Message[];
 	finalizationInstruction: string;
 }): Message[] {
-	return [...params.messages, userMessage(params.finalizationInstruction)];
+	return [
+		...params.messages,
+		{ role: "user", content: params.finalizationInstruction },
+	];
 }
 
 function saveMemorySnapshot(params: {
@@ -347,13 +380,7 @@ export async function saveStepContextIfNeeded(params: {
 			)
 		: null;
 
-	const contextDump = params.messages.map((m) => ({
-		role: m.role,
-		content: redactContentForDisk(m.content),
-		...(typeof m.reasoning_tokens === "string"
-			? { reasoning_tokens: m.reasoning_tokens }
-			: {}),
-	}));
+	const contextDump = serializeMessagesForDisk(params.messages);
 
 	if (params.writeCoreFiles !== false) {
 		fs.writeFileSync(
@@ -588,7 +615,7 @@ export function appendHistoryWithStrippedPayload(params: {
 	const strippedPayload = stripPayloadForHistory({
 		payload: params.payload,
 	});
-	params.history.push(userMessage(yaml.dump(strippedPayload)));
+	params.history.push({ role: "user", content: yaml.dump(strippedPayload) });
 	params.history.push({
 		role: "assistant",
 		content: serializeModelOutputForHistory(params.assistant),

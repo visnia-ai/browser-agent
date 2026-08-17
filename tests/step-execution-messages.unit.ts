@@ -352,13 +352,13 @@ describe("step-execution-messages", () => {
 		assert.include(String(userPayload.currentDateTime), timeZone);
 	});
 
-	it("includes pre-step screenshot as image part in step messages", () => {
+	it("includes a clone-safe native screenshot file part in step messages", () => {
+		const base64 = Buffer.from("fake-jpeg").toString("base64");
 		const messages = buildStepMessages({
 			systemPrompt: "sys",
 			history: [],
 			payload: { task: "task", projection: "dom" },
-			currentPageScreenshotDataUrl:
-				"data:image/jpeg;base64," + Buffer.from("fake-jpeg").toString("base64"),
+			currentPageScreenshotDataUrl: "data:image/jpeg;base64," + base64,
 		});
 
 		assert.strictEqual(messages.length, 2);
@@ -368,15 +368,17 @@ describe("step-execution-messages", () => {
 			string
 		>;
 		assert.strictEqual(userContent[0].type, "text");
-		assert.strictEqual(userContent[1].type, "image_url");
+		assert.strictEqual(userContent[1].type, "file");
 		const screenshotPart = userContent[1] as Extract<
 			(typeof userContent)[number],
-			{ type: "image_url" }
+			{ type: "file" }
 		>;
-		assert.strictEqual(
-			screenshotPart.image_url.url.startsWith("data:image/jpeg;base64,"),
-			true,
-		);
+		assert.strictEqual(screenshotPart.mediaType, "image/jpeg");
+		assert.strictEqual(screenshotPart.data, base64);
+		assert.deepEqual(screenshotPart.providerOptions, {
+			openai: { imageDetail: "low" },
+		});
+		assert.doesNotThrow(() => structuredClone(messages));
 	});
 
 	it("appends the max-step finalization instruction as a trailing user message", () => {
@@ -457,7 +459,7 @@ describe("step-execution-messages", () => {
 		assert.notProperty(assistant, "result");
 	});
 
-	it("preserves image payloads when serializing task step messages", () => {
+	it("redacts native file data while preserving its message metadata", () => {
 		const messages: Message[] = [
 			{ role: "system", content: "sys" },
 			{
@@ -465,10 +467,11 @@ describe("step-execution-messages", () => {
 				content: [
 					{ type: "text", text: "hello" },
 					{
-						type: "image_url",
-						image_url: {
-							url: "data:image/png;base64,SECRETDATA",
-							detail: "auto",
+						type: "file",
+						data: "SECRETDATA",
+						mediaType: "image/png",
+						providerOptions: {
+							openai: { imageDetail: "low" },
 						},
 					},
 				],
@@ -477,32 +480,46 @@ describe("step-execution-messages", () => {
 
 		const serialized = serializeMessagesForDisk(messages);
 		const serializedUser = serialized[1] as any;
-		assert.strictEqual(
-			serializedUser.content[1].image_url.url,
-			"data:image/png;base64,SECRETDATA",
-		);
+		assert.deepEqual(serializedUser.content[1], {
+			type: "file",
+			data: "(base64 omitted)",
+			mediaType: "image/png",
+			providerOptions: {
+				openai: { imageDetail: "low" },
+			},
+		});
 	});
 
-	it("always persists reasoning_tokens when serializing", () => {
-		const messages = [
+	it("persists native reasoning parts and provider metadata", () => {
+		const messages: Message[] = [
 			{ role: "system" as const, content: "sys" },
 			{ role: "user" as const, content: "user" },
 			{
 				role: "assistant" as const,
-				content: "done: false",
-				reasoning_tokens: "chain of thought sample",
+				content: [
+					{
+						type: "reasoning",
+						text: "chain of thought sample",
+						providerOptions: {
+							anthropic: { signature: "signature-1" },
+						},
+					},
+					{ type: "text", text: "done: false" },
+				],
 			},
 		];
 
 		const serialized = serializeMessagesForDisk(messages);
-		const serializedSystem = serialized[0] as Record<string, unknown>;
-		const serializedUser = serialized[1] as Record<string, unknown>;
 		const serializedAssistant = serialized[2] as Record<string, unknown>;
-		assert.strictEqual(serializedSystem.reasoning_tokens, "");
-		assert.strictEqual(serializedUser.reasoning_tokens, "");
-		assert.strictEqual(
-			serializedAssistant.reasoning_tokens,
-			"chain of thought sample",
+		assert.notProperty(serialized[0], "reasoning_tokens");
+		assert.notProperty(serialized[1], "reasoning_tokens");
+		assert.notProperty(serializedAssistant, "reasoning_tokens");
+		assert.deepEqual(serializedAssistant.content, messages[2]?.content);
+		assert.deepNestedInclude(
+			serializedAssistant,
+			{
+				"content[0].providerOptions.anthropic.signature": "signature-1",
+			},
 		);
 	});
 
@@ -554,11 +571,9 @@ describe("step-execution-messages", () => {
 						content: [
 							{ type: "text", text: "line one\nline two" },
 							{
-								type: "image_url",
-								image_url: {
-									url: "data:image/png;base64,SECRETDATA",
-									detail: "auto",
-								},
+								type: "file",
+								data: "SECRETDATA",
+								mediaType: "image/png",
 							},
 						],
 					},
@@ -580,9 +595,10 @@ describe("step-execution-messages", () => {
 			assert(contextYaml.includes("line one\n"));
 			assert(contextYaml.includes("line two"));
 			const parsed = yaml.load(contextYaml) as Array<{
-				content: Array<{ text?: string } | { image_url?: { url?: string } }>;
+				content: Array<{ text?: string } | { data?: string }>;
 			}>;
 			assert.strictEqual(parsed[1]?.content?.[0]?.text, "line one\nline two");
+			assert.strictEqual(parsed[1]?.content?.[1]?.data, "(base64 omitted)");
 			assert.strictEqual(
 				fs.readFileSync(
 					path.join(contextDir, "memory-001.pre-llm.txt"),

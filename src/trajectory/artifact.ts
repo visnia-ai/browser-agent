@@ -156,29 +156,45 @@ function parseStepAssistant(
 	if (!Array.isArray(messages)) {
 		return null;
 	}
-	const assistant = [...messages]
-		.reverse()
-		.find(
-			(message) =>
-				message &&
-				typeof message === "object" &&
-				(message as { role?: unknown }).role === "assistant",
+	for (const message of [...messages].reverse()) {
+		if (
+			!message ||
+			typeof message !== "object" ||
+			(message as { role?: unknown }).role !== "assistant"
+		) {
+			continue;
+		}
+		const content = assistantTextContent(
+			(message as { content?: unknown }).content,
 		);
-	const content =
-		assistant && typeof assistant === "object"
-			? (assistant as { content?: unknown }).content
-			: undefined;
-	if (typeof content !== "string" || !content.trim()) {
-		return null;
+		if (content === null) continue;
+		try {
+			const parsed = yaml.load(content);
+			return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+				? (parsed as Record<string, unknown>)
+				: content;
+		} catch {
+			return content;
+		}
 	}
-	try {
-		const parsed = yaml.load(content);
-		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-			? (parsed as Record<string, unknown>)
-			: content;
-	} catch {
-		return content;
+	return null;
+}
+
+function assistantTextContent(content: unknown): string | null {
+	if (typeof content === "string") {
+		return content.trim() ? content : null;
 	}
+	if (!Array.isArray(content)) return null;
+	const text = content
+		.flatMap((part) => {
+			if (!part || typeof part !== "object") return [];
+			const record = part as Record<string, unknown>;
+			return record.type === "text" && typeof record.text === "string"
+				? [record.text]
+				: [];
+		})
+		.join("");
+	return text.trim() ? text : null;
 }
 
 function userTextContents(messages: unknown): string[] {

@@ -304,7 +304,7 @@ describe("router chatYAML diagnostics", () => {
 		);
 	});
 
-	it("uses explicit mode without breakpoints while preserving flattened auxiliary prompts", async () => {
+	it("uses explicit mode without breakpoints while preserving native auxiliary messages", async () => {
 		let request: ProviderChatArgs | undefined;
 		__setProviderOverrideForTests("openai", async (args) => {
 			request = args;
@@ -312,6 +312,9 @@ describe("router chatYAML diagnostics", () => {
 				content: "value: accepted",
 				usage: { input_tokens: 4, output_tokens: 1, total_tokens: 5 },
 				reasoning_tokens: "",
+				responseMessages: [
+					{ role: "assistant", content: "value: accepted" },
+				],
 			};
 		});
 
@@ -334,9 +337,10 @@ describe("router chatYAML diagnostics", () => {
 		assert.deepEqual(request?.openAIPromptCache, {
 			promptCacheOptions: { mode: "explicit", ttl: "30m" },
 		});
-		assert.isUndefined(request?.openAIInputMessages);
-		assert.include(request?.prompt ?? "", "SYSTEM:\nAUXILIARY SYSTEM");
-		assert.include(request?.prompt ?? "", "USER:\nAUXILIARY PAYLOAD");
+		assert.deepEqual(request?.messages, [
+			{ role: "system", content: "AUXILIARY SYSTEM" },
+			{ role: "user", content: "AUXILIARY PAYLOAD" },
+		]);
 		assert.isTrue(
 			logs.some(
 				(entry) =>

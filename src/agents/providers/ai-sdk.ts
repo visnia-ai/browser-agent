@@ -15,12 +15,9 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import type {
 	LLMOptions,
-	OpenAIEncryptedContinuationInput,
-	OpenAIEncryptedContinuationOutput,
 	OpenAIPromptCacheRequest,
 	Provider,
 	TokenUsage,
@@ -97,17 +94,26 @@ interface ProviderRuntimeConfig {
 	endpointUrl?: string;
 }
 
+type AssistantContentParts = Exclude<
+	Extract<ModelMessage, { role: "assistant" }>["content"],
+	string
+>;
+
+function findLastAssistantMessageIndex(messages: ModelMessage[]): number {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		if (messages[index]?.role === "assistant") return index;
+	}
+	return -1;
+}
+
 function buildOpenRouterModelSettings() {
 	return { usage: { include: true } } as const;
 }
 
 export interface ProviderChatArgs {
 	options: LLMOptions;
-	prompt: string;
-	instructions?: string;
-	providerContinuation?: OpenAIEncryptedContinuationInput;
-	/** Fully reconstructed native input used by current-mode encrypted replay. */
-	openAIInputMessages?: ModelMessage[];
+	messages: ModelMessage[];
+	openAIEncryptedResponses?: boolean;
 	openAIPromptCache?: OpenAIPromptCacheRequest;
 	abortSignal?: AbortSignal;
 	onOutputChunk?: (chunk: string) => void;
@@ -120,7 +126,7 @@ export interface ProviderChatResult {
 	content: string;
 	usage: TokenUsage;
 	reasoning_tokens: string;
-	providerContinuation?: OpenAIEncryptedContinuationOutput;
+	responseMessages: ModelMessage[];
 }
 
 export type ProviderChatLifecycleEvent =
@@ -137,14 +143,6 @@ export type ProviderChatLifecycleEvent =
 	  }
 	| { type: "usage_complete" };
 
-export class OpenAIEncryptedContinuationError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = "OpenAIEncryptedContinuationError";
-	}
-}
-
-let openaiClient: OpenAI | null = null;
 let codexProviderRuntime: CodexProviderRuntime | null = null;
 let codexRefreshPromise: Promise<CodexCredentials> | null = null;
 const codexSessionId = randomUUID();
@@ -397,7 +395,7 @@ function buildLanguageModel(options: {
 			apiKey: options.runtimeConfig.apiKey!,
 			baseURL: options.runtimeConfig.endpointUrl,
 			compatibility: "strict",
-		})(options.model, buildOpenRouterModelSettings());
+		}).chat(options.model, buildOpenRouterModelSettings());
 	}
 	if (options.runtimeConfig.adapter === "openai-compatible") {
 		if (!options.runtimeConfig.endpointUrl) {
@@ -661,8 +659,7 @@ function buildProviderOptions(params: {
 	provider: Provider;
 	reasoningEffort: NonNullable<LLMOptions["reasoningEffort"]>;
 	openrouterProvider?: string;
-	instructions?: string;
-	providerContinuation?: OpenAIEncryptedContinuationInput;
+	openAIEncryptedResponses?: boolean;
 	openAIPromptCache?: OpenAIPromptCacheRequest;
 }) {
 	if (params.provider === "openai") {
@@ -673,13 +670,9 @@ function buildProviderOptions(params: {
 				include_usage: true,
 				reasoningSummary: "detailed",
 				reasoningEffort: params.reasoningEffort,
-				...(params.instructions !== undefined
-					? { instructions: params.instructions }
-					: {}),
-				...(params.providerContinuation
+				...(params.openAIEncryptedResponses
 					? {
 							store: false,
-							include: ["reasoning.encrypted_content"] as const,
 						}
 					: {}),
 				...(params.openAIPromptCache
@@ -708,9 +701,6 @@ function buildProviderOptions(params: {
 				reasoningSummary: "detailed",
 				reasoningEffort: params.reasoningEffort,
 				store: false,
-				...(params.instructions !== undefined
-					? { instructions: params.instructions }
-					: {}),
 			},
 		};
 	}
@@ -813,26 +803,102 @@ function buildProviderOptions(params: {
 	};
 }
 
-function buildOpenAIContinuationMessages(
-	continuation: OpenAIEncryptedContinuationInput,
-	prompt: string,
-): ModelMessage[] {
-	if (continuation.strategy !== "cumulative") {
-		throw new Error(
-			"Current-mode OpenAI replay requires reconstructed input messages.",
-		);
+function normalizeOpenRouterResponseMessages(params: {
+	responseMessages: ModelMessage[];
+	providerMetadata: ProviderMetadata | undefined;
+}): ModelMessage[] {
+	const openrouter = params.providerMetadata?.openrouter;
+	const reasoningDetails =
+		openrouter && typeof openrouter === "object"
+			? (openrouter as Record<string, unknown>).reasoning_details
+			: undefined;
+	if (!Array.isArray(reasoningDetails) || reasoningDetails.length === 0) {
+		return params.responseMessages;
 	}
-	return [...continuation.messages, { role: "user", content: prompt }];
+
+	const lastAssistantIndex = findLastAssistantMessageIndex(
+		params.responseMessages,
+	);
+	if (lastAssistantIndex < 0) return params.responseMessages;
+
+	return params.responseMessages.map((message, index) => {
+		if (index !== lastAssistantIndex || message.role !== "assistant") {
+			return message;
+		}
+		const existingOpenRouter = message.providerOptions?.openrouter;
+		return {
+			...message,
+			providerOptions: {
+				...message.providerOptions,
+				openrouter: {
+					...(existingOpenRouter && typeof existingOpenRouter === "object"
+						? existingOpenRouter
+						: {}),
+					reasoning_details: reasoningDetails,
+				},
+			},
+		};
+	});
 }
 
-function buildOpenAIContinuationOutput(params: {
-	continuation: OpenAIEncryptedContinuationInput;
-	prompt: string;
+function addOpenAICompatibleThinkFallback(params: {
 	responseMessages: ModelMessage[];
-}): OpenAIEncryptedContinuationOutput {
+	cleanText: string;
+	reasoningText: string;
+}): ModelMessage[] {
+	if (!params.reasoningText) return params.responseMessages;
+	const lastAssistantIndex = findLastAssistantMessageIndex(
+		params.responseMessages,
+	);
+	if (lastAssistantIndex < 0) return params.responseMessages;
+
+	return params.responseMessages.map((message, index): ModelMessage => {
+		if (index !== lastAssistantIndex || message.role !== "assistant") {
+			return message;
+		}
+		const content: AssistantContentParts =
+			typeof message.content === "string"
+				? [{ type: "text", text: message.content }]
+				: message.content;
+		const hasExistingReasoning = content.some(
+			(part) => part.type === "reasoning",
+		);
+		let replacedText = false;
+		const rebuiltContent: AssistantContentParts = [];
+		for (const part of content) {
+			if (part.type !== "text") {
+				rebuiltContent.push(part);
+				continue;
+			}
+			if (replacedText) continue;
+			replacedText = true;
+			if (!hasExistingReasoning) {
+				rebuiltContent.push({
+					type: "reasoning",
+					text: params.reasoningText,
+				});
+			}
+			rebuiltContent.push({ type: "text", text: params.cleanText });
+		}
+		if (!replacedText) {
+			if (!hasExistingReasoning) {
+				rebuiltContent.push({
+					type: "reasoning",
+					text: params.reasoningText,
+				});
+			}
+			rebuiltContent.push({ type: "text", text: params.cleanText });
+		}
+		return { ...message, content: rebuiltContent } as ModelMessage;
+	});
+}
+
+function assertOpenAIEncryptedReasoningMetadata(
+	responseMessages: ModelMessage[],
+): void {
 	const reasoningItems = new Map<string, boolean>();
 	let reasoningPartCount = 0;
-	for (const message of params.responseMessages) {
+	for (const message of responseMessages) {
 		if (message.role !== "assistant" || !Array.isArray(message.content)) {
 			continue;
 		}
@@ -848,61 +914,52 @@ function buildOpenAIContinuationOutput(params: {
 				openai && typeof openai === "object"
 					? (openai as Record<string, unknown>).reasoningEncryptedContent
 					: undefined;
-			const hasEncryptedContent =
-				typeof encryptedContent === "string" && encryptedContent.length > 0;
 			const reasoningItemKey =
 				typeof itemId === "string" && itemId.length > 0
 					? itemId
 					: `part:${reasoningPartCount}`;
 			reasoningItems.set(
 				reasoningItemKey,
-				(reasoningItems.get(reasoningItemKey) ?? false) || hasEncryptedContent,
+				(reasoningItems.get(reasoningItemKey) ?? false) ||
+					(typeof encryptedContent === "string" &&
+						encryptedContent.length > 0),
 			);
 		}
 	}
-	if (
-		[...reasoningItems.values()].some(
-			(hasEncryptedContent) => !hasEncryptedContent,
-		)
-	) {
-		throw new OpenAIEncryptedContinuationError(
-			"OpenAI encrypted continuation is missing reasoning metadata.",
+	if ([...reasoningItems.values()].some((hasEncrypted) => !hasEncrypted)) {
+		throw new Error(
+			"OpenAI encrypted response is missing reasoning metadata.",
 		);
 	}
-	if (params.continuation.strategy === "current") {
-		const reasoningMessages = params.responseMessages.flatMap((message) => {
-			if (message.role !== "assistant" || !Array.isArray(message.content)) {
-				return [];
-			}
-			const reasoningParts = message.content.filter(
-				(part) => part.type === "reasoning",
-			);
-			return reasoningParts.length > 0
-				? [{ ...message, content: reasoningParts } as ModelMessage]
-				: [];
-		});
-		return {
-			provider: "openai",
-			strategy: "current",
-			reasoningMessages,
-		};
-	}
-	return {
-		provider: "openai",
-		strategy: "cumulative",
-		messages: [
-			...buildOpenAIContinuationMessages(params.continuation, params.prompt),
-			...params.responseMessages,
-		],
-	};
 }
 
-export function __buildOpenAIContinuationOutputForTests(params: {
-	continuation: OpenAIEncryptedContinuationInput;
-	prompt: string;
+function normalizeProviderResponseMessages(params: {
+	provider: Provider;
+	runtimeConfig: ProviderRuntimeConfig;
 	responseMessages: ModelMessage[];
-}): OpenAIEncryptedContinuationOutput {
-	return buildOpenAIContinuationOutput(params);
+	providerMetadata: ProviderMetadata | undefined;
+	cleanText: string;
+	thinkFallback: string;
+	requireOpenAIEncryptedReasoning: boolean;
+}): ModelMessage[] {
+	let responseMessages = params.responseMessages;
+	if (params.provider === "openrouter") {
+		responseMessages = normalizeOpenRouterResponseMessages({
+			responseMessages,
+			providerMetadata: params.providerMetadata,
+		});
+	}
+	if (params.runtimeConfig.adapter === "openai-compatible") {
+		responseMessages = addOpenAICompatibleThinkFallback({
+			responseMessages,
+			cleanText: params.cleanText,
+			reasoningText: params.thinkFallback,
+		});
+	}
+	if (params.requireOpenAIEncryptedReasoning) {
+		assertOpenAIEncryptedReasoningMetadata(responseMessages);
+	}
+	return responseMessages;
 }
 
 async function runProviderChatInternal(
@@ -921,10 +978,18 @@ async function runProviderChatInternal(
 		provider: args.options.provider,
 		reasoningEffort: args.options.reasoningEffort!,
 		openrouterProvider: args.options.openrouterProvider,
-		instructions: args.instructions,
-		providerContinuation: args.providerContinuation,
+		openAIEncryptedResponses: args.openAIEncryptedResponses,
 		openAIPromptCache: args.openAIPromptCache,
 	});
+	const stripThinkFallback =
+		runtimeConfig.adapter === "openai-compatible"
+			? stripThinkBlocks
+			: (text: string) => ({ cleanContent: text, reasoningTokens: "" });
+	const requireOpenAIEncryptedReasoning =
+		(args.options.provider === "openai" &&
+			(args.openAIEncryptedResponses === true ||
+				args.openAIPromptCache !== undefined)) ||
+		args.options.provider === "codex";
 
 	if (args.onOutputChunk || args.onLifecycleEvent) {
 		let firstDeltaEmitted = false;
@@ -934,19 +999,8 @@ async function runProviderChatInternal(
 		const outputStopSequences = args.outputStopSequences ?? [];
 		const streamed = streamText({
 			model: model as any,
-			...(args.openAIInputMessages
-				? { messages: args.openAIInputMessages }
-				: args.providerContinuation
-					? {
-							messages: buildOpenAIContinuationMessages(
-								args.providerContinuation,
-								args.prompt,
-							),
-						}
-					: { prompt: args.prompt }),
-			allowSystemInMessages: Boolean(
-				args.openAIInputMessages?.some((message) => message.role === "system"),
-			),
+			messages: args.messages,
+			allowSystemInMessages: true,
 			abortSignal: args.abortSignal,
 			...(args.options.provider === "codex"
 				? {}
@@ -1005,11 +1059,13 @@ async function runProviderChatInternal(
 				0,
 			),
 		});
-		const [usage, streamedReasoning, response] = await Promise.all([
-			streamed.usage,
-			streamed.reasoning,
-			streamed.response,
-		]);
+		const [usage, streamedReasoning, responseMessages, providerMetadata] =
+			await Promise.all([
+				streamed.usage,
+				streamed.reasoning,
+				streamed.responseMessages,
+				streamed.providerMetadata,
+			]);
 		args.onLifecycleEvent?.({ type: "usage_complete" });
 		const assembledText = chunks.join("");
 		const assembledReasoning = normalizeReasoningToString(
@@ -1021,41 +1077,32 @@ async function runProviderChatInternal(
 			text: assembledText,
 			reasoning: assembledReasoning,
 		});
-		const { cleanContent, reasoningTokens } = stripThinkBlocks(assembledText);
+		const { cleanContent, reasoningTokens } = stripThinkFallback(assembledText);
 		const mergedReasoningTokens = [assembledReasoning, reasoningTokens]
 			.filter((value) => value.length > 0)
 			.join("\n")
 			.trim();
-		const providerContinuation = args.providerContinuation
-			? buildOpenAIContinuationOutput({
-					continuation: args.providerContinuation,
-					prompt: args.prompt,
-					responseMessages: response.messages,
-				})
-			: undefined;
+		const normalizedResponseMessages = normalizeProviderResponseMessages({
+			provider: args.options.provider,
+			runtimeConfig,
+			responseMessages,
+			providerMetadata,
+			cleanText: cleanContent,
+			thinkFallback: reasoningTokens,
+			requireOpenAIEncryptedReasoning,
+		});
 		return {
 			content: cleanContent || "{}",
 			usage: toTokenUsage(usage),
 			reasoning_tokens: mergedReasoningTokens,
-			...(providerContinuation ? { providerContinuation } : {}),
+			responseMessages: normalizedResponseMessages,
 		};
 	}
 
 	const generated = await generateText({
 		model: model as any,
-		...(args.openAIInputMessages
-			? { messages: args.openAIInputMessages }
-			: args.providerContinuation
-				? {
-						messages: buildOpenAIContinuationMessages(
-							args.providerContinuation,
-							args.prompt,
-						),
-					}
-				: { prompt: args.prompt }),
-		allowSystemInMessages: Boolean(
-			args.openAIInputMessages?.some((message) => message.role === "system"),
-		),
+		messages: args.messages,
+		allowSystemInMessages: true,
 		abortSignal: args.abortSignal,
 		...(args.options.provider === "codex"
 			? {}
@@ -1073,7 +1120,7 @@ async function runProviderChatInternal(
 		text: generated.text,
 		reasoning: normalizeReasoningToString(generated.reasoning ?? []),
 	});
-	const { cleanContent, reasoningTokens } = stripThinkBlocks(generated.text);
+	const { cleanContent, reasoningTokens } = stripThinkFallback(generated.text);
 	const mergedReasoningTokens = [
 		normalizeReasoningToString(generated.reasoning ?? []),
 		reasoningTokens,
@@ -1081,18 +1128,20 @@ async function runProviderChatInternal(
 		.filter((value) => value.length > 0)
 		.join("\n")
 		.trim();
-	const providerContinuation = args.providerContinuation
-		? buildOpenAIContinuationOutput({
-				continuation: args.providerContinuation,
-				prompt: args.prompt,
-				responseMessages: generated.response.messages,
-			})
-		: undefined;
+	const normalizedResponseMessages = normalizeProviderResponseMessages({
+		provider: args.options.provider,
+		runtimeConfig,
+		responseMessages: generated.responseMessages,
+		providerMetadata: generated.providerMetadata,
+		cleanText: cleanContent,
+		thinkFallback: reasoningTokens,
+		requireOpenAIEncryptedReasoning,
+	});
 	return {
 		content: cleanContent || "{}",
 		usage: toTokenUsage(usage),
 		reasoning_tokens: mergedReasoningTokens,
-		...(providerContinuation ? { providerContinuation } : {}),
+		responseMessages: normalizedResponseMessages,
 	};
 }
 
@@ -1114,8 +1163,7 @@ export function __buildProviderOptionsForTests(params: {
 	provider: Provider;
 	reasoningEffort: NonNullable<LLMOptions["reasoningEffort"]>;
 	openrouterProvider?: string;
-	instructions?: string;
-	providerContinuation?: OpenAIEncryptedContinuationInput;
+	openAIEncryptedResponses?: boolean;
 	openAIPromptCache?: OpenAIPromptCacheRequest;
 }) {
 	validateReasoningConfiguration({
@@ -1128,6 +1176,27 @@ export function __buildProviderOptionsForTests(params: {
 
 export function __buildOpenRouterModelSettingsForTests() {
 	return buildOpenRouterModelSettings();
+}
+
+export function __normalizeOpenRouterResponseMessagesForTests(params: {
+	responseMessages: ModelMessage[];
+	providerMetadata: ProviderMetadata | undefined;
+}): ModelMessage[] {
+	return normalizeOpenRouterResponseMessages(params);
+}
+
+export function __addOpenAICompatibleThinkFallbackForTests(params: {
+	responseMessages: ModelMessage[];
+	cleanText: string;
+	reasoningText: string;
+}): ModelMessage[] {
+	return addOpenAICompatibleThinkFallback(params);
+}
+
+export function __assertOpenAIEncryptedReasoningMetadataForTests(
+	responseMessages: ModelMessage[],
+): void {
+	assertOpenAIEncryptedReasoningMetadata(responseMessages);
 }
 
 export async function __collectStreamedTextForTests(
@@ -1157,33 +1226,4 @@ export async function runProviderChat(
 		return await providerChatOverride(args);
 	}
 	return await runProviderChatInternal(args);
-}
-
-function getOpenAIClient(): OpenAI {
-	if (openaiClient) {
-		return openaiClient;
-	}
-	const apiKey = readEnvString("OPENAI_API_KEY");
-	if (!apiKey) {
-		throw new Error(
-			"Missing OPENAI_API_KEY for token counting. Set OPENAI_API_KEY in the environment.",
-		);
-	}
-	openaiClient = new OpenAI({ apiKey });
-	return openaiClient;
-}
-
-export function __setOpenAIClientForTests(client: OpenAI | null): void {
-	openaiClient = client;
-}
-
-export async function countInputTokensOpenAI(input: {
-	model: string;
-	payload: unknown;
-}): Promise<number> {
-	const res = await getOpenAIClient().responses.inputTokens.count({
-		model: input.model,
-		input: input.payload as any,
-	});
-	return res.input_tokens ?? 0;
 }

@@ -2,19 +2,16 @@ import type { ExecutorContextPolicy, LLMOptions } from "./types.js";
 
 export const OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
-		includeReasoningTokensInPreviousSteps: true,
 		executorActionContextFields: false,
 	});
 
 export const OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
-		includeReasoningTokensInPreviousSteps: true,
 		executorActionContextFields: true,
 	});
 
 export const NON_OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
-		includeReasoningTokensInPreviousSteps: false,
 		executorActionContextFields: true,
 	});
 

@@ -44,10 +44,7 @@ function tokenPrefixThroughMarker(
 							: prefixMessage.content.map((part) =>
 									part.type === "text"
 										? { type: "text", text: part.text }
-										: {
-												type: "image_url",
-												image_url: part.image_url,
-											},
+										: part,
 								),
 				})),
 			);
@@ -156,6 +153,12 @@ describe("OpenAI explicit prompt caching", () => {
 		};
 		const assistant1 = { tools: [{ click: "r1" }] };
 		const assistant2 = { tools: [{ click: "r2" }] };
+		const responseMessages1: Message[] = [
+			{ role: "assistant", content: "original assistant 1" },
+		];
+		const responseMessages2: Message[] = [
+			{ role: "assistant", content: "original assistant 2" },
+		];
 
 		const step1 = buildStepMessages({
 			systemPrompt,
@@ -164,7 +167,13 @@ describe("OpenAI explicit prompt caching", () => {
 			openAIExplicitPromptCaching: true,
 		});
 		const history1 = buildHistoryMessagesFromFullStepHistory(
-			[{ payload: payload1, assistant: assistant1 }],
+			[
+				{
+					payload: payload1,
+					assistant: assistant1,
+					responseMessages: responseMessages1,
+				},
+			],
 			{},
 			{
 				omitProjectionContext: true,
@@ -179,8 +188,16 @@ describe("OpenAI explicit prompt caching", () => {
 		});
 		const history2 = buildHistoryMessagesFromFullStepHistory(
 			[
-				{ payload: payload1, assistant: assistant1 },
-				{ payload: payload2, assistant: assistant2 },
+				{
+					payload: payload1,
+					assistant: assistant1,
+					responseMessages: responseMessages1,
+				},
+				{
+					payload: payload2,
+					assistant: assistant2,
+					responseMessages: responseMessages2,
+				},
 			],
 			{},
 			{

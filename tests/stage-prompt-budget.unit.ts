@@ -12,9 +12,11 @@ import {
 } from "../src/agents/success-verifier.js";
 import { __setProviderOverrideForTests } from "../src/agents/providers/ai-sdk.js";
 import type { LLMOptions, Message } from "../src/agents/types.js";
-import { toCompletionPrompt } from "../src/agents/providers/message-serialization.js";
 import { chatYAML } from "../src/agents/providers/router.js";
-import { PromptBudgetExceededError } from "../src/core/prompt-budget.js";
+import {
+	estimateMessagesTokenCount,
+	PromptBudgetExceededError,
+} from "../src/core/prompt-budget.js";
 
 function estimateCharacters(text: string): number {
 	return text.length;
@@ -31,7 +33,7 @@ function budget(maxInputTokens: number): LLMOptions {
 }
 
 function messageCharacters(messages: Message[]): number {
-	return toCompletionPrompt(messages).length;
+	return estimateMessagesTokenCount(messages, estimateCharacters);
 }
 
 function verifierInput(
@@ -149,25 +151,36 @@ describe("stage prompt budgeting", () => {
 			pageProjection: pageProjection.split("\n")[0],
 		});
 		let calls = 0;
-		__setProviderOverrideForTests("openai", async ({ prompt }) => {
+		__setProviderOverrideForTests("openai", async ({ messages }) => {
 			calls++;
+			const prompt = messages
+				.flatMap((message) =>
+					typeof message.content === "string"
+						? [message.content]
+						: message.content.flatMap((part) =>
+								part.type === "text" ? [part.text] : [],
+							),
+				)
+				.join("\n");
 			const ids = [...prompt.matchAll(/\blink_id="(link_\d+)"/g)].map(
 				(match) => match[1],
 			);
-			return {
-				content: [
+			const content = [
 					"items:",
 					...ids.flatMap((id) => [
 						`  - link_id: ${id}`,
 						`    summary: Summary ${id}`,
 					]),
-				].join("\n"),
+				].join("\n");
+			return {
+				content,
 				usage: {
 					input_tokens: 1,
 					output_tokens: 1,
 					total_tokens: 2,
 				},
 				reasoning_tokens: "",
+				responseMessages: [{ role: "assistant", content }],
 			};
 		});
 

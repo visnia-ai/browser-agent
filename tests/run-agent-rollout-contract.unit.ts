@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import type { ModelMessage } from "ai";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import { createMockCoreDeps } from "./helpers/core-deps-fixtures.js";
 import { runTrainingRollout } from "../src/core/training-rollout.js";
@@ -7,7 +8,24 @@ import {
 	configFeatureFlags,
 	setConfigFeatureFlags,
 } from "../src/config-feature-flags.js";
-import { OpenAIContinuationError } from "../src/agents/providers/router.js";
+
+function reasoningParts(messages: ModelMessage[]) {
+	return messages.flatMap((message) =>
+		message.role === "assistant" && Array.isArray(message.content)
+			? message.content.filter((part) => part.type === "reasoning")
+			: [],
+	);
+}
+
+function assistantText(messages: ModelMessage[]): string[] {
+	return messages.flatMap((message) => {
+		if (message.role !== "assistant") return [];
+		if (typeof message.content === "string") return [message.content];
+		return message.content.flatMap((part) =>
+			part.type === "text" ? [part.text] : [],
+		);
+	});
+}
 
 describe("runTrainingRollout", () => {
 	beforeEach(() => {
@@ -30,9 +48,8 @@ describe("runTrainingRollout", () => {
 			}),
 		});
 		let callCount = 0;
-		const continuationInputs: Array<{
-			messageCount: number;
-		}> = [];
+		const promptMessagesByCall: ModelMessage[][] = [];
+		const encryptedResponseFlags: boolean[] = [];
 
 		const result = await runTrainingRollout(deps, {
 			session: {
@@ -58,13 +75,11 @@ describe("runTrainingRollout", () => {
 				messages,
 				promptPayload,
 				stepKind,
-				providerContinuation,
+				openAIEncryptedResponses,
 			}) => {
 				callCount += 1;
-				assert.isDefined(providerContinuation);
-				continuationInputs.push({
-					messageCount: providerContinuation?.messages.length ?? 0,
-				});
+				promptMessagesByCall.push(messages);
+				encryptedResponseFlags.push(openAIEncryptedResponses);
 				assert.isArray(messages);
 				assert.strictEqual(
 					stepKind,
@@ -84,26 +99,27 @@ describe("runTrainingRollout", () => {
 							total_tokens: 16,
 						},
 						reasoning_tokens: "reasoning",
-						providerContinuation: {
-							provider: "openai",
-							strategy: "cumulative",
-							messages: [
-								{
-									role: "assistant",
-									content: [
-										{
-											type: "reasoning",
-											text: "summary",
-											providerOptions: {
-												openai: {
-													reasoningEncryptedContent: "test-encrypted-reasoning",
-												},
+						responseMessages: [
+							{
+								role: "assistant",
+								content: [
+									{
+										type: "reasoning",
+										text: "summary",
+										providerOptions: {
+											openai: {
+												reasoningEncryptedContent:
+													"test-encrypted-reasoning",
 											},
 										},
-									],
-								},
-							],
-						},
+									},
+									{
+										type: "text",
+										text: "reasoning\n</think>\n\nthinking: Click",
+									},
+								],
+							},
+						],
 						rawModelOutputText: "reasoning\n</think>\n\nthinking: Click",
 						promptTokenIds: [1, 2, 3],
 						completionTokenIds: [4, 5],
@@ -123,16 +139,9 @@ describe("runTrainingRollout", () => {
 						total_tokens: 16,
 					},
 					reasoning_tokens: "reasoning",
-					providerContinuation: {
-						provider: "openai",
-						strategy: "cumulative",
-						messages: [
-							{
-								role: "assistant",
-								content: "accepted-response-2",
-							},
-						],
-					},
+					responseMessages: [
+						{ role: "assistant", content: "accepted-response-2" },
+					],
 					rawModelOutputText: "reasoning\n</think>\n\nthinking: Done",
 					promptTokenIds: [1, 2, 3],
 					completionTokenIds: [4, 5],
@@ -143,8 +152,16 @@ describe("runTrainingRollout", () => {
 		});
 
 		assert.strictEqual(callCount, 2);
-		assert.equal(continuationInputs[0]?.messageCount, 0);
-		assert.equal(continuationInputs[1]?.messageCount, 1);
+		assert.deepEqual(encryptedResponseFlags, [true, true]);
+		assert.lengthOf(reasoningParts(promptMessagesByCall[0] ?? []), 0);
+		const replayedReasoning = reasoningParts(promptMessagesByCall[1] ?? []);
+		assert.lengthOf(replayedReasoning, 1);
+		assert.strictEqual(replayedReasoning[0]?.text, "summary");
+		assert.deepEqual(replayedReasoning[0]?.providerOptions, {
+			openai: {
+				reasoningEncryptedContent: "test-encrypted-reasoning",
+			},
+		});
 		assert.isTrue(result.run.completed);
 		assert.isTrue(result.run.successful);
 		assert.lengthOf(result.steps, 2);
@@ -162,7 +179,26 @@ describe("runTrainingRollout", () => {
 		assert.strictEqual(result.steps[0].normalizedStep.done, false);
 		assert.isDefined(result.steps[0].browse);
 		assert.strictEqual(result.steps[1].terminal?.successful, true);
-		assert.notInclude(JSON.stringify(result), "test-encrypted-reasoning");
+		assert.deepEqual(result.steps[0]?.responseMessages, [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "summary",
+						providerOptions: {
+							openai: {
+								reasoningEncryptedContent: "test-encrypted-reasoning",
+							},
+						},
+					},
+					{
+						type: "text",
+						text: "reasoning\n</think>\n\nthinking: Click",
+					},
+				],
+			},
+		]);
 		for (const loopEntry of result.run.mainLoopEntries) {
 			const assistantContent = String(loopEntry.messages.at(-1)?.content ?? "");
 			assert.notInclude(assistantContent, "done:");
@@ -639,23 +675,9 @@ describe("runTrainingRollout", () => {
 				semanticProjectionHistory: "current",
 			},
 			maxSteps: 2,
-			generateStep: async ({ stepNumber, providerContinuation }) => {
+			generateStep: async ({ stepNumber, messages }) => {
 				generationCalls += 1;
-				const replayState =
-					providerContinuation?.strategy === "current"
-						? providerContinuation.reasoningStateByStep
-						: [];
-				replayedReasoning.push(
-					replayState.flatMap((state) =>
-						state.messages.flatMap((message) =>
-							Array.isArray(message.content)
-								? message.content.flatMap((part) =>
-										part.type === "reasoning" ? [part.text] : [],
-									)
-								: [],
-						),
-					),
-				);
+				replayedReasoning.push(reasoningParts(messages).map((part) => part.text));
 				return stepNumber === 1
 					? {
 							data: {
@@ -669,21 +691,21 @@ describe("runTrainingRollout", () => {
 								total_tokens: 6,
 							},
 							reasoning_tokens: "",
-							providerContinuation: {
-								provider: "openai",
-								strategy: "current",
-								reasoningMessages: [
-									{
-										role: "assistant",
-										content: [
-											{
-												type: "reasoning",
-												text: `candidate-${generationCalls}`,
-											},
-										],
-									},
-								],
-							},
+							responseMessages: [
+								{
+									role: "assistant",
+									content: [
+										{
+											type: "reasoning",
+											text: `candidate-${generationCalls}`,
+										},
+										{
+											type: "text",
+											text: `attempt ${generationCalls}`,
+										},
+									],
+								},
+							],
 							rawModelOutputText: `attempt ${generationCalls}`,
 						}
 					: {
@@ -699,6 +721,9 @@ describe("runTrainingRollout", () => {
 								total_tokens: 6,
 							},
 							reasoning_tokens: "",
+							responseMessages: [
+								{ role: "assistant", content: "final" },
+							],
 							rawModelOutputText: "final",
 						};
 			},
@@ -766,29 +791,12 @@ describe("runTrainingRollout", () => {
 			generateStep: async ({
 				messages,
 				promptPayload,
-				providerContinuation,
 			}) => {
 				generationCalls += 1;
-				assistantMessagesByAttempt.push(
-					messages
-						.filter((message) => message.role === "assistant")
-						.map((message) => String(message.content)),
-				);
+				assistantMessagesByAttempt.push(assistantText(messages));
 				modelOutputErrorsByAttempt.push(promptPayload.modelOutputErrors);
-				const replayState =
-					providerContinuation?.strategy === "current"
-						? providerContinuation.reasoningStateByStep
-						: [];
 				replayedReasoningByAttempt.push(
-					replayState.flatMap((state) =>
-						state.messages.flatMap((message) =>
-							Array.isArray(message.content)
-								? message.content.flatMap((part) =>
-										part.type === "reasoning" ? [part.text] : [],
-									)
-								: [],
-						),
-					),
+					reasoningParts(messages).map((part) => part.text),
 				);
 
 				const common = {
@@ -807,21 +815,18 @@ describe("runTrainingRollout", () => {
 							checklistUpdate: { C1: "done" },
 							tools: [{ click: "r1" }, { type: { text: "missing ref" } }],
 						} as any,
-						providerContinuation: {
-							provider: "openai" as const,
-							strategy: "current" as const,
-							reasoningMessages: [
-								{
-									role: "assistant" as const,
-									content: [
-										{
-											type: "reasoning" as const,
-											text: "rejected-reasoning",
-										},
-									],
-								},
-							],
-						},
+						responseMessages: [
+							{
+								role: "assistant" as const,
+								content: [
+									{
+										type: "reasoning" as const,
+										text: "rejected-reasoning",
+									},
+									{ type: "text" as const, text: "malformed attempt" },
+								],
+							},
+						],
 						rawModelOutputText: "malformed attempt",
 					};
 				}
@@ -833,27 +838,28 @@ describe("runTrainingRollout", () => {
 							tools: [{ read_file: "./notes.txt" }],
 							done: false,
 						} as any,
-						providerContinuation: {
-							provider: "openai" as const,
-							strategy: "current" as const,
-							reasoningMessages: [
-								{
-									role: "assistant" as const,
-									content: [
-										{
-											type: "reasoning" as const,
-											text: "accepted-reasoning",
+						responseMessages: [
+							{
+								role: "assistant" as const,
+								content: [
+									{
+										type: "reasoning" as const,
+										text: "accepted-reasoning",
+										providerOptions: {
+											openai: { itemId: "accepted-reasoning-item" },
 										},
-									],
-								},
-							],
-						},
+									},
+									{ type: "text" as const, text: acceptedRawAssistant },
+								],
+							},
+						],
 						rawModelOutputText: acceptedRawAssistant,
 					};
 				}
 				return {
 					...common,
 					data: { tools: ["return_results"] } as any,
+					responseMessages: [{ role: "assistant", content: "final" }],
 					rawModelOutputText: "final",
 				};
 			},
@@ -896,10 +902,24 @@ describe("runTrainingRollout", () => {
 			result.steps.map((entry) => entry.rawModelOutputText),
 			[acceptedRawAssistant, "final"],
 		);
-		assert.lengthOf(result.run.mainLoopEntries, 2);
-		const persistedAcceptedAssistant = String(
-			result.run.mainLoopEntries[0]?.messages.at(-1)?.content,
+		assert.deepEqual(
+			reasoningParts(result.steps[0]?.responseMessages ?? [])[0]
+				?.providerOptions,
+			{ openai: { itemId: "accepted-reasoning-item" } },
 		);
+		assert.lengthOf(result.run.mainLoopEntries, 2);
+		const persistedAcceptedMessage = result.run.mainLoopEntries[0]?.messages.at(-1);
+		const persistedAcceptedAssistant = Array.isArray(
+			persistedAcceptedMessage?.content,
+		)
+			? persistedAcceptedMessage.content
+					.flatMap((part) =>
+						part && typeof part === "object" && part.type === "text"
+							? [String(part.text)]
+							: [],
+					)
+					.join("\n")
+			: String(persistedAcceptedMessage?.content ?? "");
 		assert.include(
 			persistedAcceptedAssistant,
 			"thinking: Keep this exact accepted response.",
@@ -955,6 +975,9 @@ describe("runTrainingRollout", () => {
 							total_tokens: 2,
 						},
 						reasoning_tokens: "",
+						responseMessages: [
+							{ role: "assistant", content: "thinking: Done" },
+						],
 					};
 				},
 			});
@@ -965,7 +988,7 @@ describe("runTrainingRollout", () => {
 		assert.notEqual(keys[0], keys[1]);
 	});
 
-	it("replays only committed current-mode reasoning and drops the oldest item on overflow", async () => {
+	it("replays committed current-mode native reasoning with provider metadata", async () => {
 		const deps = createMockCoreDeps({
 			executeActions: async ({ actions }) => ({
 				pendingMemoryRead: false,
@@ -975,8 +998,8 @@ describe("runTrainingRollout", () => {
 					: {}),
 			}),
 		});
-		const replayCounts: number[] = [];
-		let calls = 0;
+		const replayedReasoning: ReturnType<typeof reasoningParts>[] = [];
+		const encryptedResponseFlags: boolean[] = [];
 		const encryptedReasoning = {
 			role: "assistant" as const,
 			content: [
@@ -1007,23 +1030,13 @@ describe("runTrainingRollout", () => {
 				semanticProjectionHistory: "current",
 			},
 			maxSteps: 2,
-			generateStep: async ({ stepNumber, providerContinuation }) => {
-				calls += 1;
-				assert.strictEqual(providerContinuation?.strategy, "current");
-				const reasoningByStep =
-					providerContinuation?.strategy === "current"
-						? providerContinuation.reasoningStateByStep
-						: [];
-				replayCounts.push(reasoningByStep.length);
-				if (reasoningByStep.length > 0) {
-					assert.strictEqual(reasoningByStep[0]?.reasoningTokenCount, 4);
-				}
-				if (stepNumber === 2 && calls === 2) {
-					throw new OpenAIContinuationError({
-						reason: "context_length",
-						usedContinuationState: true,
-					});
-				}
+			generateStep: async ({
+				stepNumber,
+				messages,
+				openAIEncryptedResponses,
+			}) => {
+				replayedReasoning.push(reasoningParts(messages));
+				encryptedResponseFlags.push(openAIEncryptedResponses);
 				const done = stepNumber === 2;
 				return {
 					data: {
@@ -1040,23 +1053,46 @@ describe("runTrainingRollout", () => {
 						reasoning_tokens: 4,
 					},
 					reasoning_tokens: "visible diagnostic reasoning",
-					providerContinuation: {
-						provider: "openai",
-						strategy: "current",
-						reasoningMessages: done ? [] : [encryptedReasoning],
-					},
+					responseMessages: done
+						? [{ role: "assistant", content: "thinking: Done" }]
+						: [
+								{
+									...encryptedReasoning,
+									content: [
+										...encryptedReasoning.content,
+										{ type: "text", text: "thinking: Continue" },
+									],
+								},
+							],
 				};
 			},
 		});
 
-		assert.deepEqual(replayCounts, [0, 1, 0]);
+		assert.deepEqual(encryptedResponseFlags, [true, true]);
+		assert.lengthOf(replayedReasoning[0] ?? [], 0);
+		assert.lengthOf(replayedReasoning[1] ?? [], 1);
+		assert.strictEqual(replayedReasoning[1]?.[0]?.text, "opaque summary");
+		assert.deepEqual(replayedReasoning[1]?.[0]?.providerOptions, {
+			openai: {
+				reasoningEncryptedContent: "current-secret-ciphertext",
+			},
+		});
 		assert.isTrue(result.run.completed);
-		assert.notInclude(JSON.stringify(result), "current-secret-ciphertext");
+		assert.deepEqual(
+			reasoningParts(result.run.stepsHistory[0]?.responseMessages ?? [])[0]
+				?.providerOptions,
+			{
+				openai: {
+					reasoningEncryptedContent: "current-secret-ciphertext",
+				},
+			},
+		);
 	});
 
 	it("drops oldest current-mode reasoning until the estimated request fits", async () => {
 		const deps = createMockCoreDeps({
-			estimateTokenCount: () => 8,
+			estimateTokenCount: (text) =>
+				text.includes("budget-heavy-reasoning") ? 100 : 0,
 			executeActions: async ({ actions }) => ({
 				pendingMemoryRead: false,
 				interactionErrors: [],
@@ -1076,8 +1112,8 @@ describe("runTrainingRollout", () => {
 				runAgent: {
 					provider: "openai",
 					model: "gpt-test",
-					maxModelLen: 10,
-					reserveOutputTokens: 1,
+					maxModelLen: 30,
+					reserveOutputTokens: 0,
 				},
 				verifySuccess: { provider: "openai", model: "gpt-test" },
 			},
@@ -1087,12 +1123,8 @@ describe("runTrainingRollout", () => {
 				semanticProjectionHistory: "current",
 			},
 			maxSteps: 2,
-			generateStep: async ({ stepNumber, providerContinuation }) => {
-				const replayState =
-					providerContinuation?.strategy === "current"
-						? providerContinuation.reasoningStateByStep
-						: [];
-				replayCounts.push(replayState.length);
+			generateStep: async ({ stepNumber, messages }) => {
+				replayCounts.push(reasoningParts(messages).length);
 				const done = stepNumber === 2;
 				return {
 					data: {
@@ -1109,16 +1141,18 @@ describe("runTrainingRollout", () => {
 						reasoning_tokens: 4,
 					},
 					reasoning_tokens: "diagnostic reasoning",
-					providerContinuation: {
-						provider: "openai",
-						strategy: "current",
-						reasoningMessages: [
-							{
-								role: "assistant",
-								content: [{ type: "reasoning", text: "opaque" }],
-							},
-						],
-					},
+					responseMessages: [
+						{
+							role: "assistant",
+							content: [
+								{
+									type: "reasoning",
+									text: "budget-heavy-reasoning",
+								},
+								{ type: "text", text: done ? "Done" : "Continue" },
+							],
+						},
+					],
 				};
 			},
 		});
@@ -1126,7 +1160,7 @@ describe("runTrainingRollout", () => {
 		assert.deepEqual(replayCounts, [0, 0]);
 	});
 
-	it("resets a continued chain once after an OpenAI context error", async () => {
+	it("disables client-held OpenAI encrypted responses for Codex", async () => {
 		const deps = createMockCoreDeps({
 			executeActions: async ({ actions }) => ({
 				pendingMemoryRead: false,
@@ -1136,16 +1170,15 @@ describe("runTrainingRollout", () => {
 					: {}),
 			}),
 		});
-		let calls = 0;
-		const modes: string[] = [];
+		const encryptedResponseFlags: boolean[] = [];
 
 		const result = await runTrainingRollout(deps, {
 			session: { port: 9888, headless: true, forceRestart: true },
-			task: "Recover from context exhaustion",
+			task: "Finish with Codex",
 			stageLLMs: {
 				findTargetURL: { provider: "openai", model: "gpt-test" },
 				createChecklist: { provider: "openai", model: "gpt-test" },
-				runAgent: { provider: "openai", model: "gpt-test" },
+				runAgent: { provider: "codex", model: "gpt-test" },
 				verifySuccess: { provider: "openai", model: "gpt-test" },
 			},
 			dataExtraction: { provider: "openai", model: "gpt-test" },
@@ -1153,25 +1186,13 @@ describe("runTrainingRollout", () => {
 				...deps.featureFlags,
 				semanticProjectionHistory: "cumulative",
 			},
-			maxSteps: 2,
-			generateStep: async ({ stepNumber, providerContinuation }) => {
-				calls += 1;
-				modes.push(
-					`${providerContinuation?.inputMode}:${providerContinuation?.messages.length ? "continued" : "fresh"}`,
-				);
-				if (calls === 2) {
-					throw new OpenAIContinuationError({
-						reason: "context_length",
-						usedContinuationState: true,
-					});
-				}
-				const done = stepNumber === 2;
+			maxSteps: 1,
+			generateStep: async ({ openAIEncryptedResponses }) => {
+				encryptedResponseFlags.push(openAIEncryptedResponses);
 				return {
 					data: {
-						thinking: done ? "Done" : "Continue",
-						actions: done
-							? [{ type: "return_results" }]
-							: [{ type: "wait", ms: 1 }],
+						thinking: "Done",
+						actions: [{ type: "return_results" }],
 						done: false,
 					},
 					usage: {
@@ -1180,20 +1201,12 @@ describe("runTrainingRollout", () => {
 						total_tokens: 6,
 					},
 					reasoning_tokens: "",
-					providerContinuation: {
-						provider: "openai",
-						strategy: "cumulative",
-						messages: [{ role: "assistant", content: `response-${calls}` }],
-					},
+					responseMessages: [{ role: "assistant", content: "Done" }],
 				};
 			},
 		});
 
 		assert.isTrue(result.run.completed);
-		assert.deepEqual(modes, [
-			"full:fresh",
-			"incremental:continued",
-			"full:fresh",
-		]);
+		assert.deepEqual(encryptedResponseFlags, [false]);
 	});
 });

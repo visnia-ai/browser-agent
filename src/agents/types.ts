@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage, UserModelMessage } from "ai";
 import type { UserTakeoverCategory } from "../user-action-types.js";
 import type {
 	RequestAuthDomainCandidates,
@@ -14,26 +14,14 @@ export {
 	type ReasoningEffort,
 } from "../llm-capabilities.js";
 
-export interface Message {
-	role: "system" | "user" | "assistant";
-	content: string | ContentPart[];
-	providerOptions?: MessageProviderOptions;
-	reasoning_tokens?: string;
-}
+/** Canonical prompt/history message shape used by the AI SDK. */
+export type Message = ModelMessage;
 
-export type MessageProviderOptions = Record<string, Record<string, unknown>>;
+export type MessageProviderOptions = NonNullable<
+	ModelMessage["providerOptions"]
+>;
 
-export type ContentPart =
-	| {
-			type: "text";
-			text: string;
-			providerOptions?: MessageProviderOptions;
-	  }
-	| {
-			type: "image_url";
-			image_url: { url: string; detail?: "low" | "high" | "auto" };
-			providerOptions?: MessageProviderOptions;
-	  };
+export type ContentPart = Exclude<UserModelMessage["content"], string>[number];
 
 export interface LLMOptions {
 	provider: Provider;
@@ -48,7 +36,6 @@ export interface LLMOptions {
 
 /** Model-derived executor context behavior, resolved once for each agent run. */
 export interface ExecutorContextPolicy {
-	includeReasoningTokensInPreviousSteps: boolean;
 	executorActionContextFields: boolean;
 }
 
@@ -64,10 +51,6 @@ export interface TokenUsage {
 	generation_time_ms?: number;
 }
 
-interface OpenAIEncryptedContinuationBase {
-	provider: "openai";
-}
-
 export interface OpenAIPromptCacheRequest {
 	/** Omit the key when explicit mode is used only to disable implicit caching. */
 	promptCacheKey?: string;
@@ -77,48 +60,17 @@ export interface OpenAIPromptCacheRequest {
 	};
 }
 
-export interface OpenAIEncryptedReasoningState {
-	messages: ModelMessage[];
-	reasoningTokenCount: number;
-}
-
-export type OpenAIEncryptedContinuationInput =
-	| (OpenAIEncryptedContinuationBase & {
-			strategy: "cumulative";
-			messages: ModelMessage[];
-			inputMode: "full" | "incremental";
-			/** Index of the first message that was not represented by the committed response. */
-			newMessageStartIndex?: number;
-	  })
-	| (OpenAIEncryptedContinuationBase & {
-			strategy: "current";
-			/** Raw encrypted reasoning output retained for each committed executor step. */
-			reasoningStateByStep: OpenAIEncryptedReasoningState[];
-	  });
-
-export type OpenAIEncryptedContinuationOutput =
-	| {
-			provider: "openai";
-			strategy: "cumulative";
-			messages: ModelMessage[];
-	  }
-	| {
-			provider: "openai";
-			strategy: "current";
-			/** Reasoning-only messages from the current accepted provider response. */
-			reasoningMessages: ModelMessage[];
-	  };
-
 export interface ChatJSONResult<T> {
 	data: T;
 	/** Billable usage across every provider attempt made by this operation. */
 	usage: TokenUsage;
-	/** Usage of the accepted provider attempt, used for continuation bookkeeping. */
+	/** Usage of the accepted provider attempt, excluding rejected retries. */
 	accepted_usage?: TokenUsage;
 	reasoning_tokens: string;
+	/** Native assistant/tool messages from the accepted AI SDK generation. */
+	responseMessages: ModelMessage[];
 	/** Exact provider text accepted by the YAML parser, before action normalization. */
 	raw_response?: string;
-	providerContinuation?: OpenAIEncryptedContinuationOutput;
 }
 
 export interface SuccessVerificationVerdict {
@@ -142,7 +94,7 @@ export interface ChatYAMLTraceEvent<T = unknown> {
 	provider: Provider;
 	model: string;
 	attempt: number;
-	messages: Message[];
+	messages: ModelMessage[];
 	output?: T;
 	raw_response?: string;
 	usage?: TokenUsage;

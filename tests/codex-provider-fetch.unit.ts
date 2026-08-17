@@ -267,7 +267,7 @@ describe("Codex provider fetch", () => {
 					reasoningEffort: "high",
 					reserveOutputTokens: 4_000,
 				},
-				prompt: "Return JSON.",
+				messages: [{ role: "user", content: "Return JSON." }],
 				onOutputChunk: (chunk) => chunks.push(chunk),
 			});
 
@@ -278,6 +278,8 @@ describe("Codex provider fetch", () => {
 			assert.equal(requestedBody.model, "gpt-5.6-luna");
 			assert.equal(requestedBody.store, false);
 			assert.equal(requestedBody.stream, true);
+			assert.include(JSON.stringify(requestedBody.input), "Return JSON.");
+			assert.notInclude(JSON.stringify(requestedBody.input), "USER:");
 			assert.deepEqual(requestedBody.reasoning, {
 				effort: "high",
 				summary: "detailed",
@@ -289,6 +291,23 @@ describe("Codex provider fetch", () => {
 			]);
 			assert.deepEqual(chunks, ['{"ok":true}']);
 			assert.equal(result.content, '{"ok":true}');
+			assert.deepEqual(result.responseMessages, [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "text",
+							text: '{"ok":true}',
+							providerOptions: {
+								openai: {
+									itemId: "msg_1",
+									phase: "final_answer",
+								},
+							},
+						},
+					],
+				},
+			]);
 			assert.deepEqual(result.usage, {
 				input_tokens: 12,
 				cached_input_tokens: 3,

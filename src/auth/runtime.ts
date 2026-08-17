@@ -24,6 +24,7 @@ import type {
 	SessionAuthTakeoverState,
 } from "./types.js";
 import type { TokenUsage } from "../agents/types.js";
+import type { AssistantModelMessage, ModelMessage } from "ai";
 
 const MAX_AUTH_TAKEOVER_ATTEMPTS = 4;
 const AUTH_IDENTIFIER_MATCH_MARKER = "[AUTH_IDENTIFIER_MATCH]";
@@ -242,24 +243,78 @@ function serializePromptMessages(
 function buildAssistantYamlMessage(params: {
 	content: Record<string, unknown>;
 	reasoningTokens?: string;
-}): {
-	role: "assistant";
-	content: string;
-	reasoning_tokens?: string;
-} {
+}): ModelMessage {
+	const text = yaml.dump(params.content);
+	const reasoning = params.reasoningTokens?.trim();
 	return {
 		role: "assistant",
-		content: yaml.dump(params.content),
-		...(typeof params.reasoningTokens === "string"
-			? { reasoning_tokens: params.reasoningTokens }
-			: {}),
+		content: reasoning
+			? [
+					{ type: "reasoning", text: reasoning },
+					{ type: "text", text },
+				]
+			: text,
 	};
+}
+
+function sanitizeAuthResponseMessages(params: {
+	responseMessages?: ModelMessage[];
+	content: Record<string, unknown>;
+	reasoningTokens?: string;
+}): ModelMessage[] {
+	const messages = params.responseMessages ?? [];
+	let finalAssistantIndex = -1;
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		if (messages[index]?.role === "assistant") {
+			finalAssistantIndex = index;
+			break;
+		}
+	}
+	if (finalAssistantIndex < 0) {
+		return [buildAssistantYamlMessage(params)];
+	}
+
+	const sanitizedText = yaml.dump(params.content);
+	return messages.map((message, index): ModelMessage => {
+		if (index !== finalAssistantIndex || message.role !== "assistant") {
+			return message;
+		}
+		if (typeof message.content === "string") {
+			return { ...message, content: sanitizedText };
+		}
+		let replacedText = false;
+		const retained: Exclude<AssistantModelMessage["content"], string> = [];
+		for (const part of message.content) {
+			if (part.type !== "text") {
+				retained.push(part);
+				continue;
+			}
+			if (replacedText) continue;
+			replacedText = true;
+			const { openai: _staleOpenAITextState, ...providerOptions } =
+				part.providerOptions ?? {};
+			retained.push({
+					type: "text" as const,
+					text: sanitizedText,
+					...(Object.keys(providerOptions).length > 0
+						? { providerOptions }
+						: {}),
+				});
+		}
+		return {
+			...message,
+			content: replacedText
+				? retained
+				: [...retained, { type: "text", text: sanitizedText }],
+		};
+	});
 }
 
 function buildProbeAttemptMessages(params: {
 	projection: string;
 	decision: AuthFormProbeDecision;
 	reasoningTokens?: string;
+	responseMessages?: ModelMessage[];
 }): unknown[] {
 	const promptMessages = getProbePromptMessages(params.projection);
 	const assistantPayload: Record<string, unknown> = {
@@ -292,9 +347,10 @@ function buildProbeAttemptMessages(params: {
 	}
 	return [
 		...serializePromptMessages(promptMessages),
-		buildAssistantYamlMessage({
+		...sanitizeAuthResponseMessages({
 			content: assistantPayload,
 			reasoningTokens: params.reasoningTokens,
+			responseMessages: params.responseMessages,
 		}),
 	];
 }
@@ -303,6 +359,7 @@ function buildResultAttemptMessages(params: {
 	projection: string;
 	result: AuthSubmitResultDecision;
 	reasoningTokens?: string;
+	responseMessages?: ModelMessage[];
 }): unknown[] {
 	const promptMessages = getResultPromptMessages(params.projection);
 	const assistantPayload: Record<string, unknown> = {
@@ -313,9 +370,10 @@ function buildResultAttemptMessages(params: {
 	}
 	return [
 		...serializePromptMessages(promptMessages),
-		buildAssistantYamlMessage({
+		...sanitizeAuthResponseMessages({
 			content: assistantPayload,
 			reasoningTokens: params.reasoningTokens,
+			responseMessages: params.responseMessages,
 		}),
 	];
 }
@@ -351,6 +409,7 @@ async function probeAuthForm(params: {
 	authUsernameOrEmail?: string;
 	usage?: TokenUsage;
 	reasoning_tokens?: string;
+	responseMessages?: ModelMessage[];
 }> {
 	const authUsernameOrEmail = await requestIdentifierForUrl(
 		params.sessionAuth,
@@ -375,7 +434,7 @@ async function probeAuthForm(params: {
 	}
 	let decision: AuthFormProbeDecision;
 	try {
-		const { data, usage, reasoning_tokens } =
+		const { data, usage, reasoning_tokens, responseMessages } =
 			await chatYAMLImpl<AuthFormProbeDecision>(
 				getProbePromptMessages(projection),
 				params.sessionAuth.authProbeLLM,
@@ -398,6 +457,7 @@ async function probeAuthForm(params: {
 			authUsernameOrEmail,
 			usage,
 			reasoning_tokens,
+			responseMessages,
 		};
 	} catch {
 		decision = {
@@ -420,6 +480,7 @@ async function classifySubmitResult(params: {
 	result: AuthSubmitResultDecision;
 	usage?: TokenUsage;
 	reasoning_tokens?: string;
+	responseMessages?: ModelMessage[];
 }> {
 	const authUsernameOrEmail = await requestIdentifierForUrl(
 		params.sessionAuth,
@@ -431,7 +492,7 @@ async function classifySubmitResult(params: {
 	});
 	const chatYAMLImpl = params.hooks.chatYAML ?? chatYAML;
 	try {
-		const { data, usage, reasoning_tokens } =
+		const { data, usage, reasoning_tokens, responseMessages } =
 			await chatYAMLImpl<AuthSubmitResultDecision>(
 				getResultPromptMessages(projection),
 				params.sessionAuth.authProbeLLM!,
@@ -445,6 +506,7 @@ async function classifySubmitResult(params: {
 			},
 			usage,
 			reasoning_tokens,
+			responseMessages,
 		};
 	} catch {
 		return {
@@ -840,6 +902,7 @@ export async function attemptAutomatedAuthTakeover(params: {
 			authUsernameOrEmail,
 			usage: probeUsage,
 			reasoning_tokens: probeReasoningTokens,
+			responseMessages: probeResponseMessages,
 		} = await probeAuthForm({
 			deps: params.deps,
 			browser: params.browser,
@@ -878,6 +941,7 @@ export async function attemptAutomatedAuthTakeover(params: {
 				projection,
 				decision,
 				reasoningTokens: probeReasoningTokens,
+				responseMessages: probeResponseMessages,
 			}),
 			token_usage: probeUsage,
 			outcome:
@@ -1187,6 +1251,7 @@ export async function attemptAutomatedAuthTakeover(params: {
 				projection: submitResult.projection,
 				result: submitResult.result,
 				reasoningTokens: submitResult.reasoning_tokens,
+				responseMessages: submitResult.responseMessages,
 			}),
 			token_usage: submitResult.usage,
 			outcome: submitResult.result.outcome,

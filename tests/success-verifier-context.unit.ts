@@ -33,7 +33,19 @@ function input(
 		],
 		historyMessages: [
 			{ role: "user", content: "prior stripped payload" },
-			{ role: "assistant", content: "prior action" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "prior reasoning",
+						providerOptions: {
+							google: { thoughtSignature: "verifier-signature" },
+						},
+					},
+					{ type: "text", text: "prior action" },
+				],
+			},
 		],
 		llmOptions: {
 			provider: "openai",
@@ -48,7 +60,7 @@ function input(
 function userPayload(
 	result: ReturnType<typeof buildSuccessVerificationMessages>,
 ) {
-	const content = result.messages[1].content;
+	const content = result.messages.at(-1)?.content;
 	assert.isString(content);
 	return yaml.load(content as string) as Record<string, unknown>;
 }
@@ -76,9 +88,22 @@ describe("success verifier context modes", () => {
 		);
 		const payload = userPayload(result);
 		assert.deepEqual(payload.finalPromptPayload, input().finalPromptPayload);
-		assert.deepEqual(payload.stepHistory, [
+		assert.notProperty(payload, "stepHistory");
+		assert.deepEqual(result.messages.slice(1, -1), [
 			{ role: "user", content: "prior stripped payload" },
-			{ role: "assistant", content: "prior action" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "prior reasoning",
+						providerOptions: {
+							google: { thoughtSignature: "verifier-signature" },
+						},
+					},
+					{ type: "text", text: "prior action" },
+				],
+			},
 		]);
 		assert.deepEqual(payload.checklist, input().checklist);
 		assert.deepEqual(payload.finalStep, {

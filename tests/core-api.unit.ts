@@ -119,6 +119,12 @@ describe("core-api", () => {
 						tools: [],
 						done: false,
 					},
+					responseMessages: [
+						{
+							role: "assistant",
+							content: "previousStepPlanUpdate:\n  - index: 0\n    status: done",
+						},
+					],
 				},
 			],
 		});
@@ -350,6 +356,9 @@ describe("core-api", () => {
 							plan: ["Step from history", 123, null],
 						},
 						assistant: { done: false, actions: [] },
+						responseMessages: [
+							{ role: "assistant", content: "actions: []\ndone: false" },
+						],
 					},
 				],
 			});
@@ -1448,11 +1457,7 @@ describe("core-api", () => {
 
 	it("step(process_model_step_output) retains reasoning with current context", async () => {
 		configFeatureFlags.semanticProjectionHistory = "current";
-		const stepsHistory: Array<{
-			payload: Record<string, unknown>;
-			assistant: unknown;
-			reasoningTokens?: string;
-		}> = [];
+		const stepsHistory: import("../src/core/types.js").StepHistoryEntry[] = [];
 
 		await step(createMockCoreDeps(), {
 			mode: "process_model_step_output",
@@ -1466,12 +1471,37 @@ describe("core-api", () => {
 			},
 			stepsHistory,
 			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
-			openAIEncryptedResponses: false,
-			reasoningTokens: "  Persist this trace.  ",
+			responseMessages: [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "reasoning",
+							text: "Persist this trace.",
+							providerOptions: {
+								openai: { reasoningEncryptedContent: "ciphertext" },
+							},
+						},
+						{ type: "text", text: "actions: []\ndone: false" },
+					],
+				},
+			],
 		});
 
 		assert.lengthOf(stepsHistory, 1);
-		assert.strictEqual(stepsHistory[0].reasoningTokens, "Persist this trace.");
+		assert.deepEqual(stepsHistory[0].responseMessages[0], {
+			role: "assistant",
+			content: [
+				{
+					type: "reasoning",
+					text: "Persist this trace.",
+					providerOptions: {
+						openai: { reasoningEncryptedContent: "ciphertext" },
+					},
+				},
+				{ type: "text", text: "actions: []\ndone: false" },
+			],
+		});
 		assert.deepEqual(yaml.load(String(stepsHistory[0].assistant)), {
 			actions: [],
 			done: false,
@@ -1480,11 +1510,7 @@ describe("core-api", () => {
 
 	it("step(process_model_step_output) retains reasoning with cumulative context", async () => {
 		configFeatureFlags.semanticProjectionHistory = "cumulative";
-		const stepsHistory: Array<{
-			payload: Record<string, unknown>;
-			assistant: unknown;
-			reasoningTokens?: string;
-		}> = [];
+		const stepsHistory: import("../src/core/types.js").StepHistoryEntry[] = [];
 
 		await step(createMockCoreDeps(), {
 			mode: "process_model_step_output",
@@ -1500,22 +1526,40 @@ describe("core-api", () => {
 			},
 			stepsHistory,
 			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
-			reasoningTokens: "Keep this reasoning in assistant history.",
+			responseMessages: [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "reasoning",
+							text: "Keep this reasoning in assistant history.",
+							providerOptions: {
+								anthropic: { signature: "signed-thinking" },
+							},
+						},
+						{ type: "text", text: "actions: []\ndone: false" },
+					],
+				},
+			],
 		});
 
 		assert.lengthOf(stepsHistory, 1);
-		assert.strictEqual(
-			stepsHistory[0].reasoningTokens,
-			"Keep this reasoning in assistant history.",
-		);
+		const cumulativeReasoning = Array.isArray(
+			stepsHistory[0].responseMessages[0]?.content,
+		)
+			? stepsHistory[0].responseMessages[0].content.find(
+					(part) => part.type === "reasoning",
+				)
+			: undefined;
+		assert.deepEqual(cumulativeReasoning, {
+			type: "reasoning",
+			text: "Keep this reasoning in assistant history.",
+			providerOptions: { anthropic: { signature: "signed-thinking" } },
+		});
 	});
 
-	it("step(process_model_step_output) omits reasoning when disabled", async () => {
-		const stepsHistory: Array<{
-			payload: Record<string, unknown>;
-			assistant: unknown;
-			reasoningTokens?: string;
-		}> = [];
+	it("step(process_model_step_output) retains native reasoning for non-OpenAI providers", async () => {
+		const stepsHistory: import("../src/core/types.js").StepHistoryEntry[] = [];
 
 		await step(createMockCoreDeps(), {
 			mode: "process_model_step_output",
@@ -1526,10 +1570,37 @@ describe("core-api", () => {
 			},
 			stepsHistory,
 			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
-			reasoningTokens: "Do not retain this trace.",
+			responseMessages: [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "reasoning",
+							text: "Retain this trace.",
+							providerOptions: {
+								google: { thoughtSignature: "thought-signature" },
+							},
+						},
+						{ type: "text", text: "actions: []\ndone: false" },
+					],
+				},
+			],
 		});
 
-		assert.notProperty(stepsHistory[0], "reasoningTokens");
+		const nonOpenAIReasoning = Array.isArray(
+			stepsHistory[0].responseMessages[0]?.content,
+		)
+			? stepsHistory[0].responseMessages[0].content.find(
+					(part) => part.type === "reasoning",
+				)
+			: undefined;
+		assert.deepEqual(nonOpenAIReasoning, {
+			type: "reasoning",
+			text: "Retain this trace.",
+			providerOptions: {
+				google: { thoughtSignature: "thought-signature" },
+			},
+		});
 	});
 
 	it("processModelOutputAndBrowse does not complete from model-authored result", async () => {
@@ -1658,6 +1729,12 @@ describe("core-api", () => {
 						tools: [{ click: "1" }],
 						done: false,
 					},
+					responseMessages: [
+						{
+							role: "assistant",
+							content: "thinking: Click the button\ntools:\n  - click: '1'\ndone: false",
+						},
+					],
 				},
 			],
 		});
@@ -1728,6 +1805,12 @@ describe("core-api", () => {
 						tools: [{ click: "1" }],
 						done: false,
 					},
+					responseMessages: [
+						{
+							role: "assistant",
+							content: "thinking: Click the button\ntools:\n  - click: '1'\ndone: false",
+						},
+					],
 				},
 			],
 		});
@@ -3553,11 +3636,8 @@ describe("core-api", () => {
 		].join("\n");
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
-		let capturedStepTwoMessages: Array<{
-			role: string;
-			content: unknown;
-			reasoning_tokens?: string;
-		}> | null = null;
+		let capturedStepTwoMessages: Message[] | null = null;
+		const encryptedResponseFlags: boolean[] = [];
 		try {
 			setRuntimeOptions({ saveStepsContext: true });
 			resetStepsDir();
@@ -3585,15 +3665,14 @@ describe("core-api", () => {
 					enableExecutorActionContextFieldsForOpenAI: true,
 				},
 				maxSteps: 3,
-				generateStep: async ({ stepNumber, messages }) => {
+				generateStep: async ({
+					stepNumber,
+					messages,
+					openAIEncryptedResponses,
+				}) => {
+					encryptedResponseFlags.push(openAIEncryptedResponses);
 					if (stepNumber === 2) {
-						capturedStepTwoMessages = messages.map((message) => ({
-							role: message.role,
-							content: message.content,
-							...(typeof message.reasoning_tokens === "string"
-								? { reasoning_tokens: message.reasoning_tokens }
-								: {}),
-						}));
+						capturedStepTwoMessages = messages;
 					}
 					if (stepNumber === 1) {
 						return {
@@ -3611,6 +3690,23 @@ describe("core-api", () => {
 								total_tokens: 11,
 							},
 							reasoning_tokens: "Inspect the flight form.",
+							responseMessages: [
+								{
+									role: "assistant",
+									content: [
+										{
+											type: "reasoning",
+											text: "Inspect the flight form.",
+											providerOptions: {
+												openai: {
+													reasoningEncryptedContent: "encrypted-trace",
+												},
+											},
+										},
+										{ type: "text", text: exactFirstAssistant },
+									],
+								},
+							],
 							raw_response: exactFirstAssistant,
 						};
 					}
@@ -3633,25 +3729,38 @@ describe("core-api", () => {
 			});
 
 			assert.isTrue(result.completed);
+			assert.deepEqual(encryptedResponseFlags, [true, true]);
 			assert.isNotNull(capturedStepTwoMessages);
 			const contextFile = path.join(CONTEXT_DIR, "context-002.yaml");
 			assert.isTrue(fs.existsSync(contextFile));
 			const savedContext = yaml.load(
 				fs.readFileSync(contextFile, "utf-8"),
-			) as Array<{
-				role: string;
-				content: unknown;
-				reasoning_tokens?: string;
-			}>;
+			) as Message[];
 			assert.deepEqual(savedContext, capturedStepTwoMessages);
-			assert.strictEqual(
-				savedContext.at(-2)?.reasoning_tokens,
-				"Inspect the flight form.",
+			const savedAssistant = savedContext.at(-2);
+			assert.strictEqual(savedAssistant?.role, "assistant");
+			assert.isArray(savedAssistant?.content);
+			const savedAssistantParts = Array.isArray(savedAssistant?.content)
+				? savedAssistant.content
+				: [];
+			const savedReasoning = savedAssistantParts.find(
+				(part) => part.type === "reasoning",
 			);
-			assert.strictEqual(savedContext.at(-2)?.content, exactFirstAssistant);
-			const serializedContext = savedContext
-				.map((message) => String(message.content ?? ""))
-				.join("\n");
+			const savedText = savedAssistantParts.find(
+				(part) => part.type === "text",
+			);
+			assert.deepEqual(savedReasoning, {
+				type: "reasoning",
+				text: "Inspect the flight form.",
+				providerOptions: {
+					openai: { reasoningEncryptedContent: "encrypted-trace" },
+				},
+			});
+			assert.strictEqual(
+				savedText?.type === "text" ? savedText.text : undefined,
+				exactFirstAssistant,
+			);
+			const serializedContext = JSON.stringify(savedContext);
 			for (const field of [
 				"previousStepStatus",
 				"previousStepOutcome",
@@ -3671,6 +3780,7 @@ describe("core-api", () => {
 
 	it("runAgent applies the OpenAI executor history policy to Codex", async () => {
 		let capturedStepTwoMessages: Message[] | null = null;
+		const encryptedResponseFlags: boolean[] = [];
 		const deps = createMockCoreDeps({
 			executeActions: async ({ actions }) => ({
 				pendingMemoryRead: false,
@@ -3697,7 +3807,12 @@ describe("core-api", () => {
 			},
 			featureFlags: deps.featureFlags,
 			maxSteps: 3,
-			generateStep: async ({ stepNumber, messages }) => {
+			generateStep: async ({
+				stepNumber,
+				messages,
+				openAIEncryptedResponses,
+			}) => {
+				encryptedResponseFlags.push(openAIEncryptedResponses);
 				if (stepNumber === 2) capturedStepTwoMessages = messages;
 				return stepNumber === 1
 					? {
@@ -3715,6 +3830,31 @@ describe("core-api", () => {
 								total_tokens: 11,
 							},
 							reasoning_tokens: "Inspect page:\nstatus: ready",
+							responseMessages: [
+								{
+									role: "assistant",
+									content: [
+										{
+											type: "reasoning",
+											text: "Inspect page:\nstatus: ready",
+											providerOptions: {
+												openai: { itemId: "rs_codex_reasoning" },
+											},
+										},
+										{
+											type: "text",
+											text: [
+												"previousStepStatus: progressed",
+												"previousStepOutcome: Opened the result page.",
+												"currentStateObservation: The result is visible.",
+												"nextActionRationale: Return the result.",
+												"actions: []",
+												"done: false",
+											].join("\n"),
+										},
+									],
+								},
+							],
 							raw_response: [
 								"previousStepStatus: progressed",
 								"previousStepOutcome: Opened the result page.",
@@ -3735,24 +3875,59 @@ describe("core-api", () => {
 								total_tokens: 9,
 							},
 							reasoning_tokens: "Return stored results.",
+							responseMessages: [
+								{ role: "assistant", content: "actions:\n  - return_results" },
+							],
 						};
 			},
 		});
 
 		assert.isTrue(result.completed);
-		assert.strictEqual(
-			result.stepsHistory[0]?.reasoningTokens,
-			"Inspect page:\nstatus: ready",
-		);
+		assert.deepEqual(encryptedResponseFlags, [false, false]);
+		assert.deepEqual(result.stepsHistory[0]?.responseMessages, [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Inspect page:\nstatus: ready",
+						providerOptions: {
+							openai: { itemId: "rs_codex_reasoning" },
+						},
+					},
+					{
+						type: "text",
+						text: [
+							"previousStepStatus: progressed",
+							"previousStepOutcome: Opened the result page.",
+							"currentStateObservation: The result is visible.",
+							"nextActionRationale: Return the result.",
+							"actions: []",
+							"done: false",
+						].join("\n"),
+					},
+				],
+			},
+		]);
 		assert.isNotNull(capturedStepTwoMessages);
 		const systemContent = String(capturedStepTwoMessages?.[0]?.content ?? "");
-		const previousAssistantContent = String(
-			capturedStepTwoMessages?.at(-2)?.content ?? "",
+		const previousAssistant = capturedStepTwoMessages?.at(-2);
+		const previousAssistantParts = Array.isArray(previousAssistant?.content)
+			? previousAssistant.content
+			: [];
+		const previousReasoning = previousAssistantParts.find(
+			(part) => part.type === "reasoning",
 		);
-		assert.strictEqual(
-			capturedStepTwoMessages?.at(-2)?.reasoning_tokens,
-			"Inspect page:\nstatus: ready",
-		);
+		const previousAssistantContent = previousAssistantParts
+			.flatMap((part) => (part.type === "text" ? [part.text] : []))
+			.join("\n");
+		assert.deepEqual(previousReasoning, {
+			type: "reasoning",
+			text: "Inspect page:\nstatus: ready",
+			providerOptions: {
+				openai: { itemId: "rs_codex_reasoning" },
+			},
+		});
 		assert.notInclude(systemContent, "previousStepStatus");
 		assert.notInclude(previousAssistantContent, "<think>");
 		assert.notInclude(previousAssistantContent, "Inspect page:");
@@ -3823,6 +3998,9 @@ describe("core-api", () => {
 								total_tokens: 11,
 							},
 							reasoning_tokens: "",
+							responseMessages: [
+								{ role: "assistant", content: "actions:\n  - return_results" },
+							],
 						};
 					}
 					return {

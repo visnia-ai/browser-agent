@@ -6,21 +6,10 @@ import type {
 	TokenUsage,
 	ChatJSONResult,
 	ChatYAMLTraceEvent,
-	OpenAIEncryptedContinuationInput,
-	OpenAIEncryptedContinuationOutput,
-	OpenAIEncryptedReasoningState,
 	OpenAIPromptCacheRequest,
 } from "../types.js";
 import type { ModelMessage } from "ai";
-import {
-	countInputTokensOpenAI,
-	OpenAIEncryptedContinuationError,
-	runProviderChat,
-} from "./ai-sdk.js";
-import {
-	messageContentToText,
-	toCompletionPrompt,
-} from "./message-serialization.js";
+import { runProviderChat } from "./ai-sdk.js";
 import { estimateTokenCount } from "../prompt-token-estimator.js";
 import { assertPromptFits } from "../../core/prompt-budget.js";
 import { logActionBoundary } from "../executor-utils/action-boundary-logging.js";
@@ -28,7 +17,6 @@ import { featureFlags } from "../../featureFlags.js";
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 500;
-const DEFAULT_OPENAI_TOKEN_COUNT_MODEL = "gpt-5.2";
 const DEFAULT_CHAT_YAML_HARD_TIMEOUT_MS = 300_000;
 const DEFAULT_CHAT_YAML_STALL_LOG_INTERVAL_MS = 5_000;
 
@@ -227,272 +215,9 @@ async function withRetries<T>(
 	);
 }
 
-export type OpenAIContinuationRecoveryReason = "context_length";
-
-export class OpenAIContinuationError extends Error {
-	readonly reason: OpenAIContinuationRecoveryReason;
-	readonly usedContinuationState: boolean;
-
-	constructor(input: {
-		reason: OpenAIContinuationRecoveryReason;
-		usedContinuationState: boolean;
-	}) {
-		super("OpenAI continuation exceeded the available context.");
-		this.name = "OpenAIContinuationError";
-		this.reason = input.reason;
-		this.usedContinuationState = input.usedContinuationState;
-	}
-}
-
-class OpenAIContinuationRequestError extends Error {
-	constructor() {
-		super("OpenAI continuation request failed.");
-		this.name = "OpenAIContinuationRequestError";
-	}
-}
-
-export function isOpenAIContinuationError(
-	error: unknown,
-): error is OpenAIContinuationError {
-	return error instanceof OpenAIContinuationError;
-}
-
-function serializeProviderError(error: unknown): string {
-	if (!error || typeof error !== "object") return String(error).toLowerCase();
-	const record = error as Record<string, unknown>;
-	let serializedData = "";
-	try {
-		serializedData = record.data ? JSON.stringify(record.data) : "";
-	} catch {
-		serializedData = "";
-	}
-	return [
-		error instanceof Error ? error.message : "",
-		typeof record.responseBody === "string" ? record.responseBody : "",
-		typeof record.data === "string" ? record.data : serializedData,
-	]
-		.join(" ")
-		.toLowerCase();
-}
-
-function classifyOpenAIContinuationError(
-	error: unknown,
-	continuation: OpenAIEncryptedContinuationInput | undefined,
-): unknown {
-	if (!continuation) return error;
-	if (error instanceof OpenAIEncryptedContinuationError) return error;
-	const detail = serializeProviderError(error);
-	if (
-		detail.includes("context_length_exceeded") ||
-		detail.includes("context length") ||
-		detail.includes("maximum context") ||
-		detail.includes("too many tokens")
-	) {
-		return new OpenAIContinuationError({
-			reason: "context_length",
-			usedContinuationState:
-				continuation.strategy === "cumulative"
-					? continuation.messages.length > 0
-					: continuation.reasoningStateByStep.some(
-							(state) => state.messages.length > 0,
-						),
-		});
-	}
-	return new OpenAIContinuationRequestError();
-}
-
-/** Build a plain text user message */
+/** Build a native AI SDK user message. */
 export function userMessage(content: string | ContentPart[]): Message {
 	return { role: "user", content };
-}
-
-function collectImageParts(messages: Message[]): Array<{
-	url: string;
-	detail?: "low" | "high" | "auto";
-}> {
-	const imageParts: Array<{ url: string; detail?: "low" | "high" | "auto" }> =
-		[];
-
-	for (const message of messages) {
-		if (!Array.isArray(message.content)) continue;
-		for (const part of message.content) {
-			if (part.type !== "image_url") continue;
-			imageParts.push({
-				url: part.image_url.url,
-				detail: part.image_url.detail || "auto",
-			});
-		}
-	}
-
-	return imageParts;
-}
-
-function collectReasoningParts(messages: ModelMessage[]): unknown[] {
-	return messages.flatMap((message) => {
-		if (message.role !== "assistant" || !Array.isArray(message.content)) {
-			return [];
-		}
-		return message.content.filter((part) => part.type === "reasoning");
-	});
-}
-
-function toOpenAIModelMessage(message: Message): ModelMessage {
-	const providerOptions = message.providerOptions as ModelMessage["providerOptions"];
-	if (message.role === "system") {
-		return {
-			role: "system",
-			content: messageContentToText(message.content),
-			...(providerOptions ? { providerOptions } : {}),
-		};
-	}
-	if (message.role === "assistant") {
-		return {
-			role: "assistant",
-			content: messageContentToText(message.content),
-			...(providerOptions ? { providerOptions } : {}),
-		};
-	}
-	if (typeof message.content === "string") {
-		return {
-			role: "user",
-			content: message.content,
-			...(providerOptions ? { providerOptions } : {}),
-		};
-	}
-	return {
-		role: "user",
-		content: message.content.map((part) => {
-			if (part.type === "text") {
-				return {
-					type: "text" as const,
-					text: part.text,
-					...(part.providerOptions
-						? { providerOptions: part.providerOptions as any }
-						: {}),
-				};
-			}
-			return {
-				type: "file" as const,
-				mediaType: "image",
-				data: new URL(part.image_url.url),
-				providerOptions: {
-					...(part.providerOptions ?? {}),
-					openai: {
-						...(part.providerOptions?.openai ?? {}),
-						imageDetail: part.image_url.detail ?? "auto",
-					},
-				},
-			};
-		}),
-		...(providerOptions ? { providerOptions } : {}),
-	} as ModelMessage;
-}
-
-function buildOpenAIModelMessages(messages: Message[]): ModelMessage[] {
-	return messages.map(toOpenAIModelMessage);
-}
-
-function buildCurrentOpenAIReplayMessages(
-	messages: Message[],
-	reasoningStateByStep: OpenAIEncryptedReasoningState[],
-	includeSystemMessage = false,
-): ModelMessage[] {
-	const nonSystemMessages = messages.filter(
-		(message) => message.role !== "system",
-	);
-	const assistantCount = nonSystemMessages.filter(
-		(message) => message.role === "assistant",
-	).length;
-	const retainedReasoning = reasoningStateByStep.slice(-assistantCount);
-	const missingOldestReasoningCount = Math.max(
-		0,
-		assistantCount - retainedReasoning.length,
-	);
-	let assistantIndex = 0;
-
-	const replayMessages = includeSystemMessage ? messages : nonSystemMessages;
-	return replayMessages.map((message): ModelMessage => {
-		if (message.role === "system") return toOpenAIModelMessage(message);
-		const contentText = messageContentToText(message.content);
-		if (message.role === "user") {
-			return toOpenAIModelMessage(message);
-		}
-		const reasoningIndex = assistantIndex++ - missingOldestReasoningCount;
-		const reasoningParts = collectReasoningParts(
-			reasoningIndex >= 0
-				? (retainedReasoning[reasoningIndex]?.messages ?? [])
-				: [],
-		);
-		if (reasoningParts.length === 0) {
-			return { role: "assistant", content: contentText };
-		}
-		return {
-			role: "assistant",
-			content: [
-				...(reasoningParts as any[]),
-				{ type: "text", text: contentText },
-			],
-		} as ModelMessage;
-	});
-}
-
-function isOmittedImageUrlForTokenCount(url: string): boolean {
-	const normalized = url.trim().toLowerCase();
-	return (
-		normalized === "(base64 omitted)" || normalized.includes("base64 omitted")
-	);
-}
-
-function buildOpenAIMultimodalInputFromParts(params: {
-	messages: Message[];
-	imageParts: Array<{ url: string; detail?: "low" | "high" | "auto" }>;
-}): unknown[] {
-	const prompt = toCompletionPrompt(params.messages);
-	const content: Array<
-		| { type: "input_text"; text: string }
-		| {
-				type: "input_image";
-				image_url: string;
-				detail?: "low" | "high" | "auto";
-		  }
-	> = [{ type: "input_text", text: prompt }];
-
-	for (const imagePart of params.imageParts) {
-		content.push({
-			type: "input_image",
-			image_url: imagePart.url,
-			detail: imagePart.detail,
-		});
-	}
-
-	return [{ role: "user", content }];
-}
-
-export async function countMessageTokens(
-	messages: Message[],
-	options: LLMOptions,
-): Promise<number> {
-	const imagePartsForTokenCount = collectImageParts(messages).filter(
-		(imagePart) => !isOmittedImageUrlForTokenCount(imagePart.url),
-	);
-	const input =
-		imagePartsForTokenCount.length > 0
-			? (buildOpenAIMultimodalInputFromParts({
-					messages,
-					imageParts: imagePartsForTokenCount,
-				}) as any)
-			: toCompletionPrompt(messages);
-	const model =
-		options.provider === "openai"
-			? options.model
-			: DEFAULT_OPENAI_TOKEN_COUNT_MODEL;
-
-	return withRetries(`countTokens:${options.provider}->openai`, async () => {
-		return await countInputTokensOpenAI({
-			model,
-			payload: input,
-		});
-	});
 }
 
 export async function chat(
@@ -500,7 +225,6 @@ export async function chat(
 	options: LLMOptions,
 ): Promise<string> {
 	const { provider, model } = options;
-	const completionPrompt = toCompletionPrompt(messages);
 	assertPromptFits({
 		messages,
 		llmOptions: options,
@@ -511,7 +235,7 @@ export async function chat(
 	return withRetries(`chat:${provider}`, async () => {
 		const result = await runProviderChat({
 			options: { ...options, model },
-			prompt: completionPrompt,
+			messages,
 		});
 		return result.content;
 	});
@@ -735,44 +459,12 @@ export async function chatYAML<T>(
 	onTrace?: (trace: ChatYAMLTraceEvent<T>) => void,
 	abortSignal?: AbortSignal,
 	onOutputChunk?: (chunk: string) => void,
-	providerContinuation?: OpenAIEncryptedContinuationInput,
+	openAIEncryptedResponses?: boolean,
 	openAIPromptCache?: OpenAIPromptCacheRequest,
 ): Promise<ChatJSONResult<T>> {
 	const { provider, model } = options;
-	const usesOpenAIContinuation =
-		provider === "openai" && providerContinuation?.provider === "openai";
 	const usesOpenAIPromptCachePolicy =
 		provider === "openai" && openAIPromptCache !== undefined;
-	const usesOpenAIPromptCacheBreakpoints =
-		usesOpenAIPromptCachePolicy &&
-		typeof openAIPromptCache.promptCacheKey === "string";
-	const systemMessage = messages.find((message) => message.role === "system");
-	const continuationMessages = usesOpenAIContinuation
-		? providerContinuation.strategy === "current"
-			? messages
-			: providerContinuation.inputMode === "incremental"
-				? messages.slice(
-						providerContinuation.newMessageStartIndex ?? messages.length,
-					)
-				: messages.filter((message) => message.role !== "system")
-		: messages;
-	const completionPrompt = toCompletionPrompt(continuationMessages);
-	const openAIInputMessages =
-		usesOpenAIContinuation && providerContinuation.strategy === "current"
-			? buildCurrentOpenAIReplayMessages(
-					messages,
-					providerContinuation.reasoningStateByStep,
-					usesOpenAIPromptCacheBreakpoints,
-				)
-			: usesOpenAIPromptCacheBreakpoints
-				? buildOpenAIModelMessages(messages)
-				: undefined;
-	const instructions =
-		usesOpenAIContinuation && !usesOpenAIPromptCacheBreakpoints
-		? systemMessage
-			? messageContentToText(systemMessage.content)
-			: ""
-		: undefined;
 	const resolvedCaller = caller || "unknown";
 	assertPromptFits({
 		messages,
@@ -796,9 +488,7 @@ export async function chatYAML<T>(
 					total_tokens: 0,
 				};
 				let reasoning_tokens = "";
-				let candidateContinuation:
-					| OpenAIEncryptedContinuationOutput
-					| undefined;
+				let responseMessages: ModelMessage[] = [];
 				const attemptStartedAt = Date.now();
 				const hardTimeoutMs = getChatYAMLHardTimeoutMs();
 				const stallLogIntervalMs = getChatYAMLStallLogIntervalMs();
@@ -814,13 +504,9 @@ export async function chatYAML<T>(
 					model,
 					attempt,
 					retry_count: attempt - 1,
-					message_count: continuationMessages.length,
-					prompt_characters: completionPrompt.length,
-					continuation_mode: usesOpenAIContinuation
-						? providerContinuation.strategy === "current"
-							? "current"
-							: providerContinuation.inputMode
-						: "disabled",
+					message_count: messages.length,
+					encrypted_responses:
+						provider === "openai" && openAIEncryptedResponses === true,
 					prompt_cache_mode: usesOpenAIPromptCachePolicy
 						? "explicit"
 						: provider === "openai"
@@ -914,98 +600,90 @@ export async function chatYAML<T>(
 				try {
 					await Promise.race([
 						(async () => {
-							try {
-								({
-									content,
-									usage,
-									reasoning_tokens,
-									providerContinuation: candidateContinuation,
-								} = await runProviderChat({
-									options: { ...options, model },
-									prompt: completionPrompt,
-									instructions,
-									providerContinuation: usesOpenAIContinuation
-										? providerContinuation
+							({
+								content,
+								usage,
+								reasoning_tokens,
+								responseMessages,
+							} = await runProviderChat({
+								options: { ...options, model },
+								messages,
+								openAIEncryptedResponses:
+									provider === "openai"
+										? openAIEncryptedResponses
 										: undefined,
-									openAIInputMessages,
-									openAIPromptCache: usesOpenAIPromptCachePolicy
-										? openAIPromptCache
-										: undefined,
-									abortSignal: abortController.signal,
-									onOutputChunk,
-									outputStopSequences: featureFlags.yamlOutputStopSequences,
-									onLifecycleEvent: (event) => {
-										const elapsedMs = Date.now() - attemptStartedAt;
-										if (event.type === "first_delta") {
-											if (firstDeltaMs === undefined) {
-												firstDeltaMs = elapsedMs;
-											}
-											requestPhase = "streaming";
-											logChatYAMLEvent("first_delta", {
-												caller: resolvedCaller,
-												provider,
-												model,
-												attempt,
-												delta_type: event.deltaType,
-												elapsed_ms: elapsedMs,
-											});
-											return;
+								openAIPromptCache: usesOpenAIPromptCachePolicy
+									? openAIPromptCache
+									: undefined,
+								abortSignal: abortController.signal,
+								onOutputChunk,
+								outputStopSequences: featureFlags.yamlOutputStopSequences,
+								onLifecycleEvent: (event) => {
+									const elapsedMs = Date.now() - attemptStartedAt;
+									if (event.type === "first_delta") {
+										if (firstDeltaMs === undefined) {
+											firstDeltaMs = elapsedMs;
 										}
-										if (event.type === "first_text_delta") {
-											if (firstTextDeltaMs === undefined) {
-												firstTextDeltaMs = elapsedMs;
-											}
-											requestPhase = "streaming";
-											logChatYAMLEvent("first_text_delta", {
-												caller: resolvedCaller,
-												provider,
-												model,
-												attempt,
-												elapsed_ms: elapsedMs,
-											});
-											return;
+										requestPhase = "streaming";
+										logChatYAMLEvent("first_delta", {
+											caller: resolvedCaller,
+											provider,
+											model,
+											attempt,
+											delta_type: event.deltaType,
+											elapsed_ms: elapsedMs,
+										});
+										return;
+									}
+									if (event.type === "first_text_delta") {
+										if (firstTextDeltaMs === undefined) {
+											firstTextDeltaMs = elapsedMs;
 										}
-										if (event.type === "output_stop_sequence") {
-											logChatYAMLEvent("output_stop_sequence", {
-												caller: resolvedCaller,
-												provider,
-												model,
-												attempt,
-												elapsed_ms: elapsedMs,
-												sequence: event.sequence,
-											});
-											return;
-										}
-										if (event.type === "text_stream_complete") {
-											streamedChunkCount = event.chunkCount;
-											streamedOutputCharacters = event.outputCharacters;
-											requestPhase = "awaiting_usage";
-											logChatYAMLEvent("text_stream_complete", {
-												caller: resolvedCaller,
-												provider,
-												model,
-												attempt,
-												elapsed_ms: elapsedMs,
-												chunk_count: streamedChunkCount,
-												output_characters: streamedOutputCharacters,
-											});
-											return;
-										}
-										logChatYAMLEvent("usage_complete", {
+										requestPhase = "streaming";
+										logChatYAMLEvent("first_text_delta", {
 											caller: resolvedCaller,
 											provider,
 											model,
 											attempt,
 											elapsed_ms: elapsedMs,
 										});
-									},
-								}));
-							} catch (error) {
-								throw classifyOpenAIContinuationError(
-									error,
-									usesOpenAIContinuation ? providerContinuation : undefined,
-								);
-							}
+										return;
+									}
+									if (event.type === "output_stop_sequence") {
+										logChatYAMLEvent("output_stop_sequence", {
+											caller: resolvedCaller,
+											provider,
+											model,
+											attempt,
+											elapsed_ms: elapsedMs,
+											sequence: event.sequence,
+										});
+										return;
+									}
+									if (event.type === "text_stream_complete") {
+										streamedChunkCount = event.chunkCount;
+										streamedOutputCharacters = event.outputCharacters;
+										requestPhase = "awaiting_usage";
+										logChatYAMLEvent("text_stream_complete", {
+											caller: resolvedCaller,
+											provider,
+											model,
+											attempt,
+											elapsed_ms: elapsedMs,
+											chunk_count: streamedChunkCount,
+											output_characters: streamedOutputCharacters,
+										});
+										return;
+									}
+									logChatYAMLEvent("usage_complete", {
+										caller: resolvedCaller,
+										provider,
+										model,
+										attempt,
+										elapsed_ms: elapsedMs,
+									});
+								},
+							}));
 						})(),
 						hardTimeoutPromise,
 						externalAbortPromise,
@@ -1129,16 +807,14 @@ export async function chatYAML<T>(
 						usage,
 						reasoning_tokens,
 					});
-					return {
-						data: parsed as T,
-						usage: combineTokenUsage(attemptUsages),
-						accepted_usage: usage,
-						reasoning_tokens,
-						raw_response: content,
-						...(candidateContinuation
-							? { providerContinuation: candidateContinuation }
-							: {}),
-					};
+						return {
+							data: parsed as T,
+							usage: combineTokenUsage(attemptUsages),
+							accepted_usage: usage,
+							reasoning_tokens,
+							raw_response: content,
+							responseMessages,
+						};
 				} catch (e) {
 					const repairedContent =
 						repairUnquotedTextLikeYamlScalars(cleanContent);
@@ -1183,11 +859,7 @@ export async function chatYAML<T>(
 									accepted_usage: usage,
 									reasoning_tokens,
 									raw_response: content,
-									...(candidateContinuation
-										? {
-												providerContinuation: candidateContinuation,
-											}
-										: {}),
+									responseMessages,
 								};
 							}
 						} catch {
@@ -1242,11 +914,7 @@ export async function chatYAML<T>(
 									accepted_usage: usage,
 									reasoning_tokens,
 									raw_response: content,
-									...(candidateContinuation
-										? {
-												providerContinuation: candidateContinuation,
-											}
-										: {}),
+									responseMessages,
 								};
 							}
 						} catch {
@@ -1289,9 +957,6 @@ export async function chatYAML<T>(
 					error_name: getErrorName(error),
 				});
 			},
-			(error) =>
-				!isOpenAIContinuationError(error) &&
-				!(error instanceof OpenAIEncryptedContinuationError),
 		);
 		logChatYAMLEvent("operation_complete", {
 			caller: resolvedCaller,

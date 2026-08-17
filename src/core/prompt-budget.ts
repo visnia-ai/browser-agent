@@ -2,12 +2,13 @@ import yaml from "js-yaml";
 import type { LLMOptions, Message } from "../agents/types.js";
 import type { buildStepMessages } from "../agents/executor-utils/step-execution.js";
 import { stripProjectionContextFromHistoryPayload } from "../agents/executor-utils/history-payload.js";
-import { toCompletionPrompt } from "../agents/providers/message-serialization.js";
 import { isOpenAICacheMarkerPart } from "../agents/openai-prompt-cache.js";
 
 const PROJECTION_TRUNCATION_MARKER =
 	"\n...[projection truncated for context budget]...\n";
 const VLLM_PROMPT_BUDGET_SAFETY_MARGIN_TOKENS = 4096;
+const MESSAGE_TOKEN_OVERHEAD = 4;
+const CONTENT_PART_TOKEN_OVERHEAD = 1;
 
 export interface FitStepPromptToBudgetInput {
 	llmOptions?: LLMOptions;
@@ -72,7 +73,122 @@ export function estimateMessagesTokenCount(
 	messages: Message[],
 	estimateTokenCount: (text: string) => number,
 ): number {
-	return estimateTokenCount(toCompletionPrompt(messages));
+	const estimateProviderOptions = (value: unknown): number =>
+		estimateStructuredValueTokenCount(value, estimateTokenCount);
+	let total = 0;
+	for (const message of messages) {
+		total += MESSAGE_TOKEN_OVERHEAD;
+		total += estimateTokenCount(message.role);
+		total += estimateProviderOptions(message.providerOptions);
+		if (typeof message.content === "string") {
+			total += estimateTokenCount(message.content);
+			continue;
+		}
+		for (const part of message.content) {
+			total += CONTENT_PART_TOKEN_OVERHEAD;
+			total += estimateContentPartTokenCount(part, estimateTokenCount);
+		}
+	}
+	return total;
+}
+
+function estimateFileDataTokenCount(
+	data: unknown,
+	estimateTokenCount: (text: string) => number,
+): number {
+	if (data instanceof URL) {
+		return data.protocol === "data:"
+			? estimateTokenCount("[inline file data]")
+			: estimateTokenCount(data.toString());
+	}
+	if (typeof data === "string") {
+		// Native screenshot parts contain bare base64 data. Counting the encoded
+		// bytes as text grossly overestimates image prompts, so use a stable part
+		// marker just as providers account for images independently of text tokens.
+		return estimateTokenCount("[inline file data]");
+	}
+	if (ArrayBuffer.isView(data) || data instanceof ArrayBuffer) {
+		return estimateTokenCount("[inline file data]");
+	}
+	if (!data || typeof data !== "object") {
+		return 0;
+	}
+	const tagged = data as Record<string, unknown>;
+	if (tagged.type === "url") {
+		return estimateFileDataTokenCount(tagged.url, estimateTokenCount);
+	}
+	if (tagged.type === "text" && typeof tagged.text === "string") {
+		return estimateTokenCount(tagged.text);
+	}
+	if (tagged.type === "reference") {
+		return estimateStructuredValueTokenCount(
+			tagged.reference,
+			estimateTokenCount,
+		);
+	}
+	return estimateTokenCount("[inline file data]");
+}
+
+function estimateContentPartTokenCount(
+	part: unknown,
+	estimateTokenCount: (text: string) => number,
+): number {
+	if (!part || typeof part !== "object") {
+		return estimateStructuredValueTokenCount(part, estimateTokenCount);
+	}
+	const record = part as Record<string, unknown>;
+	let total =
+		typeof record.type === "string" ? estimateTokenCount(record.type) : 0;
+	for (const [key, value] of Object.entries(record)) {
+		if (key === "type") continue;
+		total += estimateTokenCount(key);
+		total +=
+			key === "data" &&
+			(record.type === "file" || record.type === "reasoning-file")
+				? estimateFileDataTokenCount(value, estimateTokenCount)
+				: estimateStructuredValueTokenCount(value, estimateTokenCount);
+	}
+	return total;
+}
+
+function estimateStructuredValueTokenCount(
+	value: unknown,
+	estimateTokenCount: (text: string) => number,
+	seen: Set<object> = new Set(),
+): number {
+	if (typeof value === "string") return estimateTokenCount(value);
+	if (typeof value === "number" || typeof value === "boolean") {
+		return estimateTokenCount(String(value));
+	}
+	if (typeof value === "bigint") return estimateTokenCount(value.toString());
+	if (value instanceof URL) return estimateTokenCount(value.toString());
+	if (value == null || typeof value !== "object") return 0;
+	if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
+		return estimateTokenCount("[binary data]");
+	}
+	if (seen.has(value)) return 0;
+	seen.add(value);
+	let total = 0;
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			total += estimateStructuredValueTokenCount(
+				item,
+				estimateTokenCount,
+				seen,
+			);
+		}
+	} else {
+		for (const [key, item] of Object.entries(value)) {
+			total += estimateTokenCount(key);
+			total += estimateStructuredValueTokenCount(
+				item,
+				estimateTokenCount,
+				seen,
+			);
+		}
+	}
+	seen.delete(value);
+	return total;
 }
 
 export function assertPromptFits(input: {
@@ -241,6 +357,52 @@ function buildAndCountMessages(params: {
 	};
 }
 
+function dropOldestHistoryTurn(history: Message[]): Message[] {
+	if (history.length === 0) return history;
+	const firstUserIndex = history.findIndex((message) => message.role === "user");
+	if (firstUserIndex < 0) return [];
+	const nextUserOffset = history
+		.slice(firstUserIndex + 1)
+		.findIndex((message) => message.role === "user");
+	if (nextUserOffset < 0) return [];
+	return history.slice(firstUserIndex + 1 + nextUserOffset);
+}
+
+function dropOldestReasoningParts(history: Message[]): {
+	history: Message[];
+	dropped: boolean;
+} {
+	const messageIndex = history.findIndex(
+		(message) =>
+			message.role === "assistant" &&
+			Array.isArray(message.content) &&
+			message.content.some(
+				(part) =>
+					part.type === "reasoning" || part.type === "reasoning-file",
+			),
+	);
+	if (messageIndex < 0) return { history, dropped: false };
+	return {
+		history: history.map((message, index): Message => {
+			if (
+				index !== messageIndex ||
+				message.role !== "assistant" ||
+				!Array.isArray(message.content)
+			) {
+				return message;
+			}
+			return {
+				...message,
+				content: message.content.filter(
+					(part) =>
+						part.type !== "reasoning" && part.type !== "reasoning-file",
+				),
+			};
+		}),
+		dropped: true,
+	};
+}
+
 export function fitStepPromptToBudget(
 	input: FitStepPromptToBudgetInput,
 ): FitStepPromptToBudgetResult {
@@ -317,19 +479,32 @@ export function fitStepPromptToBudget(
 		});
 	}
 
-	if (!input.projectionHistoryContext?.enabled) {
-		while (history.length > 0 && built.tokenCount > maxInputTokens) {
-			history = history.slice(Math.min(2, history.length));
-			reductions.push("drop_oldest_history_pair");
-			built = buildAndCountMessages({
-				systemPrompt: input.systemPrompt,
-				history,
-				payload,
-				buildStepMessages: input.buildStepMessages,
-				estimateTokenCount: input.estimateTokenCount,
-				currentPageScreenshotDataUrl,
-			});
-		}
+	while (history.length > 0 && built.tokenCount > maxInputTokens) {
+		const next = dropOldestReasoningParts(history);
+		if (!next.dropped) break;
+		history = next.history;
+		reductions.push("drop_oldest_reasoning");
+		built = buildAndCountMessages({
+			systemPrompt: input.systemPrompt,
+			history,
+			payload,
+			buildStepMessages: input.buildStepMessages,
+			estimateTokenCount: input.estimateTokenCount,
+			currentPageScreenshotDataUrl,
+		});
+	}
+
+	while (history.length > 0 && built.tokenCount > maxInputTokens) {
+		history = dropOldestHistoryTurn(history);
+		reductions.push("drop_oldest_history_pair");
+		built = buildAndCountMessages({
+			systemPrompt: input.systemPrompt,
+			history,
+			payload,
+			buildStepMessages: input.buildStepMessages,
+			estimateTokenCount: input.estimateTokenCount,
+			currentPageScreenshotDataUrl,
+		});
 	}
 
 	const projection =

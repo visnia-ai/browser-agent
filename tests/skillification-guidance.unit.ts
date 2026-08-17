@@ -76,9 +76,19 @@ describe("skillification guidance", () => {
 						},
 						{
 							role: "assistant",
-							content: yaml.dump({
-								tools: [{ click: "a" }],
-							}),
+							content: [
+								{
+									type: "reasoning",
+									text: "Inspect the result page.",
+									providerOptions: {
+										anthropic: { signature: "signature-1" },
+									},
+								},
+								{
+									type: "text",
+									text: yaml.dump({ tools: [{ click: "a" }] }),
+								},
+							],
 						},
 					],
 				},
@@ -112,6 +122,9 @@ describe("skillification guidance", () => {
 			"currentPageScreenshotIncludedAsImagePart",
 		);
 		assert.notProperty(artifact.steps[0], "done");
+		assert.deepEqual(artifact.steps[0].assistant, {
+			tools: [{ click: "a" }],
+		});
 	});
 
 	it("skips non-YAML user text while building compact trajectory artifacts", () => {

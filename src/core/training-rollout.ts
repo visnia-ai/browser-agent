@@ -12,6 +12,7 @@ interface PendingTrainingRolloutStep {
 	stepNumber: number;
 	stepKind: "executor_step" | "max_step_finalization";
 	promptMessages: TrainingRolloutStep["promptMessages"];
+	responseMessages: TrainingRolloutStep["responseMessages"];
 	promptPayload: TrainingRolloutStep["promptPayload"];
 	rawModelOutputText: string;
 	generatedStep: TrainingRolloutStep["generatedStep"];
@@ -65,10 +66,19 @@ export async function runTrainingRollout(
 		result: Awaited<ReturnType<RunTrainingRolloutInput["generateStep"]>>,
 	): void => {
 		const pendingForStep = pendingArtifacts.get(stepInput.stepNumber) ?? [];
+		const responseMessages = Array.isArray(result.responseMessages)
+			? result.responseMessages
+			: [
+					{
+						role: "assistant" as const,
+						content: result.rawModelOutputText,
+					},
+				];
 		pendingForStep.push({
 			stepNumber: stepInput.stepNumber,
 			stepKind: stepInput.stepKind ?? "executor_step",
 			promptMessages: cloneValue(stepInput.messages),
+			responseMessages: cloneValue(responseMessages),
 			promptPayload: cloneValue(stepInput.promptPayload),
 			rawModelOutputText: result.rawModelOutputText,
 			generatedStep: cloneValue(result.data),
@@ -107,13 +117,21 @@ export async function runTrainingRollout(
 		generateStep: async (stepInput) => {
 			const result = await rawInput.generateStep(stepInput);
 			capturePendingArtifact(stepInput, result);
+			const responseMessages = Array.isArray(result.responseMessages)
+				? result.responseMessages
+				: [
+						{
+							role: "assistant" as const,
+							content: result.rawModelOutputText,
+						},
+					];
 			return {
 				data: result.data,
 				usage: result.usage,
 				accepted_usage: result.accepted_usage,
 				reasoning_tokens: result.reasoning_tokens,
+				responseMessages,
 				raw_response: result.rawModelOutputText,
-				providerContinuation: result.providerContinuation,
 			};
 		},
 		onStepCompleted: async (stepResult) => {

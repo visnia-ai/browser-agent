@@ -111,6 +111,21 @@ describe("auth prompt protection", () => {
 							actions: [],
 							done: false,
 						},
+						responseMessages: [
+							{
+								role: "assistant",
+								content: [
+									{
+										type: "reasoning",
+										text: "Authentication was completed securely.",
+										providerOptions: {
+											anthropic: { signature: "auth-history-signature" },
+										},
+									},
+									{ type: "text", text: "raw auth response" },
+								],
+							},
+						],
 					},
 				],
 			});

@@ -46,7 +46,6 @@ import { Action } from "../agents/types.js";
 import { attemptAutomatedAuthTakeover } from "../auth/runtime.js";
 import { verifyTaskSuccess as defaultVerifyTaskSuccess } from "../agents/success-verifier.js";
 import { shouldLogTimingDuration } from "../timing-logs.js";
-import { shouldIncludeExecutorReasoningHistory } from "../agents/prompts.js";
 import { OPENAI_EXECUTOR_CONTEXT_POLICY } from "../agents/executor-context-policy.js";
 import { resolveProjectionHistoryContext } from "./projection-history.js";
 import {
@@ -1339,10 +1338,10 @@ export async function processStepModelOutput(
 			stepsHistory: input.stepsHistory,
 		}),
 		assistant,
-		...(shouldIncludeExecutorReasoningHistory(executorContextPolicy) &&
-			input.reasoningTokens?.trim()
-			? { reasoningTokens: input.reasoningTokens.trim() }
-			: {}),
+		responseMessages:
+			input.responseMessages && input.responseMessages.length > 0
+				? input.responseMessages
+				: [{ role: "assistant", content: assistant }],
 	};
 	input.stepsHistory.push(historyEntry);
 

@@ -1,4 +1,5 @@
 import type { Browser, Tab } from "../browser/types.js";
+import type { ModelMessage } from "ai";
 import type { BrowserAgentArtifactDirectories } from "../browser/constants.js";
 import type { ExecutorPromptOptions } from "../agents/prompts.js";
 import type { ConfigFeatureFlags } from "../config-feature-flags.js";
@@ -11,14 +12,12 @@ import type {
 	ExecutorContextPolicy,
 	LLMOptions,
 	MainLoopStepEntry,
-	Message,
 	Provider,
 	RecapStageUsage,
 	StageModelInvocationTrace,
 	StepResult as ModelStepResult,
 	StepTokenUsage,
 	TokenUsage,
-	OpenAIEncryptedContinuationInput,
 	OpenAIPromptCacheRequest,
 } from "../agents/types.js";
 import type {
@@ -271,7 +270,8 @@ export interface StepHistoryEntry {
 	payload: Record<string, unknown>;
 	/** Accepted model output, preserved independently from normalized execution actions. */
 	assistant: unknown;
-	reasoningTokens?: string;
+	/** Native messages from the accepted model response, including reasoning metadata. */
+	responseMessages: ModelMessage[];
 }
 
 export interface CreatePromptForStepInput {
@@ -287,14 +287,13 @@ export interface CreatePromptForStepInput {
 	forceMemoryContent?: boolean;
 	validatorFeedback?: ValidatorFeedback;
 	modelOutputErrors?: string[];
-	openAIEncryptedResponses?: boolean;
 	openAIExplicitPromptCaching?: boolean;
 	customTools?: CustomToolRegistry;
 }
 
 export interface CreatePromptForStepResult {
 	prompt: {
-		messages: unknown[];
+		messages: ModelMessage[];
 		payload: Record<string, unknown>;
 	};
 	artifacts: {
@@ -354,12 +353,12 @@ export interface ProcessModelStepOutputInput {
 	rawStepOutput: unknown;
 	/** Exact accepted assistant text when available from the provider. */
 	rawAssistantOutputText?: string;
+	/** Native messages from the accepted provider response. */
+	responseMessages?: ModelMessage[];
 	promptPayload: Record<string, unknown>;
 	stepsHistory: StepHistoryEntry[];
 	/** Explicit per-run executor context behavior. */
 	executorContextPolicy: Readonly<ExecutorContextPolicy>;
-	openAIEncryptedResponses?: boolean;
-	reasoningTokens?: string;
 	stepNumber?: number;
 	dataExtractionLLMOptions?: LLMOptions;
 	dataExtractionPromptCache?: OpenAIPromptCacheRequest;
@@ -485,14 +484,15 @@ export interface RunTaskResult {
 
 export interface RunAgentGenerateStepInput {
 	stepNumber: number;
-	messages: Message[];
+	messages: ModelMessage[];
 	llmOptions: LLMOptions;
 	promptPayload: Record<string, unknown>;
 	stepsHistory: StepHistoryEntry[];
 	caller?: string;
 	stepKind?: "executor_step" | "max_step_finalization";
 	abortSignal?: AbortSignal;
-	providerContinuation?: OpenAIEncryptedContinuationInput;
+	/** Request encrypted reasoning metadata without provider-side response storage. */
+	openAIEncryptedResponses: boolean;
 	openAIPromptCache?: OpenAIPromptCacheRequest;
 }
 
@@ -584,7 +584,6 @@ export interface RunAgentStepArtifact {
 		role: string;
 		content: unknown;
 		providerOptions?: import("../agents/types.js").MessageProviderOptions;
-		reasoning_tokens?: string;
 	}>;
 }
 
@@ -627,7 +626,8 @@ export interface TrainingRolloutGenerateStepResult extends ChatJSONResult<ModelS
 export interface TrainingRolloutStep {
 	stepNumber: number;
 	stepKind: "executor_step" | "max_step_finalization";
-	promptMessages: Message[];
+	promptMessages: ModelMessage[];
+	responseMessages: ModelMessage[];
 	promptPayload: Record<string, unknown>;
 	rawModelOutputText: string;
 	generatedStep: ModelStepResult;

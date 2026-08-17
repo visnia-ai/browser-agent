@@ -6,10 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert } from "chai";
 import { after, before, describe, it } from "mocha";
-import {
-	__setOpenAIClientForTests,
-	__setProviderOverrideForTests,
-} from "../src/agents/providers/ai-sdk.js";
+import { __setProviderOverrideForTests } from "../src/agents/providers/ai-sdk.js";
 import type { LLMOptions } from "../src/agents/types.js";
 import {
 	configFeatureFlags,
@@ -307,7 +304,7 @@ function installMockedOpenAIProvider(
 ): void {
 	__setProviderOverrideForTests("openai", async (args) => {
 		const response = await mock.client.responses.create({
-			input: args.prompt,
+			input: args.messages,
 		});
 		return {
 			content: response.output_text,
@@ -318,6 +315,9 @@ function installMockedOpenAIProvider(
 				total_tokens: 0,
 			},
 			reasoning_tokens: "",
+			responseMessages: [
+				{ role: "assistant", content: response.output_text },
+			],
 		};
 	});
 }
@@ -335,7 +335,6 @@ describe("auth takeover e2e (mocked OpenAI provider)", function () {
 	});
 
 	after(async () => {
-		__setOpenAIClientForTests(null);
 		__setProviderOverrideForTests("openai", null);
 		if (server) {
 			await stopServer(server);
@@ -376,7 +375,6 @@ describe("auth takeover e2e (mocked OpenAI provider)", function () {
 						extractLatestUserPromptText(call.body.input),
 					),
 			});
-			__setOpenAIClientForTests(mock.client as any);
 			installMockedOpenAIProvider(mock);
 
 			try {
@@ -493,7 +491,6 @@ describe("auth takeover e2e (mocked OpenAI provider)", function () {
 				assert.strictEqual(fixtureState.authStep, "credentials");
 				assert.include(fixtureState.bodyText ?? "", "Dashboard Ready");
 			} finally {
-				__setOpenAIClientForTests(null);
 				__setProviderOverrideForTests("openai", null);
 				if (deps.registry.get(port)) {
 					await closeSession(deps, port);
@@ -537,7 +534,6 @@ describe("auth takeover e2e (mocked OpenAI provider)", function () {
 						extractLatestUserPromptText(call.body.input),
 					),
 			});
-			__setOpenAIClientForTests(mock.client as any);
 			installMockedOpenAIProvider(mock);
 
 			try {
@@ -657,7 +653,6 @@ describe("auth takeover e2e (mocked OpenAI provider)", function () {
 					assert.notInclude(fixtureState.bodyText ?? "", "Dashboard Ready");
 				}
 			} finally {
-				__setOpenAIClientForTests(null);
 				__setProviderOverrideForTests("openai", null);
 				if (deps.registry.get(port)) {
 					await closeSession(deps, port);

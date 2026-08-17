@@ -1287,6 +1287,21 @@ describe("auth runtime", () => {
 									total_tokens: 15,
 								},
 								reasoning_tokens: "probe-thinking",
+								responseMessages: [
+									{
+										role: "assistant",
+										content: [
+											{
+												type: "reasoning",
+												text: "probe-thinking",
+												providerOptions: {
+													anthropic: { signature: "probe-signature" },
+												},
+											},
+											{ type: "text", text: "raw probe response" },
+										],
+									},
+								],
 							} as any;
 						}
 						return {
@@ -1301,6 +1316,21 @@ describe("auth runtime", () => {
 								total_tokens: 12,
 							},
 							reasoning_tokens: "result-thinking",
+							responseMessages: [
+								{
+									role: "assistant",
+									content: [
+										{
+											type: "reasoning",
+											text: "result-thinking",
+											providerOptions: {
+												google: { thoughtSignature: "result-signature" },
+											},
+										},
+										{ type: "text", text: "raw result response" },
+									],
+								},
+							],
 						} as any;
 					},
 					typeText: async () => {},
@@ -1326,21 +1356,33 @@ describe("auth runtime", () => {
 			).find(
 				(message) =>
 					(message as { role?: unknown }).role === "assistant",
-			) as { reasoning_tokens?: string } | undefined;
+			) as
+				| { content?: Array<Record<string, unknown>> }
+				| undefined;
 			const resultAssistantMessage = (
 				result.traceEntries[1]?.messages ?? []
 			).find(
 				(message) =>
 					(message as { role?: unknown }).role === "assistant",
-			) as { reasoning_tokens?: string } | undefined;
-			assert.strictEqual(
-				probeAssistantMessage?.reasoning_tokens,
-				"probe-thinking",
-			);
-			assert.strictEqual(
-				resultAssistantMessage?.reasoning_tokens,
-				"result-thinking",
-			);
+			) as
+				| { content?: Array<Record<string, unknown>> }
+				| undefined;
+			assert.deepInclude(probeAssistantMessage?.content?.[0], {
+				type: "reasoning",
+				text: "probe-thinking",
+				providerOptions: {
+					anthropic: { signature: "probe-signature" },
+				},
+			});
+			assert.deepInclude(resultAssistantMessage?.content?.[0], {
+				type: "reasoning",
+				text: "result-thinking",
+				providerOptions: {
+					google: { thoughtSignature: "result-signature" },
+				},
+			});
+			assert.notProperty(probeAssistantMessage ?? {}, "reasoning_tokens");
+			assert.notProperty(resultAssistantMessage ?? {}, "reasoning_tokens");
 		});
 	});
 

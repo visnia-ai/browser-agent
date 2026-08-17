@@ -95,12 +95,6 @@ function getExecutorContextPolicy(
 	return options.executorContextPolicy ?? OPENAI_EXECUTOR_CONTEXT_POLICY;
 }
 
-export function shouldIncludeExecutorReasoningHistory(
-	policy: Readonly<ExecutorContextPolicy>,
-): boolean {
-	return policy.includeReasoningTokensInPreviousSteps;
-}
-
 function getResponseKeyOrder(options: ExecutorPromptOptions): string {
 	const actionContextKeys =
 		"previousStepStatus, previousStepOutcome, currentStateObservation, nextActionRationale";
@@ -232,12 +226,8 @@ function getExecutorActionContextRules(options: ExecutorPromptOptions): string {
 `
 		: "";
 	const executorContextPolicy = getExecutorContextPolicy(options);
-	const reasoningHistoryRule = shouldIncludeExecutorReasoningHistory(
-		executorContextPolicy,
-	)
-		? `- Prior assistant messages may include a reasoning_tokens field containing fallible reasoning from earlier executor steps. Use it only for continuity; the current payload and browser state remain the source of truth, and do not copy reasoning_tokens into your response.
-`
-		: "";
+	const reasoningHistoryRule = `- Prior assistant messages may include fallible reasoning from earlier executor steps. Use it only for continuity; the current payload and browser state remain the source of truth, and do not copy prior reasoning into your response.
+`;
 	const actionContextRules = executorContextPolicy.executorActionContextFields
 		? `- When the current step has no meaningful previous browser action to assess (for example the first step), use previousStepStatus: "none" and leave the three short text fields as empty strings.
 - previousStepStatus must be one of: "none", "progressed", "no_change", "blocked", "opened_tab", "switched_context", "partial"

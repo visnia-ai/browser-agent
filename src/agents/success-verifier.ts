@@ -26,7 +26,7 @@ Your job is to classify task success, not whether the agent stopped.
 
 You are given:
 - the original task
-- a lightweight stepHistory showing prior stripped user/assistant exchanges
+- prior stripped user/assistant exchanges as native conversation messages
 - the final step emitted by the executor
 - the final prompt payload / final browser state
 
@@ -163,38 +163,6 @@ function normalizeVerdict(
 	};
 }
 
-function normalizeMessageContent(content: Message["content"]): string {
-	if (typeof content === "string") {
-		return content;
-	}
-	const textParts: string[] = [];
-	for (const part of content) {
-		if (part.type === "text" && typeof part.text === "string") {
-			textParts.push(part.text);
-		}
-	}
-	return textParts.join("\n").trim();
-}
-
-function serializeHistoryMessages(messages: Message[] | undefined): Array<{
-	role: "user" | "assistant";
-	content: string;
-}> {
-	if (!Array.isArray(messages)) {
-		return [];
-	}
-	return messages
-		.filter(
-			(message): message is Message & { role: "user" | "assistant" } =>
-				message.role === "user" || message.role === "assistant",
-		)
-		.map((message) => ({
-			role: message.role,
-			content: normalizeMessageContent(message.content),
-		}))
-		.filter((message) => message.content.length > 0);
-}
-
 export async function verifyTaskSuccess(
 	input: VerifyTaskSuccessInput,
 ): Promise<SuccessVerificationResult> {
@@ -247,7 +215,9 @@ export async function verifyTaskSuccess(
 }
 
 function slimVerifierHistoryMessage(message: Message): Message {
-	if (typeof message.content !== "string") return message;
+	if (message.role === "tool" || typeof message.content !== "string") {
+		return message;
+	}
 	let parsed: unknown;
 	try {
 		parsed = yaml.load(message.content);
@@ -278,6 +248,17 @@ function slimFinalPromptPayload(
 		delete next[key];
 	}
 	return next;
+}
+
+function dropOldestVerifierHistoryTurn(history: Message[]): Message[] {
+	const firstUserIndex = history.findIndex((message) => message.role === "user");
+	if (firstUserIndex < 0) return [];
+	const nextUserOffset = history
+		.slice(firstUserIndex + 1)
+		.findIndex((message) => message.role === "user");
+	return nextUserOffset < 0
+		? []
+		: history.slice(firstUserIndex + 1 + nextUserOffset);
 }
 
 export interface FittedSuccessVerificationPrompt {
@@ -345,8 +326,8 @@ export function fitSuccessVerificationPromptToBudget(
 	) {
 		fittedInput = {
 			...fittedInput,
-			historyMessages: fittedInput.historyMessages?.slice(
-				Math.min(2, fittedInput.historyMessages.length),
+			historyMessages: dropOldestVerifierHistoryTurn(
+				fittedInput.historyMessages ?? [],
 			),
 		};
 		reductions.push("drop_oldest_history_pair");
@@ -411,7 +392,6 @@ export function buildSuccessVerificationMessages(
 					...(purpose === "completion_verifier" ? { checklist } : {}),
 					executedSteps: input.executedSteps,
 					maxSteps: input.maxSteps,
-					stepHistory: serializeHistoryMessages(input.historyMessages),
 					finalStep: {
 						thinking: input.finalStep.thinking,
 						checklistUpdate: input.finalStep.checklistUpdate,
@@ -429,6 +409,7 @@ export function buildSuccessVerificationMessages(
 					? COMPLETION_VERIFIER_SYSTEM
 					: SUCCESS_VERIFIER_SYSTEM,
 		},
+		...(contextMode === "full" ? (input.historyMessages ?? []) : []),
 		userMessage(yaml.dump(userPayload)),
 	];
 	return { messages, purpose, contextMode };
