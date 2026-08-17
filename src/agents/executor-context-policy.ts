@@ -3,16 +3,19 @@ import type { ExecutorContextPolicy, LLMOptions } from "./types.js";
 export const OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
 		executorActionContextFields: false,
+		includeReasoningHistory: true,
 	});
 
 export const OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
 		executorActionContextFields: true,
+		includeReasoningHistory: true,
 	});
 
 export const NON_OPENAI_EXECUTOR_CONTEXT_POLICY: Readonly<ExecutorContextPolicy> =
 	Object.freeze({
 		executorActionContextFields: true,
+		includeReasoningHistory: false,
 	});
 
 /**
@@ -30,7 +33,8 @@ export function resolveExecutorContextPolicy(
 		llmOptions.provider === "openai" ||
 		llmOptions.provider === "codex" ||
 		normalizedModel.startsWith("openai/");
-	if (!usesOpenAIExecutorContextPolicy) return NON_OPENAI_EXECUTOR_CONTEXT_POLICY;
+	if (!usesOpenAIExecutorContextPolicy)
+		return NON_OPENAI_EXECUTOR_CONTEXT_POLICY;
 	return enableExecutorActionContextFieldsForOpenAI
 		? OPENAI_ACTION_CONTEXT_EXECUTOR_CONTEXT_POLICY
 		: OPENAI_EXECUTOR_CONTEXT_POLICY;

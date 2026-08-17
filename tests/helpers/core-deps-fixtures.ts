@@ -32,7 +32,6 @@ export function createMockCoreDeps(
 ): CoreDeps {
 	const registry = overrides.registry ?? new SessionRegistry();
 	const featureFlags: ConfigFeatureFlags = {
-		taskChecklist: false,
 		preStepScreenshotInLatestUserPrompt: false,
 		userTakeoverTool: true,
 		authTakeover: false,
@@ -40,8 +39,6 @@ export function createMockCoreDeps(
 		extractDataWholeContext: false,
 		semanticProjectionHistory: "current",
 		enableExecutorActionContextFieldsForOpenAI: false,
-		openAIEncryptedResponses: true,
-		openAIExplicitPromptCaching: true,
 		optimizeExecutorStepDelays: false,
 		optimizeTextInput: false,
 	};

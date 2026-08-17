@@ -126,7 +126,10 @@ tasks:
 		);
 
 		const config = loadConfig(configPath);
-		assert.equal(config.stageLLMs.createChecklist.endpointUrl, "https://openai-proxy.test/v1");
+		assert.equal(
+			config.stageLLMs.createChecklist.endpointUrl,
+			"https://openai-proxy.test/v1",
+		);
 		assert.equal(config.stageLLMs.runAgent.provider, "codex");
 		assert.isUndefined(config.stageLLMs.runAgent.endpointUrl);
 	});
@@ -229,7 +232,6 @@ tasks:
 			endpointUrl: undefined,
 		});
 		assert.deepEqual(config.featureFlags, {
-			taskChecklist: true,
 			preStepScreenshotInLatestUserPrompt: false,
 			userTakeoverTool: true,
 			authTakeover: false,
@@ -237,8 +239,6 @@ tasks:
 			extractDataWholeContext: false,
 			semanticProjectionHistory: "current",
 			enableExecutorActionContextFieldsForOpenAI: false,
-			openAIEncryptedResponses: true,
-			openAIExplicitPromptCaching: true,
 			optimizeExecutorStepDelays: false,
 			optimizeTextInput: false,
 		});
@@ -288,7 +288,6 @@ tasks:
 			endpointUrl: undefined,
 		});
 		assert.deepEqual(config.featureFlags, {
-			taskChecklist: true,
 			preStepScreenshotInLatestUserPrompt: false,
 			userTakeoverTool: true,
 			authTakeover: false,
@@ -296,8 +295,6 @@ tasks:
 			extractDataWholeContext: false,
 			semanticProjectionHistory: "current",
 			enableExecutorActionContextFieldsForOpenAI: false,
-			openAIEncryptedResponses: true,
-			openAIExplicitPromptCaching: true,
 			optimizeExecutorStepDelays: false,
 			optimizeTextInput: false,
 		});
@@ -707,7 +704,6 @@ tasks:
 	});
 
 	it("parses YAML-backed feature flags without mutating runtime config flags", () => {
-		const originalTaskChecklist = configFeatureFlags.taskChecklist;
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
 		const originalUserTakeover = configFeatureFlags.userTakeoverTool;
@@ -719,10 +715,6 @@ tasks:
 			configFeatureFlags.semanticProjectionHistory;
 		const originalEnableExecutorActionContextFieldsForOpenAI =
 			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI;
-		const originalOpenAIEncryptedResponses =
-			configFeatureFlags.openAIEncryptedResponses;
-		const originalOpenAIExplicitPromptCaching =
-			configFeatureFlags.openAIExplicitPromptCaching;
 		try {
 			const configPath = writeTempConfig(`
 stage_llms:
@@ -739,7 +731,6 @@ stage_llms:
     provider: openai
     model: gpt-5.2
 feature_flags:
-  task_checklist: false
   pre_step_screenshot_in_latest_user_prompt: true
   user_takeover_tool: false
   auth_takeover: true
@@ -747,8 +738,6 @@ feature_flags:
   extract_data_whole_context: true
   semantic_projection_history: cumulative
   enable_executor_action_context_fields_for_openai: true
-  openai_encrypted_responses: false
-  openai_explicit_prompt_caching: false
   optimize_executor_step_delays: true
   optimize_text_input: true
 concurrency: 1
@@ -759,7 +748,6 @@ tasks:
 			const config = loadConfig(configPath);
 
 			assert.deepEqual(config.featureFlags, {
-				taskChecklist: false,
 				preStepScreenshotInLatestUserPrompt: true,
 				userTakeoverTool: false,
 				authTakeover: true,
@@ -767,13 +755,10 @@ tasks:
 				extractDataWholeContext: true,
 				semanticProjectionHistory: "cumulative",
 				enableExecutorActionContextFieldsForOpenAI: true,
-				openAIEncryptedResponses: false,
-				openAIExplicitPromptCaching: false,
 				optimizeExecutorStepDelays: true,
 				optimizeTextInput: true,
 			});
 			assert.deepEqual(configFeatureFlags, {
-				taskChecklist: originalTaskChecklist,
 				preStepScreenshotInLatestUserPrompt: originalPreStepScreenshot,
 				userTakeoverTool: originalUserTakeover,
 				authTakeover: originalAuthTakeover,
@@ -782,14 +767,10 @@ tasks:
 				semanticProjectionHistory: originalSemanticProjectionHistory,
 				enableExecutorActionContextFieldsForOpenAI:
 					originalEnableExecutorActionContextFieldsForOpenAI,
-				openAIEncryptedResponses: originalOpenAIEncryptedResponses,
-				openAIExplicitPromptCaching:
-					originalOpenAIExplicitPromptCaching,
 				optimizeExecutorStepDelays: false,
 				optimizeTextInput: false,
 			});
 		} finally {
-			configFeatureFlags.taskChecklist = originalTaskChecklist;
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 				originalPreStepScreenshot;
 			configFeatureFlags.userTakeoverTool = originalUserTakeover;
@@ -801,10 +782,6 @@ tasks:
 				originalSemanticProjectionHistory;
 			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI =
 				originalEnableExecutorActionContextFieldsForOpenAI;
-			configFeatureFlags.openAIEncryptedResponses =
-				originalOpenAIEncryptedResponses;
-			configFeatureFlags.openAIExplicitPromptCaching =
-				originalOpenAIExplicitPromptCaching;
 		}
 	});
 
@@ -858,7 +835,34 @@ tasks:
   - "test task"
 `);
 
-			assert.include(error, "openai_encrypted_responses");
+			assert.include(
+				error,
+				"encrypted OpenAI responses are enabled automatically",
+			);
+		});
+	}
+
+	for (const removedFlag of [
+		"task_checklist",
+		"taskChecklist",
+		"openai_encrypted_responses",
+		"openAIEncryptedResponses",
+		"openai_explicit_prompt_caching",
+		"openAIExplicitPromptCaching",
+	]) {
+		it(`rejects permanently enabled feature flag ${removedFlag}`, () => {
+			const error = captureLoadConfigFailure(`
+provider: openai
+model: gpt-5.2
+feature_flags:
+  ${removedFlag}: false
+concurrency: 1
+tasks:
+  - "test task"
+`);
+
+			assert.include(error, `feature_flags.${removedFlag}`);
+			assert.include(error, "behavior is permanently enabled");
 		});
 	}
 
@@ -1191,14 +1195,11 @@ tasks:
 provider: openai
 model: gpt-5.2
 reasoning_effort: low
-feature_flags:
-  task_checklist: true
 concurrency: 1
 tasks:
   - "test task"
 `);
 		const config = loadConfig(configPath);
-		assert.isTrue(config.featureFlags.taskChecklist);
 		assert.strictEqual(config.stageLLMs.createChecklist.model, "gpt-5.4");
 		assert.strictEqual(config.stageLLMs.createChecklist.reasoningEffort, "low");
 	});
@@ -1232,10 +1233,7 @@ tasks:
 		assert.include(error, "createPlan stage has been removed");
 	});
 
-	for (const removedStage of [
-		"dismissCookieBanner",
-		"dismiss_cookie_banner",
-	]) {
+	for (const removedStage of ["dismissCookieBanner", "dismiss_cookie_banner"]) {
 		it(`rejects the removed ${removedStage} stage`, () => {
 			const error = captureLoadConfigFailure(`
 provider: openai
@@ -1764,7 +1762,6 @@ tasks:
 	});
 
 	it("createDefaultCoreDeps applies config feature flags to runtime state", () => {
-		const originalTaskChecklist = configFeatureFlags.taskChecklist;
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
 		const originalUserTakeover = configFeatureFlags.userTakeoverTool;
@@ -1776,14 +1773,9 @@ tasks:
 			configFeatureFlags.semanticProjectionHistory;
 		const originalEnableExecutorActionContextFieldsForOpenAI =
 			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI;
-		const originalOpenAIEncryptedResponses =
-			configFeatureFlags.openAIEncryptedResponses;
-		const originalOpenAIExplicitPromptCaching =
-			configFeatureFlags.openAIExplicitPromptCaching;
 		try {
 			const deps = createDefaultCoreDeps({
 				featureFlags: {
-					taskChecklist: false,
 					preStepScreenshotInLatestUserPrompt: true,
 					userTakeoverTool: false,
 					authTakeover: true,
@@ -1791,15 +1783,12 @@ tasks:
 					extractDataWholeContext: true,
 					semanticProjectionHistory: "current",
 					enableExecutorActionContextFieldsForOpenAI: true,
-					openAIEncryptedResponses: false,
-					openAIExplicitPromptCaching: false,
 					optimizeExecutorStepDelays: false,
 					optimizeTextInput: false,
 				},
 			});
 
 			assert.deepEqual(deps.featureFlags, {
-				taskChecklist: false,
 				preStepScreenshotInLatestUserPrompt: true,
 				userTakeoverTool: false,
 				authTakeover: true,
@@ -1807,14 +1796,11 @@ tasks:
 				extractDataWholeContext: true,
 				semanticProjectionHistory: "current",
 				enableExecutorActionContextFieldsForOpenAI: true,
-				openAIEncryptedResponses: false,
-				openAIExplicitPromptCaching: false,
 				optimizeExecutorStepDelays: false,
 				optimizeTextInput: false,
 			});
 			assert.deepEqual(configFeatureFlags, deps.featureFlags);
 		} finally {
-			configFeatureFlags.taskChecklist = originalTaskChecklist;
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 				originalPreStepScreenshot;
 			configFeatureFlags.userTakeoverTool = originalUserTakeover;
@@ -1826,10 +1812,6 @@ tasks:
 				originalSemanticProjectionHistory;
 			configFeatureFlags.enableExecutorActionContextFieldsForOpenAI =
 				originalEnableExecutorActionContextFieldsForOpenAI;
-			configFeatureFlags.openAIEncryptedResponses =
-				originalOpenAIEncryptedResponses;
-			configFeatureFlags.openAIExplicitPromptCaching =
-				originalOpenAIExplicitPromptCaching;
 		}
 	});
 });

@@ -12,10 +12,7 @@ describe("executor context policy", () => {
 	it("classifies direct OpenAI, Codex, and OpenAI models through OpenRouter under the OpenAI policy", () => {
 		for (const provider of ["openai", "codex"] as const) {
 			assert.strictEqual(
-				resolveExecutorContextPolicy(
-					{ provider, model: "gpt-5.6" },
-					false,
-				),
+				resolveExecutorContextPolicy({ provider, model: "gpt-5.6" }, false),
 				OPENAI_EXECUTOR_CONTEXT_POLICY,
 			);
 		}
@@ -26,6 +23,7 @@ describe("executor context policy", () => {
 			}),
 			OPENAI_EXECUTOR_CONTEXT_POLICY,
 		);
+		assert.isTrue(OPENAI_EXECUTOR_CONTEXT_POLICY.includeReasoningHistory);
 	});
 
 	it("enables action-context fields for direct OpenAI, Codex, and OpenRouter OpenAI models", () => {
@@ -44,6 +42,8 @@ describe("executor context policy", () => {
 	it("classifies every non-OpenAI/Codex model by model owner, not transport", () => {
 		for (const llm of [
 			{ provider: "openrouter" as const, model: "z-ai/glm-5.2" },
+			{ provider: "anthropic" as const, model: "claude-opus-4-6" },
+			{ provider: "google" as const, model: "gemini-3.1-pro" },
 			{ provider: "together" as const, model: "moonshotai/kimi-k2.5" },
 			{ provider: "vllm" as const, model: "gpt-shaped-name" },
 		]) {
@@ -52,6 +52,7 @@ describe("executor context policy", () => {
 				NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
 			);
 		}
+		assert.isFalse(NON_OPENAI_EXECUTOR_CONTEXT_POLICY.includeReasoningHistory);
 	});
 
 	it("includes provider-agnostic reasoning history and action-context fields for Codex", () => {
@@ -88,7 +89,10 @@ describe("executor context policy", () => {
 
 		assert.include(openAI, "fallible reasoning from earlier executor steps");
 		assert.notInclude(openAI, "previousStepStatus");
-		assert.include(nonOpenAI, "fallible reasoning from earlier executor steps");
+		assert.notInclude(
+			nonOpenAI,
+			"fallible reasoning from earlier executor steps",
+		);
 		assert.include(nonOpenAI, "previousStepStatus");
 	});
 });

@@ -147,7 +147,6 @@ export async function createRuntimeFiles(
 				},
 				feature_flags: {
 					workflow_orchestration: false,
-					task_checklist: true,
 					pre_step_screenshot_in_latest_user_prompt: false,
 					user_takeover_tool: options.userTakeoverTool,
 					auth_takeover: true,

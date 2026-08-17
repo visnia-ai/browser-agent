@@ -37,6 +37,7 @@ export interface LLMOptions {
 /** Model-derived executor context behavior, resolved once for each agent run. */
 export interface ExecutorContextPolicy {
 	executorActionContextFields: boolean;
+	includeReasoningHistory: boolean;
 }
 
 export interface TokenUsage {

@@ -156,7 +156,6 @@ test("generates the GLM 5.2 benchmark baseline profile", async () => {
 		}
 		assert.deepEqual(config.feature_flags, {
 			workflow_orchestration: false,
-			task_checklist: true,
 			pre_step_screenshot_in_latest_user_prompt: false,
 			user_takeover_tool: false,
 			auth_takeover: true,

@@ -24,13 +24,9 @@ function makeProjection(changingText: string): string {
 
 describe("cumulative semantic projection context", () => {
 	const originalFlag = configFeatureFlags.semanticProjectionHistory;
-	const originalOpenAIEncryptedResponses =
-		configFeatureFlags.openAIEncryptedResponses;
 
 	afterEach(() => {
 		configFeatureFlags.semanticProjectionHistory = originalFlag;
-		configFeatureFlags.openAIEncryptedResponses =
-			originalOpenAIEncryptedResponses;
 	});
 
 	it("chains deltas and emits empty unchanged deltas without ordinary rebases", async () => {
@@ -190,7 +186,6 @@ describe("cumulative semantic projection context", () => {
 
 	it("honors the configured projection history for an encrypted OpenAI executor", async () => {
 		configFeatureFlags.semanticProjectionHistory = "current";
-		configFeatureFlags.openAIEncryptedResponses = true;
 		let currentProjection = "document: Old projection";
 		const deps = createMockCoreDeps({
 			getPageProjection: async () => currentProjection,

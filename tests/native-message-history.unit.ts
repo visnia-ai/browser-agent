@@ -25,7 +25,14 @@ describe("native model-message history", () => {
 			responseMessages: [
 				{
 					role: "assistant",
-					providerOptions: { anthropic: { container: "session-1" } },
+					providerOptions: {
+						anthropic: { container: "session-1" },
+						openrouter: {
+							reasoning_details: [
+								{ type: "reasoning.encrypted", data: "signed-payload" },
+							],
+						},
+					},
 					content: [
 						reasoningPart,
 						{
@@ -42,37 +49,58 @@ describe("native model-message history", () => {
 		};
 	}
 
-	for (const [name, executorContextPolicy] of [
-		["OpenAI", OPENAI_EXECUTOR_CONTEXT_POLICY],
-		["non-OpenAI", NON_OPENAI_EXECUTOR_CONTEXT_POLICY],
-	] as const) {
-		it(`preserves native reasoning metadata for ${name} history`, () => {
-			const messages = buildHistoryMessagesFromFullStepHistory(
-				[historyEntry()],
-				{ executorContextPolicy },
-			);
-			assert.lengthOf(messages, 2);
-			const assistant = messages[1];
-			assert.strictEqual(assistant?.role, "assistant");
-			assert.isArray(assistant?.content);
-			if (assistant?.role !== "assistant" || !Array.isArray(assistant.content)) {
-				throw new Error("expected structured assistant history");
-			}
-			assert.deepEqual(assistant.content[0], reasoningPart);
-			assert.deepEqual(assistant.content[1], {
+	it("preserves native reasoning metadata for OpenAI-owned history", () => {
+		const messages = buildHistoryMessagesFromFullStepHistory([historyEntry()], {
+			executorContextPolicy: OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
+		assert.lengthOf(messages, 2);
+		const assistant = messages[1];
+		assert.strictEqual(assistant?.role, "assistant");
+		assert.isArray(assistant?.content);
+		if (assistant?.role !== "assistant" || !Array.isArray(assistant.content)) {
+			throw new Error("expected structured assistant history");
+		}
+		assert.deepEqual(assistant.content[0], reasoningPart);
+		assert.deepEqual(assistant.content[1], {
+			type: "text",
+			text: "tools:\n  - click: r2\ndone: false\n",
+			providerOptions: {
+				google: { thoughtSignature: "google-text-signature" },
+			},
+		});
+		assert.deepEqual(
+			assistant.providerOptions,
+			historyEntry().responseMessages[0]?.providerOptions,
+		);
+		assert.notInclude(JSON.stringify(assistant), "unsafe raw response");
+		assert.notInclude(JSON.stringify(assistant), "stale-text-item");
+	});
+
+	it("strips native reasoning and signed metadata for non-OpenAI history", () => {
+		const entry = historyEntry();
+		const messages = buildHistoryMessagesFromFullStepHistory([entry], {
+			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
+		const assistant = messages[1];
+		assert.strictEqual(assistant?.role, "assistant");
+		assert.isArray(assistant?.content);
+		if (assistant?.role !== "assistant" || !Array.isArray(assistant.content)) {
+			throw new Error("expected structured assistant history");
+		}
+		assert.deepEqual(assistant.content, [
+			{
 				type: "text",
 				text: "tools:\n  - click: r2\ndone: false\n",
-				providerOptions: {
-					google: { thoughtSignature: "google-text-signature" },
-				},
-			});
-			assert.deepEqual(assistant.providerOptions, {
-				anthropic: { container: "session-1" },
-			});
-			assert.notInclude(JSON.stringify(assistant), "unsafe raw response");
-			assert.notInclude(JSON.stringify(assistant), "stale-text-item");
+			},
+		]);
+		assert.deepEqual(assistant.providerOptions, {
+			anthropic: { container: "session-1" },
 		});
-	}
+		assert.notInclude(JSON.stringify(assistant), "signed-reasoning");
+		assert.notInclude(JSON.stringify(assistant), "signed-payload");
+		assert.notInclude(JSON.stringify(assistant), "google-text-signature");
+		assert.deepEqual(entry.responseMessages, historyEntry().responseMessages);
+	});
 
 	it("interleaves cleaned user turns with every accepted native response message", () => {
 		const entry = historyEntry();

@@ -12,7 +12,7 @@ import {
 
 export function buildHistoryMessagesFromFullStepHistory(
 	stepsHistory: StepHistoryEntry[],
-	_options: ExecutorPromptOptions = {},
+	options: ExecutorPromptOptions = {},
 	historyOptions: {
 		omitProjectionContext?: boolean;
 		openAIExplicitPromptCaching?: boolean;
@@ -38,7 +38,12 @@ export function buildHistoryMessagesFromFullStepHistory(
 					: payloadText,
 			),
 		);
-		messages.push(...sanitizeAcceptedResponseMessages(step));
+		messages.push(
+			...sanitizeAcceptedResponseMessages(
+				step,
+				options.executorContextPolicy?.includeReasoningHistory ?? true,
+			),
+		);
 	}
 
 	return messages;
@@ -50,6 +55,7 @@ export function buildHistoryMessagesFromFullStepHistory(
  */
 export function sanitizeAcceptedResponseMessages(
 	step: StepHistoryEntry,
+	includeReasoningHistory = true,
 ): ModelMessage[] {
 	const assistantText = serializeModelOutputForHistory(step.assistant);
 	let finalAssistantIndex = -1;
@@ -65,10 +71,15 @@ export function sanitizeAcceptedResponseMessages(
 
 	return step.responseMessages.map((message, index): ModelMessage => {
 		if (index !== finalAssistantIndex || message.role !== "assistant") {
-			return message;
+			return message.role === "assistant"
+				? sanitizeAssistantReasoningHistory(message, includeReasoningHistory)
+				: message;
 		}
 		if (typeof message.content === "string") {
-			return { ...message, content: assistantText };
+			return sanitizeAssistantReasoningHistory(
+				{ ...message, content: assistantText },
+				includeReasoningHistory,
+			);
 		}
 
 		let replacedText = false;
@@ -91,6 +102,96 @@ export function sanitizeAcceptedResponseMessages(
 		if (!replacedText) {
 			content.push({ type: "text", text: assistantText });
 		}
-		return { ...message, content } as ModelMessage;
+		return sanitizeAssistantReasoningHistory(
+			{ ...message, content } as AssistantModelMessage,
+			includeReasoningHistory,
+		);
 	});
+}
+
+const REASONING_METADATA_KEYS = new Set([
+	"encrypted_content",
+	"reasoning_details",
+	"reasoning_encrypted_content",
+	"reasoningdetails",
+	"reasoningencryptedcontent",
+	"redacteddata",
+	"signature",
+	"thoughtsignature",
+]);
+
+function stripReasoningMetadata(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(stripReasoningMetadata);
+	}
+	if (typeof value !== "object" || value === null) return value;
+
+	const stripped: Record<string, unknown> = {};
+	for (const [key, nestedValue] of Object.entries(value)) {
+		const normalizedKey = key.toLowerCase();
+		if (REASONING_METADATA_KEYS.has(normalizedKey)) continue;
+		const sanitizedValue = stripReasoningMetadata(nestedValue);
+		if (
+			typeof sanitizedValue === "object" &&
+			sanitizedValue !== null &&
+			!Array.isArray(sanitizedValue) &&
+			Object.keys(sanitizedValue).length === 0
+		) {
+			continue;
+		}
+		stripped[key] = sanitizedValue;
+	}
+	return stripped;
+}
+
+function sanitizeAssistantReasoningHistory(
+	message: AssistantModelMessage,
+	includeReasoningHistory: boolean,
+): AssistantModelMessage {
+	if (includeReasoningHistory) return message;
+
+	const providerOptions = stripReasoningMetadata(message.providerOptions) as
+		AssistantModelMessage["providerOptions"] | undefined;
+	const {
+		providerOptions: _originalProviderOptions,
+		...messageWithoutProviderOptions
+	} = message;
+	if (typeof message.content === "string") {
+		return {
+			...messageWithoutProviderOptions,
+			...(providerOptions && Object.keys(providerOptions).length > 0
+				? { providerOptions }
+				: {}),
+		};
+	}
+
+	const content = message.content
+		.filter(
+			(part) => part.type !== "reasoning" && part.type !== "reasoning-file",
+		)
+		.map((part) => {
+			if (!("providerOptions" in part)) return part;
+			const {
+				providerOptions: _originalPartProviderOptions,
+				...partWithoutProviderOptions
+			} = part;
+			const sanitizedProviderOptions = stripReasoningMetadata(
+				part.providerOptions,
+			) as AssistantModelMessage["providerOptions"];
+			return {
+				...partWithoutProviderOptions,
+				...(sanitizedProviderOptions &&
+				Object.keys(sanitizedProviderOptions).length > 0
+					? { providerOptions: sanitizedProviderOptions }
+					: {}),
+			};
+		});
+
+	return {
+		...messageWithoutProviderOptions,
+		content,
+		...(providerOptions && Object.keys(providerOptions).length > 0
+			? { providerOptions }
+			: {}),
+	};
 }

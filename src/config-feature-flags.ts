@@ -1,6 +1,4 @@
 export interface ConfigFeatureFlags {
-	/** Create and maintain a semantic task-completion checklist. */
-	taskChecklist: boolean;
 	/** Attach a fresh full-page screenshot to the latest executor prompt before each step. */
 	preStepScreenshotInLatestUserPrompt: boolean;
 	/** Let the executor pause and request manual interaction from the user. */
@@ -15,10 +13,6 @@ export interface ConfigFeatureFlags {
 	semanticProjectionHistory: "current" | "cumulative";
 	/** Include executor action-context fields for OpenAI and Codex models. */
 	enableExecutorActionContextFieldsForOpenAI: boolean;
-	/** Chain OpenAI executor steps with client-held encrypted reasoning. */
-	openAIEncryptedResponses: boolean;
-	/** Use GPT-5.6 explicit prompt-cache breakpoints for executor prompts. */
-	openAIExplicitPromptCaching: boolean;
 	/** Skip the post-step settling delay when every action is agent-local. */
 	optimizeExecutorStepDelays: boolean;
 	/** Insert text in bulk for safe fields instead of typing one character at a time. */
@@ -26,7 +20,6 @@ export interface ConfigFeatureFlags {
 }
 
 export const configFeatureFlags: ConfigFeatureFlags = {
-	taskChecklist: true,
 	preStepScreenshotInLatestUserPrompt: true,
 	userTakeoverTool: true,
 	authTakeover: false,
@@ -34,8 +27,6 @@ export const configFeatureFlags: ConfigFeatureFlags = {
 	extractDataWholeContext: false,
 	semanticProjectionHistory: "current",
 	enableExecutorActionContextFieldsForOpenAI: false,
-	openAIEncryptedResponses: true,
-	openAIExplicitPromptCaching: true,
 	optimizeExecutorStepDelays: false,
 	optimizeTextInput: false,
 };
@@ -46,9 +37,6 @@ export function mergeConfigFeatureFlags(
 ): ConfigFeatureFlags {
 	return {
 		...base,
-		...(overrides.taskChecklist !== undefined
-			? { taskChecklist: overrides.taskChecklist }
-			: {}),
 		...(overrides.preStepScreenshotInLatestUserPrompt !== undefined
 			? {
 					preStepScreenshotInLatestUserPrompt:
@@ -69,8 +57,7 @@ export function mergeConfigFeatureFlags(
 			: {}),
 		...(overrides.semanticProjectionHistory !== undefined
 			? {
-					semanticProjectionHistory:
-						overrides.semanticProjectionHistory,
+					semanticProjectionHistory: overrides.semanticProjectionHistory,
 				}
 			: {}),
 		...(overrides.enableExecutorActionContextFieldsForOpenAI !== undefined
@@ -79,19 +66,9 @@ export function mergeConfigFeatureFlags(
 						overrides.enableExecutorActionContextFieldsForOpenAI,
 				}
 			: {}),
-		...(overrides.openAIEncryptedResponses !== undefined
-			? { openAIEncryptedResponses: overrides.openAIEncryptedResponses }
-			: {}),
-		...(overrides.openAIExplicitPromptCaching !== undefined
-			? {
-					openAIExplicitPromptCaching:
-						overrides.openAIExplicitPromptCaching,
-				}
-			: {}),
 		...(overrides.optimizeExecutorStepDelays !== undefined
 			? {
-					optimizeExecutorStepDelays:
-						overrides.optimizeExecutorStepDelays,
+					optimizeExecutorStepDelays: overrides.optimizeExecutorStepDelays,
 				}
 			: {}),
 		...(overrides.optimizeTextInput !== undefined
@@ -103,9 +80,6 @@ export function mergeConfigFeatureFlags(
 export function setConfigFeatureFlags(
 	flags: Partial<ConfigFeatureFlags>,
 ): void {
-	if (flags.taskChecklist !== undefined) {
-		configFeatureFlags.taskChecklist = flags.taskChecklist;
-	}
 	if (flags.preStepScreenshotInLatestUserPrompt !== undefined) {
 		configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 			flags.preStepScreenshotInLatestUserPrompt;
@@ -120,8 +94,7 @@ export function setConfigFeatureFlags(
 		configFeatureFlags.agentTakeoverTool = flags.agentTakeoverTool;
 	}
 	if (flags.extractDataWholeContext !== undefined) {
-		configFeatureFlags.extractDataWholeContext =
-			flags.extractDataWholeContext;
+		configFeatureFlags.extractDataWholeContext = flags.extractDataWholeContext;
 	}
 	if (flags.semanticProjectionHistory !== undefined) {
 		configFeatureFlags.semanticProjectionHistory =
@@ -130,14 +103,6 @@ export function setConfigFeatureFlags(
 	if (flags.enableExecutorActionContextFieldsForOpenAI !== undefined) {
 		configFeatureFlags.enableExecutorActionContextFieldsForOpenAI =
 			flags.enableExecutorActionContextFieldsForOpenAI;
-	}
-	if (flags.openAIEncryptedResponses !== undefined) {
-		configFeatureFlags.openAIEncryptedResponses =
-			flags.openAIEncryptedResponses;
-	}
-	if (flags.openAIExplicitPromptCaching !== undefined) {
-		configFeatureFlags.openAIExplicitPromptCaching =
-			flags.openAIExplicitPromptCaching;
 	}
 	if (flags.optimizeExecutorStepDelays !== undefined) {
 		configFeatureFlags.optimizeExecutorStepDelays =

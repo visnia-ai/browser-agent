@@ -91,84 +91,86 @@ describe("history prompt safety", () => {
 	});
 
 	it("preserves accepted model assistant outputs without action normalization", () => {
-		const messages = buildHistoryMessagesFromFullStepHistory(withNativeResponses([
-			{
-				payload: {
-					currentURL: "https://example.com/login",
+		const messages = buildHistoryMessagesFromFullStepHistory(
+			withNativeResponses([
+				{
+					payload: {
+						currentURL: "https://example.com/login",
+					},
+					assistant: "plain string assistant",
 				},
-				assistant: "plain string assistant",
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/form",
+				{
+					payload: {
+						currentURL: "https://example.com/form",
+					},
+					assistant: {
+						custom: "object assistant",
+					},
 				},
-				assistant: {
-					custom: "object assistant",
+				{
+					payload: {
+						currentURL: "https://example.com/list",
+					},
+					assistant: ["array assistant"],
 				},
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/list",
+				{
+					payload: {
+						currentURL: "https://example.com/app",
+					},
+					assistant: {
+						thinking: "Continue",
+						tools: [{ click: "1" }],
+						done: false,
+						result: { ok: true },
+						previousStepPlanUpdate: ["Updated"],
+					},
 				},
-				assistant: ["array assistant"],
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/app",
+				{
+					payload: {
+						currentURL: "https://example.com/only-tools",
+					},
+					assistant: {
+						tools: [{ click: "3" }],
+					},
 				},
-				assistant: {
-					thinking: "Continue",
-					tools: [{ click: "1" }],
-					done: false,
-					result: { ok: true },
-					previousStepPlanUpdate: ["Updated"],
+				{
+					payload: {
+						currentURL: "https://example.com/only-actions",
+					},
+					assistant: {
+						actions: [{ type: "click", ref: "4" }],
+						done: "not-a-boolean",
+					},
 				},
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/only-tools",
+				{
+					payload: {
+						currentURL: "https://example.com/only-result",
+					},
+					assistant: {
+						result: "Only result",
+					},
 				},
-				assistant: {
-					tools: [{ click: "3" }],
+				{
+					payload: {
+						currentURL: "https://example.com/only-plan-update",
+					},
+					assistant: {
+						previousStepPlanUpdate: ["Only update"],
+					},
 				},
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/only-actions",
+				{
+					payload: {
+						currentURL: "https://example.com/final",
+					},
+					assistant: {
+						thinking: "Done",
+						actions: [{ type: "click", ref: "2" }],
+						done: true,
+						result: "Finished",
+					},
 				},
-				assistant: {
-					actions: [{ type: "click", ref: "4" }],
-					done: "not-a-boolean",
-				},
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/only-result",
-				},
-				assistant: {
-					result: "Only result",
-				},
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/only-plan-update",
-				},
-				assistant: {
-					previousStepPlanUpdate: ["Only update"],
-				},
-			},
-			{
-				payload: {
-					currentURL: "https://example.com/final",
-				},
-				assistant: {
-					thinking: "Done",
-					actions: [{ type: "click", ref: "2" }],
-					done: true,
-					result: "Finished",
-				},
-			},
-		]));
+			]),
+		);
 
 		assert.lengthOf(messages, 18);
 		assert.strictEqual(messages[0].role, "user");
@@ -205,22 +207,24 @@ describe("history prompt safety", () => {
 	});
 
 	it("preserves model-emitted action-context fields regardless of execution flags", () => {
-		const messages = buildHistoryMessagesFromFullStepHistory(withNativeResponses([
-			{
-				payload: {
-					currentURL: "https://example.com/final",
+		const messages = buildHistoryMessagesFromFullStepHistory(
+			withNativeResponses([
+				{
+					payload: {
+						currentURL: "https://example.com/final",
+					},
+					assistant: {
+						previousStepStatus: "opened_tab",
+						previousStepOutcome: "Opened Gmail sign-in tab.",
+						currentStateObservation:
+							"Current tab is still the Workspace landing page.",
+						nextActionRationale: "Switch to the Gmail tab to continue login.",
+						actions: [{ type: "switch_tab", index: 1 }],
+						done: false,
+					},
 				},
-				assistant: {
-					previousStepStatus: "opened_tab",
-					previousStepOutcome: "Opened Gmail sign-in tab.",
-					currentStateObservation:
-						"Current tab is still the Workspace landing page.",
-					nextActionRationale: "Switch to the Gmail tab to continue login.",
-					actions: [{ type: "switch_tab", index: 1 }],
-					done: false,
-				},
-			},
-		]));
+			]),
+		);
 		assert.strictEqual(messages[1].role, "assistant");
 		for (const field of [
 			"previousStepStatus",
@@ -257,27 +261,27 @@ describe("history prompt safety", () => {
 			]),
 			{ executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY },
 		);
-			assert.strictEqual(messages[1].role, "assistant");
-			assert.include(String(messages[1].content), "thinking: Done");
-			assert.include(
-				String(messages[1].content),
-				"previousStepStatus: progressed",
-			);
-			assert.include(
-				String(messages[1].content),
-				"previousStepOutcome: Clicked the result.",
-			);
-			assert.include(
-				String(messages[1].content),
-				"currentStateObservation: The result page is open.",
-			);
-			assert.include(
-				String(messages[1].content),
-				"nextActionRationale: Read the result page.",
-			);
-			assert.include(String(messages[1].content), "type: click");
-			assert.include(String(messages[1].content), "done: true");
-			assert.include(String(messages[1].content), "result: Finished");
+		assert.strictEqual(messages[1].role, "assistant");
+		assert.include(String(messages[1].content), "thinking: Done");
+		assert.include(
+			String(messages[1].content),
+			"previousStepStatus: progressed",
+		);
+		assert.include(
+			String(messages[1].content),
+			"previousStepOutcome: Clicked the result.",
+		);
+		assert.include(
+			String(messages[1].content),
+			"currentStateObservation: The result page is open.",
+		);
+		assert.include(
+			String(messages[1].content),
+			"nextActionRationale: Read the result page.",
+		);
+		assert.include(String(messages[1].content), "type: click");
+		assert.include(String(messages[1].content), "done: true");
+		assert.include(String(messages[1].content), "result: Finished");
 	});
 
 	it("preserves native reasoning parts and provider metadata in every history mode", () => {
@@ -320,7 +324,10 @@ describe("history prompt safety", () => {
 				const assistant = messages[1];
 				assert.strictEqual(assistant?.role, "assistant");
 				assert.isArray(assistant?.content);
-				if (assistant?.role !== "assistant" || !Array.isArray(assistant.content)) {
+				if (
+					assistant?.role !== "assistant" ||
+					!Array.isArray(assistant.content)
+				) {
 					throw new Error("Expected structured assistant history.");
 				}
 				assert.deepEqual(assistant.content[0], reasoningPart);
@@ -370,10 +377,7 @@ describe("history prompt safety", () => {
 				responseMessages: [
 					{
 						role: "assistant",
-						content: [
-							redactedReasoning,
-							{ type: "text", text: "raw" },
-						],
+						content: [redactedReasoning, { type: "text", text: "raw" }],
 					},
 				],
 			},
@@ -384,5 +388,49 @@ describe("history prompt safety", () => {
 				: undefined,
 			redactedReasoning,
 		);
+	});
+
+	it("excludes reasoning only from non-OpenAI model-visible history", () => {
+		const reasoningPart = {
+			type: "reasoning" as const,
+			text: "private chain of thought",
+			providerOptions: {
+				openai: { reasoningEncryptedContent: "encrypted-trace" },
+			},
+		};
+		const entry: StepHistoryEntry = {
+			payload: { currentURL: "https://example.com" },
+			assistant: { actions: [], done: false },
+			responseMessages: [
+				{
+					role: "assistant",
+					content: [reasoningPart, { type: "text", text: "raw" }],
+				},
+				{
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "tool-1",
+							toolName: "example",
+							output: { type: "text", value: "accepted tool output" },
+						},
+					],
+				},
+			],
+		};
+
+		const messages = buildHistoryMessagesFromFullStepHistory([entry], {
+			executorContextPolicy: NON_OPENAI_EXECUTOR_CONTEXT_POLICY,
+		});
+		const serialized = JSON.stringify(messages);
+		assert.notInclude(serialized, "private chain of thought");
+		assert.notInclude(serialized, "encrypted-trace");
+		assert.include(serialized, "actions");
+		assert.include(serialized, "accepted tool output");
+		assert.deepEqual(entry.responseMessages[0]?.content, [
+			reasoningPart,
+			{ type: "text", text: "raw" },
+		]);
 	});
 });

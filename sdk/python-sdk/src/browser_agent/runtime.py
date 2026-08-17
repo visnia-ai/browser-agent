@@ -272,7 +272,6 @@ def create_runtime_files(options: ResolvedOptions, tasks: list[BrowserAgentTask]
             },
             "feature_flags": {
                 "workflow_orchestration": False,
-                "task_checklist": True,
                 "pre_step_screenshot_in_latest_user_prompt": False,
                 "user_takeover_tool": options.user_takeover_tool,
                 "auth_takeover": True,

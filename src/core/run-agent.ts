@@ -721,11 +721,9 @@ export async function runAgent(
 		input.featureFlags.enableExecutorActionContextFieldsForOpenAI,
 	);
 	const openAIEncryptedResponsesEnabled =
-		input.stageLLMs.runAgent.provider === "openai" &&
-		input.featureFlags.openAIEncryptedResponses;
+		input.stageLLMs.runAgent.provider === "openai";
 	const openAIProjectionStrategy = input.featureFlags.semanticProjectionHistory;
 	const openAIExplicitPromptCachingEnabled =
-		input.featureFlags.openAIExplicitPromptCaching &&
 		openAIProjectionStrategy === "current" &&
 		supportsOpenAIExplicitPromptCaching(
 			input.stageLLMs.runAgent.provider,
@@ -741,7 +739,6 @@ export async function runAgent(
 			})
 		: undefined;
 	const dataExtractionPromptCache =
-		input.featureFlags.openAIExplicitPromptCaching &&
 		input.stageLLMs.dataExtraction !== undefined &&
 		supportsOpenAIExplicitPromptCaching(
 			input.stageLLMs.dataExtraction.provider,
@@ -750,7 +747,6 @@ export async function runAgent(
 			? buildOpenAIExplicitNoCacheRequest()
 			: undefined;
 	const verificationPromptCache =
-		input.featureFlags.openAIExplicitPromptCaching &&
 		successVerifierLLMOptions !== undefined &&
 		supportsOpenAIExplicitPromptCaching(
 			successVerifierLLMOptions.provider,
@@ -930,8 +926,7 @@ export async function runAgent(
 											? "max_step_finalization"
 											: "executor_step",
 										abortSignal,
-										openAIEncryptedResponses:
-											openAIEncryptedResponsesEnabled,
+										openAIEncryptedResponses: openAIEncryptedResponsesEnabled,
 										openAIPromptCache,
 									}),
 							}),
@@ -975,8 +970,7 @@ export async function runAgent(
 					const acceptedResponseMessages = Array.isArray(responseMessages)
 						? responseMessages
 						: [{ role: "assistant" as const, content: rawAssistantContent }];
-					const accountedStepUsage =
-						combineStepAttemptUsage(stepAttemptUsages);
+					const accountedStepUsage = combineStepAttemptUsage(stepAttemptUsages);
 					logStepActionContext(parsedRawStep, executorContextPolicy);
 					const maxStepHasOnlyReturnResults =
 						parsedRawStep.actions.length === 1 &&
@@ -1194,10 +1188,7 @@ export async function runAgent(
 							validatorFailureCount < validatorLifecycle.maxFailures &&
 							stepNumber < maxSteps;
 						if (continueAfterRejection && processResult.successVerification) {
-							if (
-								deps.featureFlags.taskChecklist &&
-								processResult.successVerification.regenerateChecklist
-							) {
+							if (processResult.successVerification.regenerateChecklist) {
 								await regenerateChecklistAfterVerification({
 									deps,
 									input,
@@ -1206,18 +1197,14 @@ export async function runAgent(
 									stepNumber,
 								});
 							}
-							const checklistChanges = deps.featureFlags.taskChecklist
-								? applyVerifierChecklistChanges({
-										items: session.activeChecklist,
-										reopenIds: processResult.successVerification
-											.regenerateChecklist
-											? undefined
-											: processResult.successVerification
-													.reopenChecklistItemIds,
-										addRequirements:
-											processResult.successVerification.addChecklistItems,
-									})
-								: { reopenedIds: [], addedIds: [] };
+							const checklistChanges = applyVerifierChecklistChanges({
+								items: session.activeChecklist,
+								reopenIds: processResult.successVerification.regenerateChecklist
+									? undefined
+									: processResult.successVerification.reopenChecklistItemIds,
+								addRequirements:
+									processResult.successVerification.addChecklistItems,
+							});
 							pendingValidatorFeedback = buildValidatorFeedback({
 								failure: validatorFailureCount,
 								maxFailures: validatorLifecycle.maxFailures,

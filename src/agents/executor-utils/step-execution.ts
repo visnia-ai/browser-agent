@@ -204,9 +204,7 @@ export function buildStepPayload(params: {
 	if (params.modelOutputErrors?.length) {
 		payload.modelOutputErrors = [...params.modelOutputErrors];
 	}
-	if (configFeatureFlags.taskChecklist) {
-		payload.checklist = params.checklistForPayload ?? [];
-	}
+	payload.checklist = params.checklistForPayload ?? [];
 	if (hasPinnedMemoryContent(params.pinnedMemoryContent)) {
 		payload.memoryAvailable = getMemoryAvailableHint();
 	}
@@ -477,7 +475,7 @@ export function serializeActionsForPrompt(
 		return `[omitted ${value.length} characters; starts with ${JSON.stringify(value.slice(0, 120))}]`;
 	};
 	return actions.map((action) => {
-			switch (action.type) {
+		switch (action.type) {
 			case "custom_tool":
 				return { [action.name]: action.arguments };
 			case "click":
@@ -590,11 +588,7 @@ export function formatStepForPrompt(
 	executorContextPolicy: Readonly<ExecutorContextPolicy>,
 ): Record<string, unknown> {
 	const formatted: Record<string, unknown> = {};
-	if (
-		configFeatureFlags.taskChecklist &&
-		step.checklistUpdate &&
-		Object.keys(step.checklistUpdate).length > 0
-	) {
+	if (step.checklistUpdate && Object.keys(step.checklistUpdate).length > 0) {
 		formatted.checklistUpdate = step.checklistUpdate;
 	}
 	if (executorContextPolicy.executorActionContextFields) {

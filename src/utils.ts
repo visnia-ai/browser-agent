@@ -988,8 +988,7 @@ export function loadConfig(configPath: string): Config {
 				: {
 						...DEFAULT_DATA_EXTRACTION_LLM,
 						...((defaultLLM?.provider === undefined ||
-							defaultLLM.provider ===
-								DEFAULT_DATA_EXTRACTION_LLM.provider) &&
+							defaultLLM.provider === DEFAULT_DATA_EXTRACTION_LLM.provider) &&
 						defaultLLM?.reasoningEffort !== undefined
 							? { reasoningEffort: defaultLLM.reasoningEffort }
 							: {}),
@@ -1015,6 +1014,19 @@ export function loadConfig(configPath: string): Config {
 		if (featureFlagsSource[removedKey] === undefined) continue;
 		failConfig(
 			`feature_flags.${removedKey} has been removed; its behavior is permanently disabled.`,
+		);
+	}
+	for (const removedKey of [
+		"task_checklist",
+		"taskChecklist",
+		"openai_encrypted_responses",
+		"openAIEncryptedResponses",
+		"openai_explicit_prompt_caching",
+		"openAIExplicitPromptCaching",
+	]) {
+		if (featureFlagsSource[removedKey] === undefined) continue;
+		failConfig(
+			`feature_flags.${removedKey} has been removed; its behavior is permanently enabled.`,
 		);
 	}
 	for (const removedKey of [
@@ -1045,7 +1057,7 @@ export function loadConfig(configPath: string): Config {
 	]) {
 		if (featureFlagsSource[legacyKey] === undefined) continue;
 		failConfig(
-			`feature_flags.${legacyKey} has been removed. Use feature_flags.openai_encrypted_responses instead.`,
+			`feature_flags.${legacyKey} has been removed; encrypted OpenAI responses are enabled automatically.`,
 		);
 	}
 	for (const [legacyKey, configPathLabel] of [
@@ -1065,15 +1077,6 @@ export function loadConfig(configPath: string): Config {
 		}
 	}
 	const configuredFeatureFlags: ConfigFeatureFlags = {
-		taskChecklist:
-			parseBooleanConfigValue(
-				pickFirstDefined(featureFlagsSource, [
-					"task_checklist",
-					"taskChecklist",
-				]),
-				fullPath,
-				"feature_flags.task_checklist",
-			) ?? true,
 		preStepScreenshotInLatestUserPrompt:
 			parseBooleanConfigValue(
 				pickFirstDefined(featureFlagsSource, [
@@ -1132,24 +1135,6 @@ export function loadConfig(configPath: string): Config {
 				fullPath,
 				"feature_flags.enable_executor_action_context_fields_for_openai",
 			) ?? false,
-		openAIEncryptedResponses:
-			parseBooleanConfigValue(
-				pickFirstDefined(featureFlagsSource, [
-					"openai_encrypted_responses",
-					"openAIEncryptedResponses",
-				]),
-				fullPath,
-				"feature_flags.openai_encrypted_responses",
-			) ?? true,
-		openAIExplicitPromptCaching:
-			parseBooleanConfigValue(
-				pickFirstDefined(featureFlagsSource, [
-					"openai_explicit_prompt_caching",
-					"openAIExplicitPromptCaching",
-				]),
-				fullPath,
-				"feature_flags.openai_explicit_prompt_caching",
-			) ?? true,
 		optimizeExecutorStepDelays:
 			parseBooleanConfigValue(
 				pickFirstDefined(featureFlagsSource, [

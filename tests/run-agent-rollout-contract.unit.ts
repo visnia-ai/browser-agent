@@ -4,10 +4,6 @@ import { afterEach, beforeEach, describe, it } from "mocha";
 import { createMockCoreDeps } from "./helpers/core-deps-fixtures.js";
 import { runTrainingRollout } from "../src/core/training-rollout.js";
 import { setRuntimeOptions } from "../src/runtime-options.js";
-import {
-	configFeatureFlags,
-	setConfigFeatureFlags,
-} from "../src/config-feature-flags.js";
 
 function reasoningParts(messages: ModelMessage[]) {
 	return messages.flatMap((message) =>
@@ -108,8 +104,7 @@ describe("runTrainingRollout", () => {
 										text: "summary",
 										providerOptions: {
 											openai: {
-												reasoningEncryptedContent:
-													"test-encrypted-reasoning",
+												reasoningEncryptedContent: "test-encrypted-reasoning",
 											},
 										},
 									},
@@ -406,102 +401,91 @@ describe("runTrainingRollout", () => {
 	});
 
 	it("reopens cumulative checklist items and forwards the configured verifier context", async () => {
-		const originalTaskChecklist = configFeatureFlags.taskChecklist;
-		setConfigFeatureFlags({ taskChecklist: true });
-		try {
-			let verificationCalls = 0;
-			const verificationInputs: Array<Record<string, unknown>> = [];
-			let secondChecklist: unknown;
-			const deps = createMockCoreDeps({
-				featureFlags: {
-					...createMockCoreDeps().featureFlags,
-					taskChecklist: true,
-				},
-				createChecklist: async () => ({
-					items: ["Return all matches.", "Include a date for each match."],
-				}),
-				executeActions: async () => ({
-					pendingMemoryRead: false,
-					interactionErrors: [],
-					returnedResult: verificationCalls === 0 ? "Incomplete" : "Corrected",
-				}),
-				verifyTaskSuccess: async (input) => {
-					verificationInputs.push(input as unknown as Record<string, unknown>);
-					verificationCalls += 1;
-					return {
-						success: verificationCalls > 1,
-						summary:
-							verificationCalls === 1
-								? "C2 incomplete: add the missing date."
-								: "Task succeeded.",
-						reasons: [],
-						reopenChecklistItemIds:
-							verificationCalls === 1 ? ["C2"] : undefined,
-						addChecklistItems:
-							verificationCalls === 1
-								? ["Include a source link for every match."]
-								: undefined,
-						model: "gpt-test",
-						provider: "openai",
-						usage: {
-							input_tokens: 1,
-							output_tokens: 1,
-							total_tokens: 2,
-						},
-					};
-				},
-			});
+		let verificationCalls = 0;
+		const verificationInputs: Array<Record<string, unknown>> = [];
+		let secondChecklist: unknown;
+		const deps = createMockCoreDeps({
+			createChecklist: async () => ({
+				items: ["Return all matches.", "Include a date for each match."],
+			}),
+			executeActions: async () => ({
+				pendingMemoryRead: false,
+				interactionErrors: [],
+				returnedResult: verificationCalls === 0 ? "Incomplete" : "Corrected",
+			}),
+			verifyTaskSuccess: async (input) => {
+				verificationInputs.push(input as unknown as Record<string, unknown>);
+				verificationCalls += 1;
+				return {
+					success: verificationCalls > 1,
+					summary:
+						verificationCalls === 1
+							? "C2 incomplete: add the missing date."
+							: "Task succeeded.",
+					reasons: [],
+					reopenChecklistItemIds: verificationCalls === 1 ? ["C2"] : undefined,
+					addChecklistItems:
+						verificationCalls === 1
+							? ["Include a source link for every match."]
+							: undefined,
+					model: "gpt-test",
+					provider: "openai",
+					usage: {
+						input_tokens: 1,
+						output_tokens: 1,
+						total_tokens: 2,
+					},
+				};
+			},
+		});
 
-			const result = await runTrainingRollout(deps, {
-				session: { port: 9389, headless: true, forceRestart: true },
-				task: "Return all matches with dates and links",
-				stageLLMs: {
-					findTargetURL: { provider: "openai", model: "gpt-test" },
-					createChecklist: { provider: "openai", model: "gpt-test" },
-					runAgent: { provider: "openai", model: "gpt-test" },
-					verifySuccess: { provider: "openai", model: "gpt-test" },
-				},
-				dataExtraction: { provider: "openai", model: "gpt-test" },
-				featureFlags: deps.featureFlags,
-				maxSteps: 3,
-				validatorLifecycle: {
-					mode: "retry",
-					maxFailures: 3,
-					context: "compact",
-				},
-				generateStep: async ({ stepNumber, promptPayload }) => {
-					if (stepNumber === 2) secondChecklist = promptPayload.checklist;
-					return {
-						data: {
-							checklistUpdate:
-								stepNumber === 1
-									? { C1: "done", C2: "done" }
-									: { C2: "done", C3: "done" },
-							actions: [{ type: "return_results" }],
-							done: false,
-						},
-						usage: {
-							input_tokens: 7,
-							output_tokens: 2,
-							total_tokens: 9,
-						},
-						reasoning_tokens: "",
-						rawModelOutputText: `step ${stepNumber}`,
-					};
-				},
-			});
+		const result = await runTrainingRollout(deps, {
+			session: { port: 9389, headless: true, forceRestart: true },
+			task: "Return all matches with dates and links",
+			stageLLMs: {
+				findTargetURL: { provider: "openai", model: "gpt-test" },
+				createChecklist: { provider: "openai", model: "gpt-test" },
+				runAgent: { provider: "openai", model: "gpt-test" },
+				verifySuccess: { provider: "openai", model: "gpt-test" },
+			},
+			dataExtraction: { provider: "openai", model: "gpt-test" },
+			featureFlags: deps.featureFlags,
+			maxSteps: 3,
+			validatorLifecycle: {
+				mode: "retry",
+				maxFailures: 3,
+				context: "compact",
+			},
+			generateStep: async ({ stepNumber, promptPayload }) => {
+				if (stepNumber === 2) secondChecklist = promptPayload.checklist;
+				return {
+					data: {
+						checklistUpdate:
+							stepNumber === 1
+								? { C1: "done", C2: "done" }
+								: { C2: "done", C3: "done" },
+						actions: [{ type: "return_results" }],
+						done: false,
+					},
+					usage: {
+						input_tokens: 7,
+						output_tokens: 2,
+						total_tokens: 9,
+					},
+					reasoning_tokens: "",
+					rawModelOutputText: `step ${stepNumber}`,
+				};
+			},
+		});
 
-			assert.isTrue(result.run.successful);
-			assert.deepEqual(secondChecklist, [
-				"[DONE] C1 Return all matches.",
-				"[TODO] C2 Include a date for each match.",
-				"[TODO] C3 Include a source link for every match.",
-			]);
-			assert.equal(verificationInputs[0].purpose, "completion_verifier");
-			assert.equal(verificationInputs[0].contextMode, "compact");
-		} finally {
-			setConfigFeatureFlags({ taskChecklist: originalTaskChecklist });
-		}
+		assert.isTrue(result.run.successful);
+		assert.deepEqual(secondChecklist, [
+			"[DONE] C1 Return all matches.",
+			"[TODO] C2 Include a date for each match.",
+			"[TODO] C3 Include a source link for every match.",
+		]);
+		assert.equal(verificationInputs[0].purpose, "completion_verifier");
+		assert.equal(verificationInputs[0].contextMode, "compact");
 	});
 
 	it("stops after the configured number of validator failures", async () => {
@@ -677,7 +661,9 @@ describe("runTrainingRollout", () => {
 			maxSteps: 2,
 			generateStep: async ({ stepNumber, messages }) => {
 				generationCalls += 1;
-				replayedReasoning.push(reasoningParts(messages).map((part) => part.text));
+				replayedReasoning.push(
+					reasoningParts(messages).map((part) => part.text),
+				);
 				return stepNumber === 1
 					? {
 							data: {
@@ -721,9 +707,7 @@ describe("runTrainingRollout", () => {
 								total_tokens: 6,
 							},
 							reasoning_tokens: "",
-							responseMessages: [
-								{ role: "assistant", content: "final" },
-							],
+							responseMessages: [{ role: "assistant", content: "final" }],
 							rawModelOutputText: "final",
 						};
 			},
@@ -788,10 +772,7 @@ describe("runTrainingRollout", () => {
 			onStepGenerated: ({ attempt, disposition }) => {
 				dispositions.push({ attempt, disposition });
 			},
-			generateStep: async ({
-				messages,
-				promptPayload,
-			}) => {
+			generateStep: async ({ messages, promptPayload }) => {
 				generationCalls += 1;
 				assistantMessagesByAttempt.push(assistantText(messages));
 				modelOutputErrorsByAttempt.push(promptPayload.modelOutputErrors);
@@ -882,20 +863,14 @@ describe("runTrainingRollout", () => {
 			[],
 			["accepted-reasoning"],
 		]);
-		assert.deepEqual(executedActionTypes, [
-			["read_file"],
-			["return_results"],
-		]);
+		assert.deepEqual(executedActionTypes, [["read_file"], ["return_results"]]);
 		assert.deepEqual(assistantMessagesByAttempt.slice(0, 2), [[], []]);
 		assert.lengthOf(assistantMessagesByAttempt[2], 1);
 		assert.include(
 			assistantMessagesByAttempt[2][0],
 			"thinking: Keep this exact accepted response.",
 		);
-		assert.include(
-			assistantMessagesByAttempt[2][0],
-			"read_file: ./notes.txt",
-		);
+		assert.include(assistantMessagesByAttempt[2][0], "read_file: ./notes.txt");
 		assert.include(assistantMessagesByAttempt[2][0], "done: false");
 		assert.notInclude(assistantMessagesByAttempt[2][0], "missing ref");
 		assert.deepEqual(
@@ -908,7 +883,8 @@ describe("runTrainingRollout", () => {
 			{ openai: { itemId: "accepted-reasoning-item" } },
 		);
 		assert.lengthOf(result.run.mainLoopEntries, 2);
-		const persistedAcceptedMessage = result.run.mainLoopEntries[0]?.messages.at(-1);
+		const persistedAcceptedMessage =
+			result.run.mainLoopEntries[0]?.messages.at(-1);
 		const persistedAcceptedAssistant = Array.isArray(
 			persistedAcceptedMessage?.content,
 		)

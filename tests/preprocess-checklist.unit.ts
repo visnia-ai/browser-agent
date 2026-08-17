@@ -59,10 +59,6 @@ describe("preprocess task checklist", () => {
 	it("creates a task-only checklist without fetching a planner projection", async () => {
 		let projectionCalls = 0;
 		const deps = createMockCoreDeps({
-			featureFlags: {
-				...createMockCoreDeps().featureFlags,
-				taskChecklist: true,
-			},
 			getPageProjection: async () => {
 				projectionCalls += 1;
 				return "unexpected";

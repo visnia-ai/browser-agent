@@ -151,7 +151,6 @@ class ConfigTests(unittest.TestCase):
                 self.assertEqual(config["stage_llms"][stage], expected_stage)
             self.assertEqual(config["feature_flags"], {
                 "workflow_orchestration": False,
-                "task_checklist": True,
                 "pre_step_screenshot_in_latest_user_prompt": False,
                 "user_takeover_tool": False,
                 "auth_takeover": True,
