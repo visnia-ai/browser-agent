@@ -1,6 +1,6 @@
 {
 	"name": "browser-agent",
-	"version": "1.0.21",
+	"version": "1.0.22",
 	"repository": "https://github.com/visnia-ai/browser-agent",
 	"license": "MIT",
 	"type": "module",

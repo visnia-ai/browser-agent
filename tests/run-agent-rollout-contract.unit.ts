@@ -405,6 +405,10 @@ describe("runTrainingRollout", () => {
 		const verificationInputs: Array<Record<string, unknown>> = [];
 		let secondChecklist: unknown;
 		const deps = createMockCoreDeps({
+			featureFlags: {
+				...createMockCoreDeps().featureFlags,
+				taskChecklist: true,
+			},
 			createChecklist: async () => ({
 				items: ["Return all matches.", "Include a date for each match."],
 			}),

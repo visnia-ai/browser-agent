@@ -32,6 +32,7 @@ export function createMockCoreDeps(
 ): CoreDeps {
 	const registry = overrides.registry ?? new SessionRegistry();
 	const featureFlags: ConfigFeatureFlags = {
+		taskChecklist: false,
 		preStepScreenshotInLatestUserPrompt: false,
 		userTakeoverTool: true,
 		authTakeover: false,

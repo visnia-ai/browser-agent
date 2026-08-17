@@ -204,7 +204,9 @@ export function buildStepPayload(params: {
 	if (params.modelOutputErrors?.length) {
 		payload.modelOutputErrors = [...params.modelOutputErrors];
 	}
-	payload.checklist = params.checklistForPayload ?? [];
+	if (configFeatureFlags.taskChecklist) {
+		payload.checklist = params.checklistForPayload ?? [];
+	}
 	if (hasPinnedMemoryContent(params.pinnedMemoryContent)) {
 		payload.memoryAvailable = getMemoryAvailableHint();
 	}
@@ -588,7 +590,11 @@ export function formatStepForPrompt(
 	executorContextPolicy: Readonly<ExecutorContextPolicy>,
 ): Record<string, unknown> {
 	const formatted: Record<string, unknown> = {};
-	if (step.checklistUpdate && Object.keys(step.checklistUpdate).length > 0) {
+	if (
+		configFeatureFlags.taskChecklist &&
+		step.checklistUpdate &&
+		Object.keys(step.checklistUpdate).length > 0
+	) {
 		formatted.checklistUpdate = step.checklistUpdate;
 	}
 	if (executorContextPolicy.executorActionContextFields) {

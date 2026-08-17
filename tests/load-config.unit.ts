@@ -232,6 +232,7 @@ tasks:
 			endpointUrl: undefined,
 		});
 		assert.deepEqual(config.featureFlags, {
+			taskChecklist: true,
 			preStepScreenshotInLatestUserPrompt: false,
 			userTakeoverTool: true,
 			authTakeover: false,
@@ -288,6 +289,7 @@ tasks:
 			endpointUrl: undefined,
 		});
 		assert.deepEqual(config.featureFlags, {
+			taskChecklist: true,
 			preStepScreenshotInLatestUserPrompt: false,
 			userTakeoverTool: true,
 			authTakeover: false,
@@ -704,6 +706,7 @@ tasks:
 	});
 
 	it("parses YAML-backed feature flags without mutating runtime config flags", () => {
+		const originalTaskChecklist = configFeatureFlags.taskChecklist;
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
 		const originalUserTakeover = configFeatureFlags.userTakeoverTool;
@@ -731,6 +734,7 @@ stage_llms:
     provider: openai
     model: gpt-5.2
 feature_flags:
+  task_checklist: false
   pre_step_screenshot_in_latest_user_prompt: true
   user_takeover_tool: false
   auth_takeover: true
@@ -748,6 +752,7 @@ tasks:
 			const config = loadConfig(configPath);
 
 			assert.deepEqual(config.featureFlags, {
+				taskChecklist: false,
 				preStepScreenshotInLatestUserPrompt: true,
 				userTakeoverTool: false,
 				authTakeover: true,
@@ -759,6 +764,7 @@ tasks:
 				optimizeTextInput: true,
 			});
 			assert.deepEqual(configFeatureFlags, {
+				taskChecklist: originalTaskChecklist,
 				preStepScreenshotInLatestUserPrompt: originalPreStepScreenshot,
 				userTakeoverTool: originalUserTakeover,
 				authTakeover: originalAuthTakeover,
@@ -771,6 +777,7 @@ tasks:
 				optimizeTextInput: false,
 			});
 		} finally {
+			configFeatureFlags.taskChecklist = originalTaskChecklist;
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 				originalPreStepScreenshot;
 			configFeatureFlags.userTakeoverTool = originalUserTakeover;
@@ -843,8 +850,6 @@ tasks:
 	}
 
 	for (const removedFlag of [
-		"task_checklist",
-		"taskChecklist",
 		"openai_encrypted_responses",
 		"openAIEncryptedResponses",
 		"openai_explicit_prompt_caching",
@@ -1200,6 +1205,7 @@ tasks:
   - "test task"
 `);
 		const config = loadConfig(configPath);
+		assert.isTrue(config.featureFlags.taskChecklist);
 		assert.strictEqual(config.stageLLMs.createChecklist.model, "gpt-5.4");
 		assert.strictEqual(config.stageLLMs.createChecklist.reasoningEffort, "low");
 	});
@@ -1762,6 +1768,7 @@ tasks:
 	});
 
 	it("createDefaultCoreDeps applies config feature flags to runtime state", () => {
+		const originalTaskChecklist = configFeatureFlags.taskChecklist;
 		const originalPreStepScreenshot =
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt;
 		const originalUserTakeover = configFeatureFlags.userTakeoverTool;
@@ -1776,6 +1783,7 @@ tasks:
 		try {
 			const deps = createDefaultCoreDeps({
 				featureFlags: {
+					taskChecklist: false,
 					preStepScreenshotInLatestUserPrompt: true,
 					userTakeoverTool: false,
 					authTakeover: true,
@@ -1789,6 +1797,7 @@ tasks:
 			});
 
 			assert.deepEqual(deps.featureFlags, {
+				taskChecklist: false,
 				preStepScreenshotInLatestUserPrompt: true,
 				userTakeoverTool: false,
 				authTakeover: true,
@@ -1801,6 +1810,7 @@ tasks:
 			});
 			assert.deepEqual(configFeatureFlags, deps.featureFlags);
 		} finally {
+			configFeatureFlags.taskChecklist = originalTaskChecklist;
 			configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 				originalPreStepScreenshot;
 			configFeatureFlags.userTakeoverTool = originalUserTakeover;

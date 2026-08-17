@@ -1,4 +1,6 @@
 export interface ConfigFeatureFlags {
+	/** Create and maintain a semantic task-completion checklist. */
+	taskChecklist: boolean;
 	/** Attach a fresh full-page screenshot to the latest executor prompt before each step. */
 	preStepScreenshotInLatestUserPrompt: boolean;
 	/** Let the executor pause and request manual interaction from the user. */
@@ -20,6 +22,7 @@ export interface ConfigFeatureFlags {
 }
 
 export const configFeatureFlags: ConfigFeatureFlags = {
+	taskChecklist: true,
 	preStepScreenshotInLatestUserPrompt: true,
 	userTakeoverTool: true,
 	authTakeover: false,
@@ -37,6 +40,9 @@ export function mergeConfigFeatureFlags(
 ): ConfigFeatureFlags {
 	return {
 		...base,
+		...(overrides.taskChecklist !== undefined
+			? { taskChecklist: overrides.taskChecklist }
+			: {}),
 		...(overrides.preStepScreenshotInLatestUserPrompt !== undefined
 			? {
 					preStepScreenshotInLatestUserPrompt:
@@ -80,6 +86,9 @@ export function mergeConfigFeatureFlags(
 export function setConfigFeatureFlags(
 	flags: Partial<ConfigFeatureFlags>,
 ): void {
+	if (flags.taskChecklist !== undefined) {
+		configFeatureFlags.taskChecklist = flags.taskChecklist;
+	}
 	if (flags.preStepScreenshotInLatestUserPrompt !== undefined) {
 		configFeatureFlags.preStepScreenshotInLatestUserPrompt =
 			flags.preStepScreenshotInLatestUserPrompt;

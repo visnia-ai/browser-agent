@@ -1188,7 +1188,10 @@ export async function runAgent(
 							validatorFailureCount < validatorLifecycle.maxFailures &&
 							stepNumber < maxSteps;
 						if (continueAfterRejection && processResult.successVerification) {
-							if (processResult.successVerification.regenerateChecklist) {
+							if (
+								deps.featureFlags.taskChecklist &&
+								processResult.successVerification.regenerateChecklist
+							) {
 								await regenerateChecklistAfterVerification({
 									deps,
 									input,
@@ -1197,14 +1200,18 @@ export async function runAgent(
 									stepNumber,
 								});
 							}
-							const checklistChanges = applyVerifierChecklistChanges({
-								items: session.activeChecklist,
-								reopenIds: processResult.successVerification.regenerateChecklist
-									? undefined
-									: processResult.successVerification.reopenChecklistItemIds,
-								addRequirements:
-									processResult.successVerification.addChecklistItems,
-							});
+							const checklistChanges = deps.featureFlags.taskChecklist
+								? applyVerifierChecklistChanges({
+										items: session.activeChecklist,
+										reopenIds: processResult.successVerification
+											.regenerateChecklist
+											? undefined
+											: processResult.successVerification
+													.reopenChecklistItemIds,
+										addRequirements:
+											processResult.successVerification.addChecklistItems,
+									})
+								: { reopenedIds: [], addedIds: [] };
 							pendingValidatorFeedback = buildValidatorFeedback({
 								failure: validatorFailureCount,
 								maxFailures: validatorLifecycle.maxFailures,

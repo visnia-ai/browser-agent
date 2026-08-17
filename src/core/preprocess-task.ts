@@ -123,10 +123,13 @@ export async function preprocessTask(
 	if (!explicitStartUrl) {
 		await navigateToTarget(targetURL);
 	}
-	const checklist = await createChecklistWithRetry({
-		deps,
-		input,
-	});
+	const checklistPromise = deps.featureFlags.taskChecklist
+		? createChecklistWithRetry({
+				deps,
+				input,
+			})
+		: Promise.resolve([] as ChecklistItem[]);
+	const checklist = await checklistPromise;
 
 	const finalUrl = await deps.getCurrentURL(session.browser);
 	const rawOpenTabs = await deps.listTabs(session.browser);

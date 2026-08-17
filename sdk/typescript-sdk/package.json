@@ -1,6 +1,6 @@
 {
 	"name": "@visnia/browser-agent-sdk",
-	"version": "1.0.21",
+	"version": "1.0.22",
 	"description": "TypeScript SDK for Browser Agent",
 	"keywords": [
 		"ai",

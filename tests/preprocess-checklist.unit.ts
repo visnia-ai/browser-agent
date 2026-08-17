@@ -22,7 +22,12 @@ describe("preprocess task checklist", () => {
 			},
 		];
 		let resolvedTabs: typeof tabs | undefined;
+		let checklistCalls = 0;
 		const deps = createMockCoreDeps({
+			createChecklist: async () => {
+				checklistCalls += 1;
+				return { items: ["Unexpected checklist"] };
+			},
 			getCurrentURL: async () => tabs[0].url,
 			listTabs: async () => tabs,
 			resolveCurrentTabIndex: async ({ openTabs }) => {
@@ -50,6 +55,8 @@ describe("preprocess task checklist", () => {
 			assert.deepEqual(resolvedTabs, [tabs[0]]);
 			assert.deepEqual(result.context.open_tabs, ["Dashboard"]);
 			assert.strictEqual(result.context.current_tab, 0);
+			assert.deepEqual(result.checklist, []);
+			assert.equal(checklistCalls, 0);
 			assert.deepEqual(deps.registry.get(9391)?.previousStepTabs, tabs);
 		} finally {
 			await closeSession(deps, 9391);
@@ -59,6 +66,10 @@ describe("preprocess task checklist", () => {
 	it("creates a task-only checklist without fetching a planner projection", async () => {
 		let projectionCalls = 0;
 		const deps = createMockCoreDeps({
+			featureFlags: {
+				...createMockCoreDeps().featureFlags,
+				taskChecklist: true,
+			},
 			getPageProjection: async () => {
 				projectionCalls += 1;
 				return "unexpected";

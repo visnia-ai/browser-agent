@@ -1017,8 +1017,6 @@ export function loadConfig(configPath: string): Config {
 		);
 	}
 	for (const removedKey of [
-		"task_checklist",
-		"taskChecklist",
 		"openai_encrypted_responses",
 		"openAIEncryptedResponses",
 		"openai_explicit_prompt_caching",
@@ -1077,6 +1075,15 @@ export function loadConfig(configPath: string): Config {
 		}
 	}
 	const configuredFeatureFlags: ConfigFeatureFlags = {
+		taskChecklist:
+			parseBooleanConfigValue(
+				pickFirstDefined(featureFlagsSource, [
+					"task_checklist",
+					"taskChecklist",
+				]),
+				fullPath,
+				"feature_flags.task_checklist",
+			) ?? true,
 		preStepScreenshotInLatestUserPrompt:
 			parseBooleanConfigValue(
 				pickFirstDefined(featureFlagsSource, [

@@ -98,7 +98,9 @@ function getExecutorContextPolicy(
 function getResponseKeyOrder(options: ExecutorPromptOptions): string {
 	const actionContextKeys =
 		"previousStepStatus, previousStepOutcome, currentStateObservation, nextActionRationale";
-	const checklistUpdateKey = "checklistUpdate, ";
+	const checklistUpdateKey = configFeatureFlags.taskChecklist
+		? "checklistUpdate, "
+		: "";
 	const thinkingKey = featureFlags.executorThinkingField ? "thinking, " : "";
 	const actionContextKeyList = getExecutorContextPolicy(options)
 		.executorActionContextFields
@@ -246,7 +248,7 @@ function getExecutorSectionPayloadFormat(
 Each step receives a YAML payload. Fields may be omitted when empty:
 - task: overall task
 - currentDateTime: runtime-local date/time and IANA zone
-${CHECKLIST_PAYLOAD_DESCRIPTION}
+${configFeatureFlags.taskChecklist ? CHECKLIST_PAYLOAD_DESCRIPTION : ""}
 - currentURL; currentTab and openTabs (switch_tab uses the zero-based index); newlyOpenedTabs
 - downloadedFiles: safe "./..." paths; [DOWNLOADING] is incomplete and [NEW] completed this run
 - workspaceFiles: discoverable safe "./..." paths; not an allowlist
@@ -271,7 +273,9 @@ function getExecutorSectionResponseFormat(
 	const explicitResultExampleSource = "memoryContent";
 	const resultSourceRule =
 		"completed extract_data or memoryContent exposed by memory_read";
-	const checklistUpdateExampleBlock = CHECKLIST_UPDATE_FORMAT_BLOCK;
+	const checklistUpdateExampleBlock = configFeatureFlags.taskChecklist
+		? CHECKLIST_UPDATE_FORMAT_BLOCK
+		: "";
 	const actionContextExampleBlock = getExecutorActionContextPreamble(options);
 	const textLikeScalarFields = `link, summary, downloaded_file_path, ref, path, root, text, url, script, request, value`;
 	const actionContextRules = getExecutorActionContextRules(options);
@@ -306,8 +310,7 @@ ${configFeatureFlags.agentTakeoverTool ? "  - agent_takeover: {request}\n" : ""}
 - Use only refs in the reconstructed current projection. For dates use YYYY-MM-DD. Set type.enter=true only when Enter is intended.
 - Complete normally only with return_results grounded in ${resultSourceRule}. memory_read and return_results wait for pending extraction automatically; never poll it.
 - Result items are {link, summary, downloaded_file_path?}. link and summary are mandatory. A downloaded_file_path must exactly match a completed "./..." entry in downloadedFiles.
-${CHECKLIST_UPDATE_INSTRUCTIONS}
-When the task is complete, use return_results instead of writing a result yourself.`;
+${configFeatureFlags.taskChecklist ? `${CHECKLIST_UPDATE_INSTRUCTIONS}\n` : ""}When the task is complete, use return_results instead of writing a result yourself.`;
 }
 
 function getExecutorSectionActions(
