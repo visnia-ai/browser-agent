@@ -127,6 +127,38 @@ describe("provider options", () => {
 			featureFlags.maxThinkingTokenBudget = originalBudget;
 		}
 	});
+
+	it("forwards Qwen3.8 reasoning effort to vLLM and its chat template", () => {
+		for (const reasoningEffort of ["low", "medium", "xhigh"] as const) {
+			const options = __buildProviderOptionsForTests({
+				model: "Qwen/Qwen3.8-27B",
+				provider: "vllm",
+				reasoningEffort,
+			});
+
+			assert.deepEqual(options.vllm, {
+				reasoning_effort: reasoningEffort,
+				chat_template_kwargs: {
+					enable_thinking: true,
+					reasoning_effort: reasoningEffort,
+				},
+			});
+		}
+
+		const disabled = __buildProviderOptionsForTests({
+			model: "Qwen/Qwen3.8-27B",
+			provider: "vllm",
+			reasoningEffort: "none",
+		});
+		assert.deepEqual(disabled.vllm, {
+			reasoning_effort: "none",
+			chat_template_kwargs: {
+				enable_thinking: false,
+				reasoning_effort: "none",
+			},
+		});
+	});
+
 });
 
 describe("provider response messages", () => {

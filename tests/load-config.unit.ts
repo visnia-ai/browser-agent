@@ -454,6 +454,54 @@ tasks:
 		assert.equal(config.stageLLMs.verifySuccess.reasoningEffort, "max");
 	});
 
+	it("parses and inherits explicit LLM temperatures", () => {
+		const configPath = writeTempConfig(`
+provider: vllm
+model: Qwen/Qwen3.8-27B
+reasoning_effort: xhigh
+temperature: 1.0
+endpoint_url: http://127.0.0.1:8001/v1
+stage_llms:
+  findTargetURL:
+    reasoning_effort: none
+    temperature: 0
+  dataExtraction:
+    provider: vllm
+    model: Qwen/Qwen3.8-27B
+    reasoning_effort: xhigh
+    temperature: 1.0
+    endpoint_url: http://127.0.0.1:8001/v1
+concurrency: 1
+tasks:
+  - "test task"
+`);
+
+		const config = loadConfig(configPath);
+
+		assert.equal(config.stageLLMs.findTargetURL.temperature, 0);
+		assert.equal(config.stageLLMs.createChecklist.temperature, 1);
+		assert.equal(config.stageLLMs.runAgent.temperature, 1);
+		assert.equal(config.stageLLMs.dataExtraction.temperature, 1);
+		assert.equal(config.stageLLMs.verifySuccess.temperature, 1);
+	});
+
+	it("rejects invalid LLM temperatures", () => {
+		const errorOutput = captureLoadConfigFailure(
+			`
+provider: vllm
+model: Qwen/Qwen3.8-27B
+reasoning_effort: enabled
+temperature: -0.1
+concurrency: 1
+tasks:
+  - "test task"
+`,
+			false,
+		);
+
+		assert.include(errorOutput, "Use a non-negative finite number");
+	});
+
 	it("rejects a stage without a resolved reasoning effort", () => {
 		const errorOutput = captureLoadConfigFailure(
 			`

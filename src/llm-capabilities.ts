@@ -54,6 +54,7 @@ const DEEPSEEK_REASONING_EFFORTS = [
 	"high",
 	"max",
 ] as const;
+const QWEN_38_REASONING_EFFORTS = ["none", "low", "medium", "xhigh"] as const;
 const TOGGLE_REASONING_EFFORTS = ["none", "enabled"] as const;
 const DISABLED_REASONING_EFFORTS = ["none"] as const;
 export const OPENROUTER_REASONING_EFFORTS = [
@@ -115,6 +116,13 @@ export const REASONING_MODEL_CAPABILITIES = [
 		match: "exact",
 		reasoningEfforts: DEEPSEEK_REASONING_EFFORTS,
 		defaultReasoningEffort: "high",
+	},
+	{
+		provider: "vllm",
+		model: "qwen3.8",
+		match: "contains",
+		reasoningEfforts: QWEN_38_REASONING_EFFORTS,
+		defaultReasoningEffort: "xhigh",
 	},
 	{
 		provider: "vllm",

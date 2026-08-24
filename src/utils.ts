@@ -52,6 +52,7 @@ export interface StageLLMOverride {
 	provider?: Provider;
 	model?: string;
 	reasoningEffort?: ReasoningEffort;
+	temperature?: number;
 	maxModelLen?: number;
 	reserveOutputTokens?: number;
 	endpointUrl?: string;
@@ -243,6 +244,20 @@ function parseOptionalPositiveInteger(
 	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
 		failConfig(
 			`Invalid ${context} in config: ${fullPath}. Use a positive integer.`,
+		);
+	}
+	return value;
+}
+
+function parseOptionalTemperature(
+	value: unknown,
+	fullPath: string,
+	context: string,
+): number | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+		failConfig(
+			`Invalid ${context} in config: ${fullPath}. Use a non-negative finite number.`,
 		);
 	}
 	return value;
@@ -541,6 +556,11 @@ function parseStageLLMOverride(
 		fullPath,
 		`reasoning_effort for stage '${stage}'`,
 	);
+	const temperature = parseOptionalTemperature(
+		pickFirstDefined(stageRecord, ["temperature"]),
+		fullPath,
+		`temperature for stage '${stage}'`,
+	);
 	const maxModelLen = parseOptionalPositiveInteger(
 		pickFirstDefined(stageRecord, ["max_model_len", "maxModelLen"]),
 		fullPath,
@@ -569,13 +589,14 @@ function parseStageLLMOverride(
 		provider === undefined &&
 		model === undefined &&
 		reasoningEffort === undefined &&
+		temperature === undefined &&
 		maxModelLen === undefined &&
 		reserveOutputTokens === undefined &&
 		stageEndpointSettings.endpointUrl === undefined &&
 		openrouterProvider === undefined
 	) {
 		failConfig(
-			`Invalid stage override for '${stage}' in config: ${fullPath}. Provide at least one of provider/model/reasoning_effort/max_model_len/reserve_output_tokens/endpoint_url/openrouter_provider fields.`,
+			`Invalid stage override for '${stage}' in config: ${fullPath}. Provide at least one of provider/model/reasoning_effort/temperature/max_model_len/reserve_output_tokens/endpoint_url/openrouter_provider fields.`,
 		);
 	}
 
@@ -583,6 +604,7 @@ function parseStageLLMOverride(
 		...(provider !== undefined ? { provider } : {}),
 		...(model !== undefined ? { model } : {}),
 		reasoningEffort,
+		...(temperature !== undefined ? { temperature } : {}),
 		...(maxModelLen !== undefined ? { maxModelLen } : {}),
 		...(reserveOutputTokens !== undefined ? { reserveOutputTokens } : {}),
 		...stageEndpointSettings,
@@ -701,6 +723,9 @@ function resolveStageLLMOptions(
 		provider,
 		model,
 		reasoningEffort,
+		...((override?.temperature ?? defaultLLM?.temperature) !== undefined
+			? { temperature: override?.temperature ?? defaultLLM?.temperature }
+			: {}),
 		...((override?.maxModelLen ?? defaultLLM?.maxModelLen) !== undefined
 			? {
 					maxModelLen: override?.maxModelLen ?? defaultLLM?.maxModelLen,
@@ -848,6 +873,11 @@ export function loadConfig(configPath: string): Config {
 		fullPath,
 		"default reasoning_effort",
 	);
+	const defaultTemperature = parseOptionalTemperature(
+		pickFirstDefined(llmSource, ["temperature"]),
+		fullPath,
+		"default temperature",
+	);
 	const defaultOpenRouterProvider = parseOptionalOpenRouterProvider(
 		llmSource,
 		fullPath,
@@ -906,6 +936,9 @@ export function loadConfig(configPath: string): Config {
 			...(defaultReasoningEffort !== undefined
 				? { reasoningEffort: defaultReasoningEffort }
 				: {}),
+			...(defaultTemperature !== undefined
+				? { temperature: defaultTemperature }
+				: {}),
 			...(defaultMaxModelLen !== undefined
 				? { maxModelLen: defaultMaxModelLen }
 				: {}),
@@ -920,11 +953,15 @@ export function loadConfig(configPath: string): Config {
 		validateResolvedPromptBudget(defaultLLM, fullPath, "default");
 	} else if (
 		defaultReasoningEffort !== undefined ||
+		defaultTemperature !== undefined ||
 		defaultOpenRouterProvider !== undefined
 	) {
 		defaultLLM = {
 			...(defaultReasoningEffort !== undefined
 				? { reasoningEffort: defaultReasoningEffort }
+				: {}),
+			...(defaultTemperature !== undefined
+				? { temperature: defaultTemperature }
 				: {}),
 			...(defaultOpenRouterProvider !== undefined
 				? { openrouterProvider: defaultOpenRouterProvider }

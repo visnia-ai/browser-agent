@@ -709,6 +709,8 @@ function buildProviderOptions(params: {
 	if (params.provider === "vllm") {
 		const enabled = params.reasoningEffort === "enabled";
 		const reasoningEnabled = params.reasoningEffort !== "none";
+		const qwen38ReasoningEnabled =
+			capability?.model === "qwen3.8" && reasoningEnabled;
 		const glmReasoningEnabled =
 			capability?.model === "glm" && params.reasoningEffort !== "none";
 		const deepSeekV4ReasoningEnabled =
@@ -722,7 +724,15 @@ function buildProviderOptions(params: {
 							thinking_token_budget: featureFlags.maxThinkingTokenBudget,
 						}
 					: {}),
-				...(capability?.model === "qwen"
+				...(capability?.model === "qwen3.8"
+					? {
+							reasoning_effort: params.reasoningEffort,
+							chat_template_kwargs: {
+								enable_thinking: qwen38ReasoningEnabled,
+								reasoning_effort: params.reasoningEffort,
+							},
+						}
+					: capability?.model === "qwen"
 					? {
 							chat_template_kwargs: {
 								enable_thinking: enabled,
@@ -1005,7 +1015,8 @@ async function runProviderChatInternal(
 			...(args.options.provider === "codex"
 				? {}
 				: { maxOutputTokens: args.options.reserveOutputTokens }),
-			temperature: isVLLMProvider ? 0.2 : undefined,
+			temperature:
+				args.options.temperature ?? (isVLLMProvider ? 1.0 : undefined),
 			...(outputStopSequences.length > 0
 				? {
 						experimental_transform: createFinalOutputStopTransform({
@@ -1107,7 +1118,7 @@ async function runProviderChatInternal(
 		...(args.options.provider === "codex"
 			? {}
 			: { maxOutputTokens: args.options.reserveOutputTokens }),
-		temperature: isVLLMProvider ? 0.2 : undefined,
+		temperature: args.options.temperature ?? (isVLLMProvider ? 1.0 : undefined),
 		providerOptions: providerOptions as unknown as NonNullable<
 			Parameters<typeof generateText>[0]["providerOptions"]
 		>,

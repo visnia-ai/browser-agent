@@ -127,6 +127,39 @@ describe("reasoning model capabilities", () => {
 		}
 	});
 
+	it("supports native Qwen3.8 reasoning tiers on vLLM", () => {
+		const capability = getReasoningModelCapability(
+			"vllm",
+			"Qwen/Qwen3.8-27B",
+		);
+
+		assert.equal(capability?.defaultReasoningEffort, "xhigh");
+		assert.deepEqual(capability?.reasoningEfforts, [
+			"none",
+			"low",
+			"medium",
+			"xhigh",
+		]);
+		for (const reasoningEffort of ["low", "medium", "xhigh"] as const) {
+			assert.doesNotThrow(() =>
+				validateReasoningConfiguration({
+					provider: "vllm",
+					model: "Qwen/Qwen3.8-27B",
+					reasoningEffort,
+				}),
+			);
+		}
+		assert.throws(
+			() =>
+				validateReasoningConfiguration({
+					provider: "vllm",
+					model: "Qwen/Qwen3.8-27B",
+					reasoningEffort: "enabled",
+				}),
+			"Allowed values: none, low, medium, xhigh",
+		);
+	});
+
 	it("rejects unknown models for validated providers", () => {
 		for (const provider of ["openai", "codex", "together", "vllm"] as const) {
 			assert.throws(

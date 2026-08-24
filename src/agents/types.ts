@@ -28,6 +28,7 @@ export interface LLMOptions {
 	model: string;
 	apiKey?: string;
 	reasoningEffort: ReasoningEffort;
+	temperature?: number;
 	maxModelLen?: number;
 	reserveOutputTokens?: number;
 	endpointUrl?: string;
