@@ -6,6 +6,7 @@ import {
 } from "./semantic-ref-registry.js";
 
 export interface SemanticProjectionOptions {
+	frameId?: string;
 	omitHrefs?: boolean;
 	preserveFullHrefs?: boolean;
 	redactInputRefs?: string[];
@@ -659,13 +660,16 @@ export async function getSemanticProjection(
 	browser: Browser,
 	options: SemanticProjectionOptions = {},
 ): Promise<string> {
-	const largePlainTextDocument =
-		await inspectLargePlainTextDocument(browser);
+	const largePlainTextDocument = options.frameId
+		? null
+		: await inspectLargePlainTextDocument(browser);
 	if (largePlainTextDocument) {
 		replaceSemanticRefSnapshot(browser, []);
 		return serializeLargePlainTextProjection(largePlainTextDocument);
 	}
-	const response = await browser.Accessibility.getFullAXTree();
+	const response = await browser.Accessibility.getFullAXTree(
+		options.frameId ? { frameId: options.frameId } : undefined,
+	);
 	const nodes = new Map<string, ProjectionNode>();
 	for (const rawNode of response.nodes) {
 		const id = String(rawNode.nodeId);
@@ -698,6 +702,7 @@ export async function getSemanticProjection(
 		node: ProjectionNode,
 		ancestors: Set<string>,
 		ancestorName = "",
+		semanticAncestors: string[] = [],
 	): SemanticProjectionNode[] => {
 		if (ancestors.has(node.id)) return [];
 		const nextAncestors = new Set(ancestors).add(node.id);
@@ -708,7 +713,9 @@ export async function getSemanticProjection(
 		if (node.ignored || !shouldRenderNode(node) || duplicatesAncestorName) {
 			return node.childIds.flatMap((childId) => {
 				const child = nodes.get(childId);
-				return child ? render(child, nextAncestors, ancestorName) : [];
+				return child
+					? render(child, nextAncestors, ancestorName, semanticAncestors)
+					: [];
 			});
 		}
 
@@ -720,6 +727,9 @@ export async function getSemanticProjection(
 				ref,
 				backendNodeId: node.backendNodeId,
 				role: node.role,
+				name: node.name,
+				ancestorSignature: semanticAncestors,
+				frameId: options.frameId,
 				capabilities: capabilitiesFor(node),
 			});
 		}
@@ -731,10 +741,19 @@ export async function getSemanticProjection(
 			omitHrefs: options.omitHrefs !== false,
 			preserveFullHrefs: options.preserveFullHrefs === true,
 		});
+		const semanticSegment = node.name
+			? `${node.role}(${node.name})`
+			: node.role;
+		const childSemanticAncestors = [...semanticAncestors, semanticSegment];
 		const children = node.childIds.flatMap((childId) => {
 			const child = nodes.get(childId);
 			return child
-				? render(child, nextAncestors, node.name || ancestorName)
+				? render(
+						child,
+						nextAncestors,
+						node.name || ancestorName,
+						childSemanticAncestors,
+					)
 				: [];
 		});
 		return [{ role: node.role || "node", fields, children }];

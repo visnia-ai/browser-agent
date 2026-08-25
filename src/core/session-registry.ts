@@ -21,6 +21,10 @@ export interface BrowserSession {
 	previousInteractionErrors: string[];
 	previousToolObservations: string[];
 	previousStepTabs: Tab[] | null;
+	pendingAutoSwitchRecovery?: {
+		sourceTargetId: string;
+		candidateTargetId: string;
+	};
 	downloadedFileSignatures: Map<string, string> | null;
 	downloadedNewFilePaths: Set<string>;
 	authTakeover?: SessionAuthTakeoverState;

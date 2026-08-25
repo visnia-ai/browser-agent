@@ -4,6 +4,9 @@ export interface SemanticRefTarget {
 	ref: string;
 	backendNodeId: number;
 	role: string;
+	name?: string;
+	ancestorSignature?: string[];
+	frameId?: string;
 	capabilities: string[];
 }
 

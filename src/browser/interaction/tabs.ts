@@ -13,28 +13,40 @@ export async function listTabs(b: Browser): Promise<Tab[]> {
 
 export async function switchTab(b: Browser, targetId: string): Promise<void> {
 	await b.onActivateTarget?.(targetId);
-	await b.Target.activateTarget({ targetId });
+	await CDP.Activate(withLocalCdpHost({ port: b.port, id: targetId }));
 
 	// Reconnect CDP client to the new target.
-	const newClient = await CDP(
-		withLocalCdpHost({ port: b.port, target: targetId }),
-	);
-	const { Page, Runtime, DOM, DOMSnapshot, Input, Target, Accessibility } =
-		await enableBrowserClientDomains(newClient);
+	let newClient: CDP.Client | undefined;
+	try {
+		newClient = await CDP(
+			withLocalCdpHost({ port: b.port, target: targetId }),
+		);
+		const { Page, Runtime, DOM, DOMSnapshot, Input, Target, Accessibility } =
+			await enableBrowserClientDomains(newClient);
+		await Page.bringToFront();
+		await sleep(300);
+		await Page.getFrameTree();
 
-	// Replace domains on the browser object.
-	b.client = newClient;
-	b.Page = Page;
-	b.Runtime = Runtime;
-	b.DOM = DOM;
-	b.DOMSnapshot = DOMSnapshot;
-	b.Input = Input;
-	b.Target = Target;
-	b.Accessibility = Accessibility;
-	b.currentTargetId = targetId;
-	b.onActivateTarget = b.onActivateTarget;
-	await b.Page.bringToFront();
-	await sleep(300);
+		// Commit the new target only after its client is fully usable. This leaves
+		// the existing target connection intact if a short-lived target disappears
+		// while the replacement client is being initialized.
+		b.client = newClient;
+		b.Page = Page;
+		b.Runtime = Runtime;
+		b.DOM = DOM;
+		b.DOMSnapshot = DOMSnapshot;
+		b.Input = Input;
+		b.Target = Target;
+		b.Accessibility = Accessibility;
+		b.currentTargetId = targetId;
+	} catch (error) {
+		try {
+			await newClient?.close();
+		} catch {
+			// Best-effort cleanup for a target that closed during connection setup.
+		}
+		throw error;
+	}
 }
 
 export async function newTab(b: Browser, url?: string): Promise<Tab> {

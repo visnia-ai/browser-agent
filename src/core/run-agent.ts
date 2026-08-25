@@ -537,6 +537,7 @@ interface SessionSnapshot {
 	previousInteractionErrors: string[];
 	previousToolObservations: string[];
 	previousStepTabs: BrowserSession["previousStepTabs"];
+	pendingAutoSwitchRecovery: BrowserSession["pendingAutoSwitchRecovery"];
 	downloadedFileSignatures: BrowserSession["downloadedFileSignatures"];
 	downloadedNewFilePaths: Set<string>;
 	lastActionSignatureWithUrl: string | null;
@@ -567,6 +568,9 @@ function snapshotSession(session: BrowserSession): SessionSnapshot {
 		previousStepTabs: session.previousStepTabs
 			? session.previousStepTabs.map((tab) => ({ ...tab }))
 			: null,
+		pendingAutoSwitchRecovery: session.pendingAutoSwitchRecovery
+			? { ...session.pendingAutoSwitchRecovery }
+			: undefined,
 		downloadedFileSignatures: cloneDownloadedFileSignatures(
 			session.downloadedFileSignatures,
 		),
@@ -613,6 +617,9 @@ async function restoreSession(
 	session.previousStepTabs = snapshot.previousStepTabs
 		? snapshot.previousStepTabs.map((tab) => ({ ...tab }))
 		: null;
+	session.pendingAutoSwitchRecovery = snapshot.pendingAutoSwitchRecovery
+		? { ...snapshot.pendingAutoSwitchRecovery }
+		: undefined;
 	session.downloadedFileSignatures = cloneDownloadedFileSignatures(
 		snapshot.downloadedFileSignatures,
 	);

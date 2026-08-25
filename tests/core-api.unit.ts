@@ -858,6 +858,227 @@ describe("core-api", () => {
 		assert.strictEqual(currentTargetId, "tab-2");
 	});
 
+	it("recovers the source tab when an auto-switched target closes before the next prompt", async () => {
+		const sourceTab = {
+			targetId: "tab-source",
+			title: "Download source",
+			url: "https://example.com/source",
+		};
+		const transientTab = {
+			targetId: "tab-transient",
+			title: "",
+			url: "https://example.com/download/temporary-target",
+		};
+		let liveTabs = [sourceTab];
+		let currentTargetId = sourceTab.targetId;
+		const switchedTargets: string[] = [];
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () => {
+				const currentTab = liveTabs.find(
+					(tab) => tab.targetId === currentTargetId,
+				);
+				if (!currentTab) {
+					throw new Error("WebSocket is not open: readyState 3 (CLOSED)");
+				}
+				return currentTab.url;
+			},
+			getPageProjection: async () =>
+				currentTargetId === sourceTab.targetId
+					? 'main ref="source": Download source'
+					: 'main ref="temporary": Preparing download',
+			listTabs: async () => liveTabs,
+			getNewlyOpenedTabs: (previousTabs, currentTabs) => {
+				const previousTargetIds = new Set(
+					(previousTabs ?? []).map((tab) => tab.targetId),
+				);
+				return currentTabs.filter(
+					(tab) => !previousTargetIds.has(tab.targetId),
+				);
+			},
+			resolveCurrentTabIndex: async ({ openTabs }) =>
+				openTabs.findIndex((tab) => tab.targetId === currentTargetId),
+			switchTab: async (browser, targetId) => {
+				switchedTargets.push(targetId);
+				currentTargetId = targetId;
+				browser.currentTargetId = targetId;
+			},
+			executeActions: async () => {
+				liveTabs = [sourceTab, transientTab];
+				return {
+					pendingMemoryRead: false,
+					interactionErrors: [],
+				};
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		const session = deps.registry.get(9222)!;
+		session.previousStepTabs = [sourceTab];
+		session.browser.currentTargetId = sourceTab.targetId;
+
+		const browseResult = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [],
+		});
+		assert.strictEqual(browseResult.mode, "browse");
+		if (browseResult.mode === "browse") {
+			assert.strictEqual(browseResult.context.current_url, transientTab.url);
+		}
+		assert.deepEqual(session.pendingAutoSwitchRecovery, {
+			sourceTargetId: sourceTab.targetId,
+			candidateTargetId: transientTab.targetId,
+		});
+
+		liveTabs = [sourceTab];
+		const promptResult = await step(deps, {
+			mode: "create_prompt_for_step",
+			port: 9222,
+			userTask: "Confirm the download and continue",
+			stepsHistory: [],
+		});
+
+		assert.strictEqual(promptResult.mode, "create_prompt_for_step");
+		if (promptResult.mode === "create_prompt_for_step") {
+			assert.strictEqual(promptResult.context.current_url, sourceTab.url);
+			assert.strictEqual(promptResult.context.current_tab, 0);
+			assert.include(
+				promptResult.prompt.payload.interactionErrors.join(" | "),
+				"Auto-switched target closed before inspection; restored source tab.",
+			);
+		}
+		assert.deepEqual(switchedTargets, [
+			transientTab.targetId,
+			sourceTab.targetId,
+		]);
+		assert.isUndefined(session.pendingAutoSwitchRecovery);
+		assert.strictEqual(currentTargetId, sourceTab.targetId);
+	});
+
+	it("does not mask URL failures while the auto-switched target is still live", async () => {
+		const tabs = [
+			{
+				targetId: "tab-source",
+				title: "Source",
+				url: "https://example.com/source",
+			},
+			{
+				targetId: "tab-live",
+				title: "Live target",
+				url: "https://example.com/live",
+			},
+		];
+		let failCurrentUrl = false;
+		let switchCalls = 0;
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () => {
+				if (failCurrentUrl) {
+					throw new Error("protocol failure on live target");
+				}
+				return tabs[0].url;
+			},
+			listTabs: async () => tabs,
+			switchTab: async () => {
+				switchCalls += 1;
+			},
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		const session = deps.registry.get(9222)!;
+		session.browser.currentTargetId = tabs[1].targetId;
+		session.pendingAutoSwitchRecovery = {
+			sourceTargetId: tabs[0].targetId,
+			candidateTargetId: tabs[1].targetId,
+		};
+		failCurrentUrl = true;
+
+		let caught: unknown;
+		try {
+			await step(deps, {
+				mode: "create_prompt_for_step",
+				port: 9222,
+				userTask: "Continue",
+				stepsHistory: [],
+			});
+		} catch (error) {
+			caught = error;
+		}
+
+		assert.instanceOf(caught, Error);
+		assert.include((caught as Error).message, "protocol failure on live target");
+		assert.strictEqual(switchCalls, 0);
+	});
+
+	it("waits for a failed auto-switch target to disappear from the target list", async () => {
+		const sourceTab = {
+			targetId: "tab-source",
+			title: "Source",
+			url: "https://example.com/source",
+		};
+		const transientTab = {
+			targetId: "tab-transient",
+			title: "",
+			url: "https://example.com/transient-download",
+		};
+		let candidateSwitchAttempted = false;
+		let recoveryListCalls = 0;
+		const switchedTargets: string[] = [];
+		const deps = createMockCoreDeps({
+			getCurrentURL: async () => sourceTab.url,
+			getPageProjection: async () => 'main ref="source": Source',
+			listTabs: async () => {
+				if (!candidateSwitchAttempted) return [sourceTab, transientTab];
+				recoveryListCalls += 1;
+				return recoveryListCalls === 1
+					? [sourceTab, transientTab]
+					: [sourceTab];
+			},
+			getNewlyOpenedTabs: (previousTabs, currentTabs) => {
+				const previousTargetIds = new Set(
+					(previousTabs ?? []).map((tab) => tab.targetId),
+				);
+				return currentTabs.filter(
+					(tab) => !previousTargetIds.has(tab.targetId),
+				);
+			},
+			resolveCurrentTabIndex: async () => 0,
+			switchTab: async (browser, targetId) => {
+				switchedTargets.push(targetId);
+				if (targetId === transientTab.targetId) {
+					candidateSwitchAttempted = true;
+					throw new Error("Unexpected server response: 500");
+				}
+				browser.currentTargetId = targetId;
+			},
+			executeActions: async () => ({
+				pendingMemoryRead: false,
+				interactionErrors: [],
+			}),
+		});
+		await createSession(deps, { port: 9222, headless: true });
+		const session = deps.registry.get(9222)!;
+		session.previousStepTabs = [sourceTab];
+
+		const result = await step(deps, {
+			mode: "browse",
+			port: 9222,
+			generatedActions: [],
+		});
+
+		assert.strictEqual(result.mode, "browse");
+		if (result.mode === "browse") {
+			assert.strictEqual(result.context.current_url, sourceTab.url);
+			assert.include(
+				result.execution.interaction_errors.join(" | "),
+				"Auto-switched target closed before inspection; restored source tab.",
+			);
+		}
+		assert.deepEqual(switchedTargets, [
+			transientTab.targetId,
+			sourceTab.targetId,
+		]);
+		assert.isAtLeast(recoveryListCalls, 2);
+		assert.isUndefined(session.pendingAutoSwitchRecovery);
+	});
+
 	it("step(browse) saves a newly opened PDF and keeps source context", async () => {
 		const downloadDir = fs.mkdtempSync(
 			path.join(os.tmpdir(), "browser-agent-pdf-tab-download-"),

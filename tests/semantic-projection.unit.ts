@@ -17,6 +17,65 @@ function makeBrowser(nodes: unknown[]): Browser {
 }
 
 describe("semantic projection", () => {
+	it("extracts a requested child frame and records relocation metadata", async () => {
+		let receivedFrameId: string | undefined;
+		const browser = {
+			Runtime: {
+				evaluate: async () => {
+					throw new Error("frame projection must not inspect the parent runtime");
+				},
+			},
+			Accessibility: {
+				getFullAXTree: async (params?: { frameId?: string }) => {
+					receivedFrameId = params?.frameId;
+					return {
+						nodes: [
+							{
+								nodeId: "1",
+								backendDOMNodeId: 101,
+								role: axValue("RootWebArea"),
+								name: axValue("OnePick"),
+								childIds: ["2"],
+							},
+							{
+								nodeId: "2",
+								backendDOMNodeId: 102,
+								role: axValue("dialog"),
+								name: axValue("Insert file"),
+								childIds: ["3"],
+							},
+							{
+								nodeId: "3",
+								backendDOMNodeId: 103,
+								role: axValue("button"),
+								name: axValue("Browse"),
+							},
+						],
+					};
+				},
+			},
+		} as unknown as Browser;
+
+		const projection = await getSemanticProjection(browser, {
+			frameId: "frame-picker",
+		});
+
+		assert.strictEqual(receivedFrameId, "frame-picker");
+		assert.include(projection, 'button ref="r2v" name="Browse"');
+		const browseTarget = getSemanticRefTargets(browser).find(
+			(target) => target.name === "Browse",
+		);
+		assert.deepInclude(browseTarget, {
+			role: "button",
+			name: "Browse",
+			frameId: "frame-picker",
+		});
+		assert.deepEqual(browseTarget?.ancestorSignature, [
+			"document(OnePick)",
+			"dialog(Insert file)",
+		]);
+	});
+
 	it("bypasses full AX extraction only for large native plain-text documents", async () => {
 		let fullAXTreeCalls = 0;
 		const browser = {

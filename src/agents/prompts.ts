@@ -335,6 +335,7 @@ Use the smallest useful action set. Every ref must be present in the reconstruct
 upload_files:
   - Attach non-empty safe "./..." paths directly to the visible choose/attach/import/upload control. Never click that trigger first or use absolute/hidden/../ paths.
   - Prefer the visible trigger over a hidden file input. workspaceFiles aids discovery but is not an allowlist; an explicitly supplied safe path remains valid.
+  - A successful observation reports selected, uploading, or committed. Treat committed as page-visible evidence; otherwise inspect the next projection before submitting.
 
 paste_file:
   - Paste exact text contents from a file into an editable ref. Use a safe "./..." path and prefer this over type/memory_read for exact bulk text.

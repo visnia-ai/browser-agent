@@ -67,11 +67,16 @@ describe("upload files", () => {
 				},
 			]);
 
-			await uploadFiles({
+			const uploadResult = await uploadFiles({
 				browser,
 				ref: "r12",
 				paths: ["./report.pdf"],
 				fileWorkspaceRoot: workspaceDir,
+			});
+			assert.deepEqual(uploadResult, {
+				state: "selected",
+				paths: ["./report.pdf"],
+				evidence: "Files were applied through direct_input.",
 			});
 
 			assert.deepEqual(setFileInputCalls, [

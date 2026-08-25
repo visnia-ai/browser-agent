@@ -3,7 +3,7 @@ import * as vm from "node:vm";
 import yaml from "js-yaml";
 import type { Browser, Tab } from "../../browser/types.js";
 import {
-	clickAndAutoUploadIfFileChooser,
+	clickWithFileChooserGuard,
 	downloadCurrentFile,
 	consumePrintRequestsAndSavePdfs,
 	dropdownSelect,
@@ -680,16 +680,10 @@ export async function executeActions(params: {
 				}
 				case "click":
 					console.log(`    -> click(ref=${action.ref})`);
-					const autoUploadResult = await clickAndAutoUploadIfFileChooser({
+					await clickWithFileChooserGuard({
 						browser: params.b,
 						ref: action.ref,
-						fileWorkspaceRoot: params.fileWorkspaceRoot,
 					});
-					if (autoUploadResult.fileChooserOpened) {
-						console.log(
-							`       [file_picker] auto-uploaded ${autoUploadResult.uploadedPaths.length} file(s)`,
-						);
-					}
 					break;
 				case "long_press":
 					console.log(
@@ -828,12 +822,15 @@ export async function executeActions(params: {
 					console.log(
 						`    -> upload_files(ref=${action.ref}, paths=[${action.paths.map((entry) => JSON.stringify(entry)).join(", ")}])`,
 					);
-					await uploadFiles({
+					const uploadResult = await uploadFiles({
 						browser: params.b,
 						ref: action.ref,
 						paths: action.paths,
 						fileWorkspaceRoot: params.fileWorkspaceRoot,
 					});
+					toolObservations.push(
+						`[upload_files] ${JSON.stringify(uploadResult)}`,
+					);
 					break;
 				case "paste_file":
 					if (!params.fileWorkspaceRoot?.trim()) {

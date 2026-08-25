@@ -58,10 +58,14 @@ const PRE_STEP_SCREENSHOT_STALE_NODE_RETRY_COUNT = 2;
 const PRE_STEP_SCREENSHOT_STALE_NODE_RETRY_DELAY_MS = 150;
 const EMPTY_PROJECTION_RETRY_DELAY_MS = 3_000;
 const EMPTY_PROJECTION_MAX_RETRIES = 2;
+const CLOSED_AUTO_SWITCH_TARGET_RETRY_COUNT = 5;
+const CLOSED_AUTO_SWITCH_TARGET_RETRY_DELAY_MS = 100;
 const BLANK_DOWNLOAD_TAB_CONTEXT_NOTE =
 	"Ignored blank download tab; stayed on source tab.";
 const PDF_DOWNLOAD_TAB_CONTEXT_NOTE =
 	"Downloaded newly opened PDF; stayed on source tab.";
+const CLOSED_AUTO_SWITCH_TAB_CONTEXT_NOTE =
+	"Auto-switched target closed before inspection; restored source tab.";
 
 function getSessionOrThrow(deps: CoreDeps, port: number): BrowserSession {
 	const session = deps.registry.get(port);
@@ -172,6 +176,155 @@ function firstMeaningfulNewTab(tabs: Tab[]): Tab | undefined {
 	return tabs.find(
 		(tab) => !isBlankDownloadArtifactTab(tab) && !isPdfViewerTab(tab),
 	);
+}
+
+function isClosedTargetConnectionError(error: unknown): boolean {
+	const message = toErrorMessage(error).toLowerCase();
+	return (
+		message.includes("websocket is not open: readystate 3") ||
+		message.includes("websocket connection closed") ||
+		message.includes("inspected target navigated or closed") ||
+		message.includes("target closed") ||
+		message.includes("no target with given id")
+	);
+}
+
+async function tryRecoverClosedAutoSwitchTarget(input: {
+	deps: CoreDeps;
+	session: BrowserSession;
+	error: unknown;
+	contextMessages: string[];
+	allowUncommittedSwitch?: boolean;
+}): Promise<{ currentUrl: string; openTabs: Tab[] } | undefined> {
+	const pending = input.session.pendingAutoSwitchRecovery;
+	if (!pending) {
+		return undefined;
+	}
+
+	const currentTargetId = input.session.browser.currentTargetId;
+	if (
+		currentTargetId !== pending.candidateTargetId &&
+		!(
+			input.allowUncommittedSwitch &&
+			(currentTargetId === pending.sourceTargetId ||
+				currentTargetId === undefined)
+		)
+	) {
+		input.session.pendingAutoSwitchRecovery = undefined;
+		return undefined;
+	}
+
+	let openTabs: Tab[];
+	const closedTargetConnection = isClosedTargetConnectionError(input.error);
+	try {
+		openTabs = await input.deps.listTabs(input.session.browser);
+		for (
+			let attempt = 0;
+			input.allowUncommittedSwitch &&
+			!closedTargetConnection &&
+			attempt < CLOSED_AUTO_SWITCH_TARGET_RETRY_COUNT &&
+			openTabs.some(
+				(tab) => tab.targetId === pending.candidateTargetId,
+			);
+			attempt++
+		) {
+			await sleep(CLOSED_AUTO_SWITCH_TARGET_RETRY_DELAY_MS);
+			openTabs = await input.deps.listTabs(input.session.browser);
+		}
+	} catch {
+		return undefined;
+	}
+	const candidateStillListed = openTabs.some(
+		(tab) => tab.targetId === pending.candidateTargetId,
+	);
+	if (
+		(candidateStillListed && !closedTargetConnection) ||
+		!openTabs.some((tab) => tab.targetId === pending.sourceTargetId)
+	) {
+		return undefined;
+	}
+
+	try {
+		await input.deps.switchTab(
+			input.session.browser,
+			pending.sourceTargetId,
+		);
+		const currentUrl = await input.deps.getCurrentURL(input.session.browser);
+		try {
+			openTabs = await input.deps.listTabs(input.session.browser);
+		} catch {
+			// The source target is already restored; retain the recovery snapshot.
+		}
+		input.session.pendingAutoSwitchRecovery = undefined;
+		input.contextMessages.push(CLOSED_AUTO_SWITCH_TAB_CONTEXT_NOTE);
+		console.warn(
+			`[browser] ${CLOSED_AUTO_SWITCH_TAB_CONTEXT_NOTE} (${toErrorMessage(input.error)})`,
+		);
+		return { currentUrl, openTabs };
+	} catch {
+		return undefined;
+	}
+}
+
+async function getCurrentURLWithAutoSwitchRecovery(input: {
+	deps: CoreDeps;
+	session: BrowserSession;
+	contextMessages: string[];
+}): Promise<string> {
+	try {
+		return await input.deps.getCurrentURL(input.session.browser);
+	} catch (error) {
+		const recovered = await tryRecoverClosedAutoSwitchTarget({
+			...input,
+			error,
+		});
+		if (recovered) {
+			return recovered.currentUrl;
+		}
+		throw error;
+	}
+}
+
+async function switchToNewTabWithRecovery(input: {
+	deps: CoreDeps;
+	session: BrowserSession;
+	sourceTargetId: string | undefined;
+	candidateTargetId: string;
+	contextMessages: string[];
+}): Promise<{
+	currentUrl: string;
+	openTabs: Tab[];
+	recovered: boolean;
+}> {
+	input.session.pendingAutoSwitchRecovery = input.sourceTargetId
+		? {
+				sourceTargetId: input.sourceTargetId,
+				candidateTargetId: input.candidateTargetId,
+			}
+		: undefined;
+
+	try {
+		await input.deps.switchTab(
+			input.session.browser,
+			input.candidateTargetId,
+		);
+		const currentUrl = await input.deps.getCurrentURL(input.session.browser);
+		const openTabs = await input.deps.listTabs(input.session.browser);
+		return { currentUrl, openTabs, recovered: false };
+	} catch (error) {
+		const recovered = await tryRecoverClosedAutoSwitchTarget({
+			deps: input.deps,
+			session: input.session,
+			error,
+			contextMessages: input.contextMessages,
+			allowUncommittedSwitch: true,
+		});
+		if (recovered) {
+			return { ...recovered, recovered: true };
+		}
+		input.session.pendingAutoSwitchRecovery = undefined;
+		throw error;
+	}
 }
 
 async function downloadNewPdfTabs(input: {
@@ -424,12 +577,18 @@ async function createPromptForStepImpl(
 		input.stepsHistory.length,
 		cumulativeProjectionHistoryEnabled,
 	);
+	const promptInteractionErrors = [...session.previousInteractionErrors];
 	let currentUrl = await timeStateExtractionPhase(
 		{
 			stepNumber: input.stepNumber,
 			phase: "getCurrentURL",
 		},
-		async () => await deps.getCurrentURL(session.browser),
+		async () =>
+			await getCurrentURLWithAutoSwitchRecovery({
+				deps,
+				session,
+				contextMessages: promptInteractionErrors,
+			}),
 	);
 	logStateExtractionPhase({
 		stepNumber: input.stepNumber,
@@ -445,7 +604,6 @@ async function createPromptForStepImpl(
 			: [],
 		redactPasswordInputs: protectAuthContext,
 	};
-	const promptInteractionErrors = [...session.previousInteractionErrors];
 	let projection = "";
 	let validRefs: string[] = [];
 	const getProjectionWithRetry = async (): Promise<string> =>
@@ -569,14 +727,22 @@ async function createPromptForStepImpl(
 					console.log(
 						`Auto-switching to first newly opened tab: "${deps.formatTabTitle(firstNewTab)}"`,
 					);
-					await deps.switchTab(session.browser, firstNewTab.targetId);
-					currentUrl = await timeStateExtractionPhase(
+					const switched = await timeStateExtractionPhase(
 						{
 							stepNumber: input.stepNumber,
-							phase: "getCurrentURL:autoSwitch",
+							phase: "switchTab:autoSwitch",
 						},
-						async () => await deps.getCurrentURL(session.browser),
+						async () =>
+							await switchToNewTabWithRecovery({
+								deps,
+								session,
+								sourceTargetId:
+									currentTabTargetId ?? session.browser.currentTargetId,
+								candidateTargetId: firstNewTab.targetId,
+								contextMessages: promptInteractionErrors,
+							}),
 					);
+					currentUrl = switched.currentUrl;
 					logStateExtractionPhase({
 						stepNumber: input.stepNumber,
 						phase: "getCurrentURL:autoSwitch:value",
@@ -584,13 +750,7 @@ async function createPromptForStepImpl(
 						detail: currentUrl,
 					});
 					await refreshProjectionContext();
-					rawOpenTabs = await timeStateExtractionPhase(
-						{
-							stepNumber: input.stepNumber,
-							phase: "listTabs:autoSwitch",
-						},
-						async () => await deps.listTabs(session.browser),
-					);
+					rawOpenTabs = switched.openTabs;
 					logStateExtractionPhase({
 						stepNumber: input.stepNumber,
 						phase: "listTabs:autoSwitch:value",
@@ -603,7 +763,9 @@ async function createPromptForStepImpl(
 					);
 					openTabs = visibleTabs(rawOpenTabs);
 					newlyOpenedTabs = visibleTabs(rawNewlyOpenedTabs);
-					autoTabSwitchNote = "Auto-switched to first newly opened tab.";
+					if (!switched.recovered) {
+						autoTabSwitchNote = "Auto-switched to first newly opened tab.";
+					}
 				}
 			},
 		);
@@ -1017,7 +1179,11 @@ export async function browse(
 	const openTabs = visibleTabs(rawOpenTabs);
 	let currentUrlBeforeActions = "";
 	try {
-		currentUrlBeforeActions = await deps.getCurrentURL(session.browser);
+		currentUrlBeforeActions = await getCurrentURLWithAutoSwitchRecovery({
+			deps,
+			session,
+			contextMessages: additionalInteractionErrors,
+		});
 	} catch {
 		currentUrlBeforeActions = "";
 	}
@@ -1118,7 +1284,11 @@ export async function browse(
 	session.previousToolObservations = execution.toolObservations ?? [];
 	let currentUrl = "";
 	try {
-		currentUrl = await deps.getCurrentURL(session.browser);
+		currentUrl = await getCurrentURLWithAutoSwitchRecovery({
+			deps,
+			session,
+			contextMessages: additionalInteractionErrors,
+		});
 	} catch (error) {
 		additionalInteractionErrors.push(
 			`context(current_url): ${toErrorMessage(error)}`,
@@ -1151,15 +1321,21 @@ export async function browse(
 		const firstNewTab = firstMeaningfulNewTab(newlyOpenedTabs);
 		if (firstNewTab) {
 			const currentTabTargetId =
-				nextOpenTabs.find((tab) => tab.url === currentUrl)?.targetId ??
-				session.browser.currentTargetId;
+				session.browser.currentTargetId ??
+				nextOpenTabs.find((tab) => tab.url === currentUrl)?.targetId;
 			if (currentTabTargetId !== firstNewTab.targetId) {
 				console.log(
 					`Auto-switching to first newly opened tab after actions: "${deps.formatTabTitle(firstNewTab)}"`,
 				);
-				await deps.switchTab(session.browser, firstNewTab.targetId);
-				currentUrl = await deps.getCurrentURL(session.browser);
-				nextRawOpenTabs = await deps.listTabs(session.browser);
+				const switched = await switchToNewTabWithRecovery({
+					deps,
+					session,
+					sourceTargetId: currentTabTargetId,
+					candidateTargetId: firstNewTab.targetId,
+					contextMessages: additionalInteractionErrors,
+				});
+				currentUrl = switched.currentUrl;
+				nextRawOpenTabs = switched.openTabs;
 				rawNewlyOpenedTabs = deps.getNewlyOpenedTabs(
 					session.previousStepTabs,
 					nextRawOpenTabs,

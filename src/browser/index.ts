@@ -21,7 +21,7 @@ export {
 	dropdownSelect,
 	click,
 	longPress,
-	clickAndAutoUploadIfFileChooser,
+	clickWithFileChooserGuard,
 	scroll,
 	pasteFile,
 	uploadFiles,
@@ -62,6 +62,7 @@ export {
 } from "./simplify-dom.js";
 export { getSemanticProjection } from "./semantic-projection.js";
 export type { SemanticProjectionOptions } from "./semantic-projection.js";
+export type { UploadFilesResult } from "./interaction/upload.js";
 export {
 	minifySimplifiedDOM,
 	unminifySimplifiedDOM,

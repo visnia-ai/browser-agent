@@ -33,9 +33,10 @@ export { scroll } from "./interaction/scroll.js";
 export { type } from "./interaction/type.js";
 export { pasteFile } from "./interaction/paste-file.js";
 export {
-	clickAndAutoUploadIfFileChooser,
+	clickWithFileChooserGuard,
 	uploadFiles,
 } from "./interaction/upload.js";
+export type { UploadFilesResult } from "./interaction/upload.js";
 export {
 	assertPasswordInputRef,
 	ensureCheckboxChecked,
