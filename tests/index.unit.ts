@@ -585,4 +585,92 @@ describe("index main", () => {
 		assert.deepEqual(takeoverTaskIds.sort(), ["task-1", "task-3"]);
 		assert.deepEqual(resultTaskIds.sort(), ["task-1", "task-3"]);
 	});
+
+	it("reuses a disposable seeded profile within a run and removes it afterward", async () => {
+		const root = fs.mkdtempSync(
+			path.join(os.tmpdir(), "browser-agent-main-profile-cleanup-"),
+		);
+		const seedDir = path.join(root, "seed");
+		const workerRoot = path.join(root, "workers");
+		fs.mkdirSync(seedDir, { recursive: true });
+		fs.writeFileSync(path.join(seedDir, "Preferences"), "seed", "utf-8");
+		const config = createConfig({
+			concurrency: 1,
+			tasks: [{ task: "first task" }, { task: "second task" }],
+			stepMessagesJsonlPath: path.join(root, "artifacts", "steps.jsonl"),
+			browserProfiles: {
+				mode: "seeded",
+				seedUserDataDir: seedDir,
+				perWorkerUserDataRoot: workerRoot,
+				reuseExistingWorkerProfiles: false,
+			},
+		});
+		const observedProfileDirs: string[] = [];
+
+		try {
+			await main(
+				["node", "src/index.ts", "pipeline"],
+				() => config,
+				async (input) => {
+					const userDataDir = input.browserLaunch.userDataDir;
+					assert.isString(userDataDir);
+					assert.isTrue(fs.existsSync(userDataDir!));
+					observedProfileDirs.push(userDataDir!);
+					return {
+						failedRuns: [],
+						runtimeFailedRuns: [],
+						terminalFailedRuns: [],
+						runs: [],
+					} satisfies RunTaskResult;
+				},
+			);
+
+			assert.lengthOf(observedProfileDirs, 2);
+			assert.strictEqual(observedProfileDirs[0], observedProfileDirs[1]);
+			assert.isFalse(fs.existsSync(observedProfileDirs[0]!));
+			assert.isTrue(fs.existsSync(seedDir));
+			assert.isTrue(fs.existsSync(workerRoot));
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("removes a disposable seeded profile when a worker run throws", async () => {
+		const root = fs.mkdtempSync(
+			path.join(os.tmpdir(), "browser-agent-main-profile-failure-"),
+		);
+		const seedDir = path.join(root, "seed");
+		const workerRoot = path.join(root, "workers");
+		fs.mkdirSync(seedDir, { recursive: true });
+		fs.writeFileSync(path.join(seedDir, "Preferences"), "seed", "utf-8");
+		const config = createConfig({
+			stepMessagesJsonlPath: path.join(root, "artifacts", "steps.jsonl"),
+			browserProfiles: {
+				mode: "seeded",
+				seedUserDataDir: seedDir,
+				perWorkerUserDataRoot: workerRoot,
+				reuseExistingWorkerProfiles: false,
+			},
+		});
+		let observedProfileDir: string | undefined;
+
+		try {
+			await main(
+				["node", "src/index.ts", "pipeline"],
+				() => config,
+				async (input) => {
+					observedProfileDir = input.browserLaunch.userDataDir;
+					assert.isString(observedProfileDir);
+					assert.isTrue(fs.existsSync(observedProfileDir!));
+					throw new Error("fixture worker failure");
+				},
+			);
+
+			assert.isString(observedProfileDir);
+			assert.isFalse(fs.existsSync(observedProfileDir!));
+			assert.isTrue(fs.existsSync(seedDir));
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
+	});
 });

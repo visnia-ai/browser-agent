@@ -22,7 +22,10 @@ import type {
 	TokenUsageTotals,
 } from "./core/types.js";
 import { createAuthCredentialCallbacksFromInput } from "./auth/crypto.js";
-import { prepareWorkerUserDataDirs } from "./browser/profile.js";
+import {
+	cleanupWorkerUserDataDirs,
+	prepareWorkerUserDataDirs,
+} from "./browser/profile.js";
 import {
 	installTaskLogConsoleTee,
 	resetTaskLogsDir,
@@ -386,12 +389,6 @@ export async function main(
 	}
 
 	const activeWorkerCount = Math.min(concurrency, tasksToRun.length);
-	const workerUserDataDirs = prepareWorkerUserDataDirs({
-		browserProfiles,
-		workers: Array.from({ length: activeWorkerCount }, (_, slot) => ({
-			workerId: slot + 1,
-		})),
-	});
 	const taskDebugPortAllocator = createTaskDebugPortAllocator();
 
 	const stageOptions = stageLLMs;
@@ -500,7 +497,13 @@ export async function main(
 		return path.join(parsed.dir, `${parsed.name}${suffix}${ext}`);
 	}
 
-	await Promise.all(
+	const workerUserDataDirs = prepareWorkerUserDataDirs({
+		browserProfiles,
+		workers: Array.from({ length: activeWorkerCount }, (_, slot) => ({
+			workerId: slot + 1,
+		})),
+	});
+	const workersPromise = Promise.all(
 		tasksToRun.map(({ taskEntry, configIndex }) =>
 			limit(async () => {
 				const slot = await acquireSlot();
@@ -608,4 +611,31 @@ export async function main(
 			}),
 		),
 	);
+	let workerRunFailed = false;
+	try {
+		await workersPromise;
+	} catch (error) {
+		workerRunFailed = true;
+		throw error;
+	} finally {
+		const cleanup = cleanupWorkerUserDataDirs({
+			browserProfiles,
+			workerUserDataDirs,
+		});
+		if (cleanup.removedDirectories.length > 0) {
+			console.log(
+				`Browser profiles: cleaned ${cleanup.removedDirectories.length} disposable worker profile(s).`,
+			);
+		}
+		if (cleanup.failures.length > 0) {
+			const message = `Browser profile cleanup failed: ${cleanup.failures
+				.map((failure) => `${failure.directory}: ${failure.error}`)
+				.join("; ")}`;
+			if (workerRunFailed) {
+				console.error(message);
+			} else {
+				throw new Error(message);
+			}
+		}
+	}
 }
