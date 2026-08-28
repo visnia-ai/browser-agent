@@ -197,6 +197,16 @@ export async function resolveCurrentTabIndex(params: {
 }): Promise<number> {
 	if (params.openTabs.length === 0) return 0;
 
+	// The Browser connection tracks the exact target whose Page/Runtime domains
+	// are currently installed. Chrome can report more than one page as attached,
+	// so selecting the first attached target may identify an inactive tab.
+	if (params.b.currentTargetId) {
+		const index = params.openTabs.findIndex(
+			(tab) => tab.targetId === params.b.currentTargetId,
+		);
+		if (index >= 0) return index;
+	}
+
 	try {
 		const targetResponse = (await params.b.Target.getTargets()) as {
 			targetInfos?: Array<{
